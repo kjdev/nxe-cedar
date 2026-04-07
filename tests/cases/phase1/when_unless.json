@@ -1,0 +1,79 @@
+{
+    "description": "when/unless 条件のテスト",
+    "phase": 1,
+    "tests": [
+        {
+            "name": "when_true_allows",
+            "description": "when 条件が真の場合にポリシーが該当",
+            "policy": "permit (principal, action, resource) when { principal.role == \"admin\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "admin"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "when_false_denies",
+            "description": "when 条件が偽の場合にポリシーは該当しない",
+            "policy": "permit (principal, action, resource) when { principal.role == \"admin\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "viewer"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "unless_false_allows",
+            "description": "unless 条件が偽の場合にポリシーが該当",
+            "policy": "permit (principal, action, resource) unless { principal.role == \"guest\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "admin"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "unless_true_denies",
+            "description": "unless 条件が真の場合にポリシーは該当しない",
+            "policy": "permit (principal, action, resource) unless { principal.role == \"guest\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "guest"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "multiple_when_all_must_match",
+            "description": "複数の when 条件は全て真でなければならない（AND 結合）",
+            "policy": "permit (principal, action, resource) when { principal.role == \"admin\" } when { principal.tenant == \"acme\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "admin", "tenant": "acme"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "tenant_isolation",
+            "description": "マルチテナント境界の強制",
+            "policy": "forbid (principal, action, resource) unless { resource.tenant == principal.tenant };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"tenant": "acme"},
+                "resource_attrs": {"tenant": "other"}
+            },
+            "expected": "deny"
+        }
+    ]
+}

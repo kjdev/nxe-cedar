@@ -1,0 +1,66 @@
+{
+    "description": "論理演算子のテスト",
+    "phase": 1,
+    "tests": [
+        {
+            "name": "and_both_true",
+            "description": "&& の両辺が真の場合",
+            "policy": "permit (principal, action, resource) when { principal.role == \"admin\" && principal.active == \"true\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "admin", "active": "true"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "and_one_false",
+            "description": "&& の片方が偽の場合",
+            "policy": "permit (principal, action, resource) when { principal.role == \"admin\" && principal.active == \"true\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "admin", "active": "false"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "or_one_true",
+            "description": "|| の片方が真の場合",
+            "policy": "permit (principal, action, resource) when { principal.role == \"admin\" || principal.role == \"editor\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "editor"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "not_true",
+            "description": "! 演算子（否定）",
+            "policy": "permit (principal, action, resource) when { !(principal.role == \"guest\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "admin"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ne_operator",
+            "description": "!= 演算子",
+            "policy": "permit (principal, action, resource) when { principal.role != \"guest\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "admin"}
+            },
+            "expected": "allow"
+        }
+    ]
+}

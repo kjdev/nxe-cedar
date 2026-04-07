@@ -1,0 +1,72 @@
+{
+    "description": "スコープ制約（==）のテスト",
+    "phase": 1,
+    "tests": [
+        {
+            "name": "principal_eq_match",
+            "description": "principal == で一致する場合は許可",
+            "policy": "permit (principal == User::\"alice\", action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "principal_eq_no_match",
+            "description": "principal == で一致しない場合は拒否",
+            "policy": "permit (principal == User::\"bob\", action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "action_eq_match",
+            "description": "action == で一致する場合は許可",
+            "policy": "permit (principal, action == Action::\"GET\", resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "action_eq_no_match",
+            "description": "action == で一致しない場合は拒否",
+            "policy": "permit (principal, action == Action::\"POST\", resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "resource_eq_match",
+            "description": "resource == で一致する場合は許可",
+            "policy": "permit (principal, action, resource == Endpoint::\"/api/data\");",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "all_scope_constraints",
+            "description": "全スコープ制約が一致する場合のみ許可",
+            "policy": "permit (principal == User::\"alice\", action == Action::\"GET\", resource == Endpoint::\"/api/data\");",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        }
+    ]
+}

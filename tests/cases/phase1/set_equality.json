@@ -1,0 +1,72 @@
+{
+    "description": "set equality is order-insensitive per Cedar semantics",
+    "phase": 1,
+    "tests": [
+        {
+            "name": "set_eq_same_order",
+            "description": "set equality with identical order returns true",
+            "policy": "permit (principal, action, resource) when { [Action::\"GET\", Action::\"POST\"] == [Action::\"GET\", Action::\"POST\"] };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "set_eq_different_order",
+            "description": "set equality with different element order returns true",
+            "policy": "permit (principal, action, resource) when { [Action::\"POST\", Action::\"GET\"] == [Action::\"GET\", Action::\"POST\"] };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "set_ne_different_elements",
+            "description": "set equality with different elements returns false",
+            "policy": "permit (principal, action, resource) when { [Action::\"GET\", Action::\"POST\"] == [Action::\"GET\", Action::\"DELETE\"] };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "set_ne_different_size",
+            "description": "set equality with different sizes returns false",
+            "policy": "permit (principal, action, resource) when { [Action::\"GET\"] == [Action::\"GET\", Action::\"POST\"] };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "set_eq_single_element",
+            "description": "set equality with single element",
+            "policy": "permit (principal, action, resource) when { [Action::\"GET\"] == [Action::\"GET\"] };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "set_eq_empty",
+            "description": "empty set equality",
+            "policy": "permit (principal, action, resource) when { [] == [] };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/data"}
+            },
+            "expected": "allow"
+        }
+    ]
+}

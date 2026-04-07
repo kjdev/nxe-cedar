@@ -1,0 +1,28 @@
+{
+    "description": "デフォルト拒否のテスト",
+    "phase": 1,
+    "tests": [
+        {
+            "name": "empty_policy_denies",
+            "description": "空のポリシーセットはデフォルト拒否",
+            "policy": "",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "no_matching_policy_denies",
+            "description": "どのポリシーにも該当しない場合は拒否",
+            "policy": "permit (principal == User::\"bob\", action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        }
+    ]
+}

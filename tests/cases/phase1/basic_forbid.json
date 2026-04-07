@@ -1,0 +1,39 @@
+{
+    "description": "基本的な forbid ポリシーのテスト",
+    "phase": 1,
+    "tests": [
+        {
+            "name": "unconditional_forbid_denies",
+            "description": "制約なしの forbid は全リクエストを拒否",
+            "policy": "forbid (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "forbid_overrides_permit",
+            "description": "forbid は permit より優先される（forbid 優先評価）",
+            "policy": "permit (principal, action, resource);\nforbid (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "forbid_specific_overrides_general_permit",
+            "description": "特定ユーザーへの forbid が一般的な permit を上書き",
+            "policy": "permit (principal, action, resource);\nforbid (principal == User::\"alice\", action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        }
+    ]
+}

@@ -1,0 +1,28 @@
+{
+    "description": "基本的な permit ポリシーのテスト",
+    "phase": 1,
+    "tests": [
+        {
+            "name": "unconditional_permit_allows",
+            "description": "制約なしの permit は全リクエストを許可",
+            "policy": "permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "multiple_permits",
+            "description": "複数の permit ポリシーが存在し、いずれか一つが該当すれば許可",
+            "policy": "permit (principal == User::\"bob\", action, resource);\npermit (principal == User::\"alice\", action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        }
+    ]
+}
