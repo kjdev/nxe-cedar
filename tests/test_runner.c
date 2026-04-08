@@ -200,6 +200,8 @@ run_test_file(const char *path, int max_phase, test_stats_t *stats)
             expected = 1;
         } else if (strcmp(expected_str, "deny") == 0) {
             expected = 0;
+        } else if (strcmp(expected_str, "error") == 0) {
+            expected = -1;
         } else {
             fprintf(stderr, "  SKIP: invalid expected value: %s (%s)\n",
                     expected_str, test_name);

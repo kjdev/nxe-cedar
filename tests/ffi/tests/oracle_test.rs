@@ -37,6 +37,7 @@ extern "C" {
 
 #[derive(Debug, Deserialize)]
 struct TestFile {
+    #[allow(dead_code)]
     description: String,
     phase: u32,
     tests: Vec<TestCase>,
@@ -45,6 +46,7 @@ struct TestFile {
 #[derive(Debug, Deserialize)]
 struct TestCase {
     name: String,
+    #[allow(dead_code)]
     description: String,
     policy: String,
     request: serde_json::Value,
@@ -120,6 +122,14 @@ fn collect_test_files(dir: &PathBuf) -> Vec<PathBuf> {
     files
 }
 
+/// Extract label from test file path: .../cases/phase1/basic_permit.json -> phase1/basic_permit
+fn extract_label(path: &PathBuf) -> String {
+    let s = path.to_string_lossy();
+    let start = s.find("cases/").map(|i| i + 6).unwrap_or(0);
+    let end = s.rfind('.').unwrap_or(s.len());
+    s[start..end].to_string()
+}
+
 /// Oracle unit test: verify Rust Cedar result matches expected
 #[test]
 fn oracle_validation() {
@@ -132,6 +142,9 @@ fn oracle_validation() {
         "no test case files found in {}",
         dir.display()
     );
+
+    eprintln!();
+    eprintln!("--- oracle validation (rust cedar vs expected) ---");
 
     let mut total = 0;
     let mut passed = 0;
@@ -146,6 +159,8 @@ fn oracle_validation() {
         if test_file.phase > max_phase {
             continue;
         }
+
+        let label = extract_label(file);
 
         for tc in &test_file.tests {
             total += 1;
@@ -163,18 +178,16 @@ fn oracle_validation() {
 
             assert_eq!(
                 oracle_result, expected,
-                "\n[ORACLE FAIL] {}: {}\n  file: {}\n  policy: {}\n  expected: {} ({})\n  got: {} ({})\n  desc: {}",
-                test_file.description,
+                "\n{label} :: {} ... FAILED\n  expected {}, got {}\n  file: {}\n  policy: {}\n  desc: {}",
                 tc.name,
+                tc.expected,
+                result_to_str(oracle_result),
                 file.display(),
                 tc.policy,
-                tc.expected,
-                expected,
-                result_to_str(oracle_result),
-                oracle_result,
                 tc.description,
             );
 
+            eprintln!("  {label} :: {} ... ok", tc.name);
             passed += 1;
         }
     }
@@ -186,22 +199,15 @@ fn oracle_validation() {
         dir.display()
     );
 
-    eprintln!("[oracle] {passed}/{total} tests passed");
+    eprintln!("{passed} passed, {} failed", total - passed);
 }
 
 /// C implementation vs oracle comparison test
 ///
-/// Only runs when C implementation is ready.
-/// Enable: NXE_CEDAR_IMPL_READY=1 cargo test
+/// Ignored by default; run with: cargo test -- --include-ignored
 #[test]
+#[ignore]
 fn c_vs_oracle() {
-    if env::var("NXE_CEDAR_IMPL_READY").unwrap_or_default() != "1" {
-        eprintln!(
-            "[c_vs_oracle] skipped: set NXE_CEDAR_IMPL_READY=1 to enable"
-        );
-        return;
-    }
-
     let dir = test_cases_dir();
     let max_phase = max_phase();
     let files = collect_test_files(&dir);
@@ -211,6 +217,9 @@ fn c_vs_oracle() {
         "no test case files found in {}",
         dir.display()
     );
+
+    eprintln!();
+    eprintln!("--- c vs oracle (c implementation vs rust cedar) ---");
 
     let mut total = 0;
     let mut passed = 0;
@@ -223,6 +232,8 @@ fn c_vs_oracle() {
         if test_file.phase > max_phase {
             continue;
         }
+
+        let label = extract_label(file);
 
         for tc in &test_file.tests {
             total += 1;
@@ -253,8 +264,7 @@ fn c_vs_oracle() {
             if c_result == -1 {
                 let err = get_c_error();
                 panic!(
-                    "\n{}: {} ... FAILED\n  oracle: {}, c_impl: error ({err})\n  file: {}\n  policy: {}\n  desc: {}",
-                    test_file.description,
+                    "\n{label} :: {} ... FAILED\n  oracle: {}, c_impl: error ({err})\n  file: {}\n  policy: {}\n  desc: {}",
                     tc.name,
                     result_to_str(oracle_result),
                     file.display(),
@@ -265,18 +275,16 @@ fn c_vs_oracle() {
 
             assert_eq!(
                 c_result, oracle_result,
-                "\n[C vs ORACLE MISMATCH] {}: {}\n  file: {}\n  policy: {}\n  oracle: {} ({})\n  c_impl: {} ({})\n  desc: {}",
-                test_file.description,
+                "\n{label} :: {} ... FAILED\n  oracle: {}, c_impl: {}\n  file: {}\n  policy: {}\n  desc: {}",
                 tc.name,
+                result_to_str(oracle_result),
+                result_to_str(c_result),
                 file.display(),
                 tc.policy,
-                result_to_str(oracle_result),
-                oracle_result,
-                result_to_str(c_result),
-                c_result,
                 tc.description,
             );
 
+            eprintln!("  {label} :: {} ... ok", tc.name);
             passed += 1;
         }
     }
@@ -288,7 +296,10 @@ fn c_vs_oracle() {
         dir.display()
     );
 
-    eprintln!(
-        "[c_vs_oracle] {passed}/{total} tests passed ({skipped} skipped)"
-    );
+    let failed = total - passed - skipped;
+    eprint!("{passed} passed, {failed} failed");
+    if skipped > 0 {
+        eprint!(", {skipped} skipped");
+    }
+    eprintln!();
 }
