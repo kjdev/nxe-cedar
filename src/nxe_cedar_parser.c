@@ -496,7 +496,19 @@ nxe_cedar_parse_unary_expr(nxe_cedar_parser_ctx_t *ctx)
     if (ctx->current.type == NXE_CEDAR_TOKEN_NOT) {
         nxe_cedar_parser_advance(ctx);
 
+        ctx->depth++;
+
+        if (ctx->depth > NXE_CEDAR_MAX_PARSE_DEPTH) {
+            ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                          "nxe_cedar_parse: expression too deeply nested");
+            ctx->error = 1;
+            ctx->depth--;
+            return NULL;
+        }
+
         operand = nxe_cedar_parse_unary_expr(ctx);
+        ctx->depth--;
+
         if (ctx->error) {
             return NULL;
         }

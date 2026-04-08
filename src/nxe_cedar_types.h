@@ -277,6 +277,7 @@ typedef struct {
     /* action */
     ngx_str_t    action_type;
     ngx_str_t    action_id;
+    ngx_array_t *action_attrs;              /* array of nxe_cedar_attr_t */
 
     /* resource */
     ngx_str_t    resource_type;
