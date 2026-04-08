@@ -1,0 +1,62 @@
+{
+    "description": "expression evaluator edge cases for error paths",
+    "phase": 1,
+    "tests": [
+        {
+            "name": "entity_in_single_entity_match",
+            "description": "principal in single entity reference (degrades to ==)",
+            "policy": "permit (principal, action, resource) when { principal in User::\"alice\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "entity_in_single_entity_no_match",
+            "description": "principal in single entity reference that does not match",
+            "policy": "permit (principal, action, resource) when { principal in User::\"bob\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "action_attr_access_error",
+            "description": "attribute access on action produces error and denies",
+            "policy": "permit (principal, action, resource) when { action.name == \"GET\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "context_as_entity_error",
+            "description": "context used as standalone entity produces error and denies",
+            "policy": "permit (principal, action, resource) when { context == User::\"alice\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"role": "admin"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "in_with_set_match_from_when",
+            "description": "set membership check with entity values in when clause",
+            "policy": "permit (principal, action, resource) when { principal in [User::\"alice\", User::\"bob\", User::\"charlie\"] };",
+            "request": {
+                "principal": {"type": "User", "id": "charlie"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        }
+    ]
+}

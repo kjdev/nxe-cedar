@@ -1,0 +1,73 @@
+{
+  "description": "Multiple policy evaluation and forbid-priority",
+  "phase": 1,
+  "tests": [
+    {
+      "name": "forbid_overrides_permit",
+      "description": "Forbid takes priority over permit when both match",
+      "policy": "permit (principal, action, resource);\nforbid (principal, action, resource);",
+      "request": {
+        "principal": {"type": "User", "id": "alice"},
+        "action": {"type": "Action", "id": "GET"},
+        "resource": {"type": "Endpoint", "id": "/api"}
+      },
+      "expected": "deny"
+    },
+    {
+      "name": "permit_before_forbid_still_denied",
+      "description": "Order does not matter - forbid always wins",
+      "policy": "permit (principal, action, resource);\nforbid (principal == User::\"alice\", action, resource);",
+      "request": {
+        "principal": {"type": "User", "id": "alice"},
+        "action": {"type": "Action", "id": "GET"},
+        "resource": {"type": "Endpoint", "id": "/api"}
+      },
+      "expected": "deny"
+    },
+    {
+      "name": "multiple_permits_one_matches",
+      "description": "Only one permit needs to match for allow",
+      "policy": "permit (principal == User::\"bob\", action, resource);\npermit (principal == User::\"alice\", action, resource);",
+      "request": {
+        "principal": {"type": "User", "id": "alice"},
+        "action": {"type": "Action", "id": "GET"},
+        "resource": {"type": "Endpoint", "id": "/api"}
+      },
+      "expected": "allow"
+    },
+    {
+      "name": "forbid_non_matching_allows_permit",
+      "description": "Non-matching forbid does not block matching permit",
+      "policy": "permit (principal, action, resource);\nforbid (principal == User::\"bob\", action, resource);",
+      "request": {
+        "principal": {"type": "User", "id": "alice"},
+        "action": {"type": "Action", "id": "GET"},
+        "resource": {"type": "Endpoint", "id": "/api"}
+      },
+      "expected": "allow"
+    },
+    {
+      "name": "no_matching_policies_deny",
+      "description": "No matching policies results in default deny",
+      "policy": "permit (principal == User::\"bob\", action, resource);",
+      "request": {
+        "principal": {"type": "User", "id": "alice"},
+        "action": {"type": "Action", "id": "GET"},
+        "resource": {"type": "Endpoint", "id": "/api"}
+      },
+      "expected": "deny"
+    },
+    {
+      "name": "conditional_forbid_overrides",
+      "description": "Conditional forbid with matching condition overrides permit",
+      "policy": "permit (principal, action, resource);\nforbid (principal, action, resource) when { context.blocked == true };",
+      "request": {
+        "principal": {"type": "User", "id": "alice"},
+        "action": {"type": "Action", "id": "GET"},
+        "resource": {"type": "Endpoint", "id": "/api"},
+        "context": {"blocked": true}
+      },
+      "expected": "deny"
+    }
+  ]
+}

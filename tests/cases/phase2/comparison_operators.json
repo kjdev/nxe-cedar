@@ -1,0 +1,126 @@
+{
+    "description": "comparison operators (<, >, <=, >=) for integer values",
+    "phase": 2,
+    "tests": [
+        {
+            "name": "greater_than_true",
+            "description": "context.age > 18 should allow when age is 25",
+            "policy": "permit (principal, action, resource) when { context.age > 18 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"age": 25}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "greater_than_false",
+            "description": "context.age > 30 should deny when age is 25",
+            "policy": "permit (principal, action, resource) when { context.age > 30 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"age": 25}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "less_than_true",
+            "description": "context.age < 30 should allow when age is 25",
+            "policy": "permit (principal, action, resource) when { context.age < 30 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"age": 25}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "less_than_false",
+            "description": "context.age < 18 should deny when age is 25",
+            "policy": "permit (principal, action, resource) when { context.age < 18 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"age": 25}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "greater_equal_true_boundary",
+            "description": "context.score >= 80 should allow when score is exactly 80",
+            "policy": "permit (principal, action, resource) when { context.score >= 80 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"score": 80}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "greater_equal_false",
+            "description": "context.score >= 80 should deny when score is 79",
+            "policy": "permit (principal, action, resource) when { context.score >= 80 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"score": 79}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "less_equal_true_boundary",
+            "description": "context.level <= 5 should allow when level is exactly 5",
+            "policy": "permit (principal, action, resource) when { context.level <= 5 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"level": 5}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "less_equal_false",
+            "description": "context.level <= 5 should deny when level is 6",
+            "policy": "permit (principal, action, resource) when { context.level <= 5 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"level": 6}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "comparison_type_mismatch_denies",
+            "description": "comparing string with > should produce error and deny",
+            "policy": "permit (principal, action, resource) when { context.name > 10 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"name": "alice"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "comparison_in_forbid",
+            "description": "forbid with comparison operator overrides permit",
+            "policy": "permit (principal, action, resource);\nforbid (principal, action, resource) when { context.risk_score > 80 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"risk_score": 95}
+            },
+            "expected": "deny"
+        }
+    ]
+}

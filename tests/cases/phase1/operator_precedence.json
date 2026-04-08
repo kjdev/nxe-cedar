@@ -1,0 +1,65 @@
+{
+  "description": "Operator precedence and grouping",
+  "phase": 1,
+  "tests": [
+    {
+      "name": "and_binds_tighter_than_or_true",
+      "description": "a || b && c parses as a || (b && c); a=true makes whole expr true",
+      "policy": "permit (principal, action, resource) when { context.a == true || context.b == true && context.c == true };",
+      "request": {
+        "principal": {"type": "User", "id": "alice"},
+        "action": {"type": "Action", "id": "GET"},
+        "resource": {"type": "Endpoint", "id": "/api"},
+        "context": {"a": true, "b": false, "c": false}
+      },
+      "expected": "allow"
+    },
+    {
+      "name": "and_binds_tighter_than_or_false",
+      "description": "a || b && c with a=false, b=true, c=false -> false || (true && false) -> false",
+      "policy": "permit (principal, action, resource) when { context.a == true || context.b == true && context.c == true };",
+      "request": {
+        "principal": {"type": "User", "id": "alice"},
+        "action": {"type": "Action", "id": "GET"},
+        "resource": {"type": "Endpoint", "id": "/api"},
+        "context": {"a": false, "b": true, "c": false}
+      },
+      "expected": "deny"
+    },
+    {
+      "name": "parentheses_override_precedence",
+      "description": "(a || b) && c groups differently from a || b && c",
+      "policy": "permit (principal, action, resource) when { (context.a == true || context.b == true) && context.c == true };",
+      "request": {
+        "principal": {"type": "User", "id": "alice"},
+        "action": {"type": "Action", "id": "GET"},
+        "resource": {"type": "Endpoint", "id": "/api"},
+        "context": {"a": true, "b": false, "c": false}
+      },
+      "expected": "deny"
+    },
+    {
+      "name": "not_with_and",
+      "description": "!a && b -> (!a) && b",
+      "policy": "permit (principal, action, resource) when { !context.blocked && context.active };",
+      "request": {
+        "principal": {"type": "User", "id": "alice"},
+        "action": {"type": "Action", "id": "GET"},
+        "resource": {"type": "Endpoint", "id": "/api"},
+        "context": {"blocked": false, "active": true}
+      },
+      "expected": "allow"
+    },
+    {
+      "name": "double_negation",
+      "description": "!!true evaluates to true",
+      "policy": "permit (principal, action, resource) when { !!true };",
+      "request": {
+        "principal": {"type": "User", "id": "alice"},
+        "action": {"type": "Action", "id": "GET"},
+        "resource": {"type": "Endpoint", "id": "/api"}
+      },
+      "expected": "allow"
+    }
+  ]
+}

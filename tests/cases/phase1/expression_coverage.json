@@ -1,0 +1,121 @@
+{
+    "description": "additional expression evaluator coverage tests",
+    "phase": 1,
+    "tests": [
+        {
+            "name": "and_short_circuit_false",
+            "description": "AND short-circuits when left side is false",
+            "policy": "permit (principal, action, resource) when { context.a == true && context.b == true };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"a": false, "b": true}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "or_short_circuit_true",
+            "description": "OR short-circuits when left side is true",
+            "policy": "permit (principal, action, resource) when { context.a == true || context.b == true };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"a": true, "b": false}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "set_evaluation_in_when",
+            "description": "set literal evaluated in when clause",
+            "policy": "permit (principal, action, resource) when { action in [Action::\"GET\", Action::\"POST\"] };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "set_evaluation_in_when_no_match",
+            "description": "set literal evaluated in when clause with no match",
+            "policy": "permit (principal, action, resource) when { action in [Action::\"PUT\", Action::\"DELETE\"] };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "entity_equality_in_when",
+            "description": "entity == entity comparison in when clause",
+            "policy": "permit (principal, action, resource) when { principal == User::\"alice\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "entity_equality_type_mismatch",
+            "description": "entity == entity with different types in when clause",
+            "policy": "permit (principal, action, resource) when { principal == Admin::\"alice\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "entity_ne_in_when",
+            "description": "entity != entity comparison in when clause",
+            "policy": "permit (principal, action, resource) when { principal != User::\"bob\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "not_with_non_boolean_denies",
+            "description": "negating a non-boolean expression produces error and denies",
+            "policy": "permit (principal, action, resource) when { !context.name };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"name": "alice"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "integer_literal_in_condition",
+            "description": "integer literal compared with integer context",
+            "policy": "permit (principal, action, resource) when { context.count == 42 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"count": 42}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "type_mismatch_eq_denies",
+            "description": "comparing string with integer using == produces error and denies",
+            "policy": "permit (principal, action, resource) when { context.name == 42 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"name": "alice"}
+            },
+            "expected": "deny"
+        }
+    ]
+}

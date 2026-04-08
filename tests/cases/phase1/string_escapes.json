@@ -1,0 +1,78 @@
+{
+    "description": "string literals with escape sequences",
+    "phase": 1,
+    "tests": [
+        {
+            "name": "escaped_double_quote",
+            "description": "string containing escaped double quote matches",
+            "policy": "permit (principal, action, resource) when { context.msg == \"say \\\"hello\\\"\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"msg": "say \"hello\""}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "escaped_backslash",
+            "description": "string containing escaped backslash matches",
+            "policy": "permit (principal, action, resource) when { context.path == \"C:\\\\Users\\\\alice\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"path": "C:\\Users\\alice"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "escaped_newline",
+            "description": "string containing escaped newline matches",
+            "policy": "permit (principal, action, resource) when { context.text == \"line1\\nline2\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"text": "line1\nline2"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "escaped_tab",
+            "description": "string containing escaped tab matches",
+            "policy": "permit (principal, action, resource) when { context.data == \"col1\\tcol2\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"data": "col1\tcol2"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "escaped_quote_no_match",
+            "description": "escaped string that does not match denies",
+            "policy": "permit (principal, action, resource) when { context.msg == \"say \\\"hello\\\"\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"msg": "say hello"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "invalid_escape_sequence",
+            "description": "unknown escape sequence causes parse error",
+            "policy": "permit (principal, action, resource) when { context.msg == \"test\\q\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"msg": "test"}
+            },
+            "expected": "error"
+        }
+    ]
+}

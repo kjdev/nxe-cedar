@@ -1,0 +1,61 @@
+{
+    "description": "multi-segment entity type names with :: separators",
+    "phase": 1,
+    "tests": [
+        {
+            "name": "two_segment_type_match",
+            "description": "principal with two-segment type Corp::Employee matches",
+            "policy": "permit (principal == Corp::Employee::\"alice\", action, resource);",
+            "request": {
+                "principal": {"type": "Corp::Employee", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "three_segment_type_match",
+            "description": "principal with three-segment type Corp::HR::Employee matches",
+            "policy": "permit (principal == Corp::HR::Employee::\"bob\", action, resource);",
+            "request": {
+                "principal": {"type": "Corp::HR::Employee", "id": "bob"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "two_segment_type_no_match",
+            "description": "principal with mismatched multi-segment type denies",
+            "policy": "permit (principal == Corp::Manager::\"alice\", action, resource);",
+            "request": {
+                "principal": {"type": "Corp::Employee", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "multipart_resource_type",
+            "description": "resource with multi-segment type matches",
+            "policy": "permit (principal, action, resource == App::API::Endpoint::\"/admin\");",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "App::API::Endpoint", "id": "/admin"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "multipart_action_in_set",
+            "description": "action with multi-segment type in set matches",
+            "policy": "permit (principal, action in [App::Action::\"read\", App::Action::\"list\"], resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "App::Action", "id": "read"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        }
+    ]
+}

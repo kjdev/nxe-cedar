@@ -1,0 +1,109 @@
+{
+  "description": "Edge cases for Phase 1 evaluation",
+  "phase": 1,
+  "tests": [
+    {
+      "name": "empty_policy_denies",
+      "description": "Empty policy text results in default deny (no policies)",
+      "policy": "",
+      "request": {
+        "principal": {"type": "User", "id": "alice"},
+        "action": {"type": "Action", "id": "GET"},
+        "resource": {"type": "Endpoint", "id": "/api"}
+      },
+      "expected": "deny"
+    },
+    {
+      "name": "comment_only_policy_denies",
+      "description": "Policy with only comments results in default deny",
+      "policy": "// this is a comment\n// another comment",
+      "request": {
+        "principal": {"type": "User", "id": "alice"},
+        "action": {"type": "Action", "id": "GET"},
+        "resource": {"type": "Endpoint", "id": "/api"}
+      },
+      "expected": "deny"
+    },
+    {
+      "name": "policy_with_comments",
+      "description": "Policy with inline comments evaluates correctly",
+      "policy": "// allow all\npermit (principal, action, resource);",
+      "request": {
+        "principal": {"type": "User", "id": "alice"},
+        "action": {"type": "Action", "id": "GET"},
+        "resource": {"type": "Endpoint", "id": "/api"}
+      },
+      "expected": "allow"
+    },
+    {
+      "name": "missing_attribute_denies",
+      "description": "Missing attribute causes error, making policy not applicable -> deny",
+      "policy": "permit (principal, action, resource) when { context.role == \"admin\" };",
+      "request": {
+        "principal": {"type": "User", "id": "alice"},
+        "action": {"type": "Action", "id": "GET"},
+        "resource": {"type": "Endpoint", "id": "/api"}
+      },
+      "expected": "deny"
+    },
+    {
+      "name": "empty_set_in_condition",
+      "description": "Entity in empty set in when clause evaluates to false",
+      "policy": "permit (principal, action, resource) when { principal in [] };",
+      "request": {
+        "principal": {"type": "User", "id": "alice"},
+        "action": {"type": "Action", "id": "GET"},
+        "resource": {"type": "Endpoint", "id": "/api"}
+      },
+      "expected": "deny"
+    },
+    {
+      "name": "empty_string_attribute",
+      "description": "Empty string attribute comparison works correctly",
+      "policy": "permit (principal, action, resource) when { context.tag == \"\" };",
+      "request": {
+        "principal": {"type": "User", "id": "alice"},
+        "action": {"type": "Action", "id": "GET"},
+        "resource": {"type": "Endpoint", "id": "/api"},
+        "context": {"tag": ""}
+      },
+      "expected": "allow"
+    },
+    {
+      "name": "boolean_context_true",
+      "description": "Boolean true context attribute in when clause",
+      "policy": "permit (principal, action, resource) when { context.active };",
+      "request": {
+        "principal": {"type": "User", "id": "alice"},
+        "action": {"type": "Action", "id": "GET"},
+        "resource": {"type": "Endpoint", "id": "/api"},
+        "context": {"active": true}
+      },
+      "expected": "allow"
+    },
+    {
+      "name": "boolean_context_false",
+      "description": "Boolean false context attribute in when clause denies",
+      "policy": "permit (principal, action, resource) when { context.active };",
+      "request": {
+        "principal": {"type": "User", "id": "alice"},
+        "action": {"type": "Action", "id": "GET"},
+        "resource": {"type": "Endpoint", "id": "/api"},
+        "context": {"active": false}
+      },
+      "expected": "deny"
+    },
+    {
+      "name": "integer_zero_comparison",
+      "description": "Integer zero comparison works correctly",
+      "policy": "permit (principal, action, resource) when { context.count == 0 };",
+      "request": {
+        "principal": {"type": "User", "id": "alice"},
+        "action": {"type": "Action", "id": "GET"},
+        "resource": {"type": "Endpoint", "id": "/api"},
+        "context": {"count": 0}
+      },
+      "expected": "allow"
+    }
+  ]
+}

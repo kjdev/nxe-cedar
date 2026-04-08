@@ -1,3 +1,5 @@
 /build/
 /tests/ffi/target/
 /tests/ffi/Cargo.lock
+/tests/test_runner
+/tests/test_runner_asan

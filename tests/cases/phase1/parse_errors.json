@@ -1,0 +1,62 @@
+{
+    "description": "parse error handling for malformed Cedar policies",
+    "phase": 1,
+    "tests": [
+        {
+            "name": "missing_semicolon",
+            "description": "policy without semicolon should fail to parse",
+            "policy": "permit (principal, action, resource)",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "unclosed_brace",
+            "description": "policy with unclosed brace should fail to parse",
+            "policy": "permit (principal, action, resource) when { context.ok == true ;",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"ok": true}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "unclosed_paren",
+            "description": "policy with unclosed parenthesis should fail to parse",
+            "policy": "permit (principal, action, resource;",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "invalid_keyword",
+            "description": "policy with invalid keyword should fail to parse",
+            "policy": "allow (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "empty_scope",
+            "description": "policy with empty scope should fail to parse",
+            "policy": "permit ();",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        }
+    ]
+}

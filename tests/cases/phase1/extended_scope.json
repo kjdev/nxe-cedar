@@ -1,0 +1,116 @@
+{
+    "description": "extended scope constraints and expression variable usage",
+    "phase": 1,
+    "tests": [
+        {
+            "name": "resource_in_set_match",
+            "description": "resource in set literal matches",
+            "policy": "permit (principal, action, resource in [Endpoint::\"/api/data\", Endpoint::\"/api/config\"]);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "resource_in_set_no_match",
+            "description": "resource not in set literal denies",
+            "policy": "permit (principal, action, resource in [Endpoint::\"/api/data\", Endpoint::\"/api/config\"]);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/secret"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "principal_in_set_match",
+            "description": "principal in set literal matches",
+            "policy": "permit (principal in [User::\"alice\", User::\"bob\"], action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "bob"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "principal_in_set_no_match",
+            "description": "principal not in set literal denies",
+            "policy": "permit (principal in [User::\"alice\", User::\"bob\"], action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "charlie"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "false_literal_in_when",
+            "description": "when clause with false literal always denies",
+            "policy": "permit (principal, action, resource) when { false };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "false_literal_in_unless",
+            "description": "unless clause with false literal always allows",
+            "policy": "permit (principal, action, resource) unless { false };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "action_variable_in_when",
+            "description": "action variable used in when condition",
+            "policy": "permit (principal, action, resource) when { action == Action::\"GET\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "action_variable_in_when_no_match",
+            "description": "action variable in when condition does not match",
+            "policy": "permit (principal, action, resource) when { action == Action::\"POST\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "resource_variable_in_when",
+            "description": "resource variable used in when condition",
+            "policy": "permit (principal, action, resource) when { resource == Endpoint::\"/api/data\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "resource_variable_in_when_no_match",
+            "description": "resource variable in when condition does not match",
+            "policy": "permit (principal, action, resource) when { resource == Endpoint::\"/admin\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        }
+    ]
+}
