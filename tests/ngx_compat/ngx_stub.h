@@ -27,6 +27,8 @@ typedef intptr_t ngx_flag_t;
 #define NGX_OK                      0
 #define NGX_ERROR                   (-1)
 
+#define NGX_MAX_INT_T_VALUE         INTPTR_MAX
+
 #ifndef NULL
 #define NULL                        ((void *) 0)
 #endif

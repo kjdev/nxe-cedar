@@ -179,6 +179,13 @@ fn oracle_validation() {
         }
     }
 
+    assert!(
+        total > 0,
+        "no test cases matched phase <= {} under {}",
+        max_phase,
+        dir.display()
+    );
+
     eprintln!("[oracle] {passed}/{total} tests passed");
 }
 
@@ -199,14 +206,15 @@ fn c_vs_oracle() {
     let max_phase = max_phase();
     let files = collect_test_files(&dir);
 
-    if files.is_empty() {
-        eprintln!("[c_vs_oracle] no test case files found, skipping");
-        return;
-    }
+    assert!(
+        !files.is_empty(),
+        "no test case files found in {}",
+        dir.display()
+    );
 
     let mut total = 0;
     let mut passed = 0;
-    let mut skipped = 0;
+    let skipped = 0;
 
     for file in &files {
         let content = fs::read_to_string(file).unwrap();
@@ -272,6 +280,13 @@ fn c_vs_oracle() {
             passed += 1;
         }
     }
+
+    assert!(
+        total > 0,
+        "no test cases matched phase <= {} under {}",
+        max_phase,
+        dir.display()
+    );
 
     eprintln!(
         "[c_vs_oracle] {passed}/{total} tests passed ({skipped} skipped)"
