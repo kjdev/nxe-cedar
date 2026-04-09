@@ -1,0 +1,22 @@
+# nxe-cedar/config.ngx — nginx build configuration
+#
+# Sourced by parent module's config file.
+# Prerequisite: $nxe_cedar_dir must be set by the caller.
+
+nxe_cedar_module_deps="\
+  $nxe_cedar_dir/src/nxe_cedar_types.h \
+  $nxe_cedar_dir/src/nxe_cedar_lexer.h \
+  $nxe_cedar_dir/src/nxe_cedar_parser.h \
+  $nxe_cedar_dir/src/nxe_cedar_expr.h \
+  $nxe_cedar_dir/src/nxe_cedar_eval.h \
+"
+nxe_cedar_module_srcs="\
+  $nxe_cedar_dir/src/nxe_cedar_lexer.c \
+  $nxe_cedar_dir/src/nxe_cedar_parser.c \
+  $nxe_cedar_dir/src/nxe_cedar_expr.c \
+  $nxe_cedar_dir/src/nxe_cedar_eval.c \
+"
+nxe_cedar_module_incs="\
+  $nxe_cedar_dir/src \
+"
+nxe_cedar_module_libs=""
