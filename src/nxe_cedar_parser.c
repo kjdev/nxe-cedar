@@ -662,7 +662,32 @@ nxe_cedar_parse_entity_or_set(nxe_cedar_parser_ctx_t *ctx)
 }
 
 
-/* parse scope: keyword [ (== | in) target ] */
+/* parse entity_ref only (no set literal) */
+static nxe_cedar_node_t *
+nxe_cedar_parse_entity_ref_target(nxe_cedar_parser_ctx_t *ctx)
+{
+    ngx_str_t ident;
+
+    if (ctx->current.type == NXE_CEDAR_TOKEN_IDENT) {
+        ident = ctx->current.value;
+        nxe_cedar_parser_advance(ctx);
+        return nxe_cedar_parse_entity_ref_with_ident(ctx, ident);
+    }
+
+    ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                  "nxe_cedar_parse: expected entity ref in scope");
+    ctx->error = 1;
+    return NULL;
+}
+
+
+/*
+ * parse scope: keyword [ (== | in) target ]
+ *
+ * Cedar spec: == always takes entity_ref.
+ * in takes entity_ref or set_literal, but set_literal
+ * is only valid for action scope.
+ */
 static ngx_int_t
 nxe_cedar_parse_scope(nxe_cedar_parser_ctx_t *ctx,
     nxe_cedar_token_type_t var_token, nxe_cedar_scope_t *scope)
@@ -675,16 +700,28 @@ nxe_cedar_parse_scope(nxe_cedar_parser_ctx_t *ctx,
         scope->constraint = NXE_CEDAR_SCOPE_EQ;
         nxe_cedar_parser_advance(ctx);
 
-        scope->target = nxe_cedar_parse_entity_or_set(ctx);
+        /* == always takes entity_ref only */
+        scope->target = nxe_cedar_parse_entity_ref_target(ctx);
         if (ctx->error) {
             return NGX_ERROR;
         }
 
     } else if (ctx->current.type == NXE_CEDAR_TOKEN_IN) {
+        /* 'in' requires entity hierarchy; only action scope supported */
+        if (var_token != NXE_CEDAR_TOKEN_ACTION) {
+            ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                          "nxe_cedar_parse: 'in' constraint not supported"
+                          " for principal/resource scope"
+                          " (entity hierarchy not implemented)");
+            ctx->error = 1;
+            return NGX_ERROR;
+        }
+
         scope->constraint = NXE_CEDAR_SCOPE_IN;
         nxe_cedar_parser_advance(ctx);
 
         scope->target = nxe_cedar_parse_entity_or_set(ctx);
+
         if (ctx->error) {
             return NGX_ERROR;
         }
