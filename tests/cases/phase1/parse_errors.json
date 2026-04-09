@@ -57,6 +57,17 @@
                 "resource": {"type": "Endpoint", "id": "/api/data"}
             },
             "expected": "error"
+        },
+        {
+            "name": "deeply_nested_not",
+            "description": "deeply nested ! operators should fail with depth limit",
+            "policy": "permit (principal, action, resource) when { !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!true };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
         }
     ]
 }

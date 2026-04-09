@@ -57,6 +57,7 @@ fn expected_to_int(expected: &str) -> i32 {
     match expected {
         "allow" => 1,
         "deny" => 0,
+        "error" => -1,
         _ => panic!("unknown expected value: {expected}"),
     }
 }

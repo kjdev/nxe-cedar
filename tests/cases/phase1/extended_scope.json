@@ -4,8 +4,8 @@
     "tests": [
         {
             "name": "resource_in_set_match",
-            "description": "resource in set literal matches",
-            "policy": "permit (principal, action, resource in [Endpoint::\"/api/data\", Endpoint::\"/api/config\"]);",
+            "description": "resource in set literal matches via when clause",
+            "policy": "permit (principal, action, resource) when { resource in [Endpoint::\"/api/data\", Endpoint::\"/api/config\"] };",
             "request": {
                 "principal": {"type": "User", "id": "alice"},
                 "action": {"type": "Action", "id": "GET"},
@@ -15,8 +15,8 @@
         },
         {
             "name": "resource_in_set_no_match",
-            "description": "resource not in set literal denies",
-            "policy": "permit (principal, action, resource in [Endpoint::\"/api/data\", Endpoint::\"/api/config\"]);",
+            "description": "resource not in set literal denies (via when clause)",
+            "policy": "permit (principal, action, resource) when { resource in [Endpoint::\"/api/data\", Endpoint::\"/api/config\"] };",
             "request": {
                 "principal": {"type": "User", "id": "alice"},
                 "action": {"type": "Action", "id": "GET"},
@@ -26,8 +26,8 @@
         },
         {
             "name": "principal_in_set_match",
-            "description": "principal in set literal matches",
-            "policy": "permit (principal in [User::\"alice\", User::\"bob\"], action, resource);",
+            "description": "principal in set literal matches via when clause",
+            "policy": "permit (principal, action, resource) when { principal in [User::\"alice\", User::\"bob\"] };",
             "request": {
                 "principal": {"type": "User", "id": "bob"},
                 "action": {"type": "Action", "id": "GET"},
@@ -37,8 +37,8 @@
         },
         {
             "name": "principal_in_set_no_match",
-            "description": "principal not in set literal denies",
-            "policy": "permit (principal in [User::\"alice\", User::\"bob\"], action, resource);",
+            "description": "principal not in set literal denies (via when clause)",
+            "policy": "permit (principal, action, resource) when { principal in [User::\"alice\", User::\"bob\"] };",
             "request": {
                 "principal": {"type": "User", "id": "charlie"},
                 "action": {"type": "Action", "id": "GET"},
