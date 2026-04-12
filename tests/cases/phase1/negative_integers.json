@@ -1,0 +1,66 @@
+{
+    "description": "negative integer literal support via unary minus operator",
+    "phase": 1,
+    "tests": [
+        {
+            "name": "negative_int_eq",
+            "description": "negative integer equality comparison",
+            "policy": "permit (principal, action, resource) when { context.val == -1 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/data"},
+                "context": {"val": -1}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "negative_int_ne",
+            "description": "negative integer not equal to positive",
+            "policy": "permit (principal, action, resource) when { context.val == -1 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/data"},
+                "context": {"val": 1}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "negative_int_ne_zero",
+            "description": "negative integer not equal to zero",
+            "policy": "permit (principal, action, resource) when { context.val == -1 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/data"},
+                "context": {"val": 0}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "negate_zero",
+            "description": "negation of zero equals zero",
+            "policy": "permit (principal, action, resource) when { context.val == -0 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/data"},
+                "context": {"val": 0}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "negative_int_large",
+            "description": "larger negative integer",
+            "policy": "permit (principal, action, resource) when { context.val == -9999 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/data"},
+                "context": {"val": -9999}
+            },
+            "expected": "allow"
+        }
+    ]
+}
