@@ -1,5 +1,12 @@
 # Changelog
 
+## [ce3e49e](../../commit/ce3e49e) - 2026-04-14
+
+### Added
+
+- Add unary minus operator (`-`) for negative integer literals (e.g., `context.val == -1`)
+- Restructure parser grammar to match Cedar spec operator precedence: `And → Relation → Unary → Member → Primary`
+
 ## [b36a754](../../commit/b36a754) - 2026-04-14
 
 ### Fixed
