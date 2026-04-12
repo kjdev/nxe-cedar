@@ -1,0 +1,56 @@
+name: test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+permissions: {}
+
+defaults:
+  run:
+    shell: sh
+
+jobs:
+  test:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up step
+        run: |
+          sudo apt-get update
+          sudo apt-get upgrade -y --no-install-recommends
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            ca-certificates \
+            cpanminus \
+            libjansson-dev
+        env:
+          DEBIAN_FRONTEND: noninteractive
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          set-safe-directory: true
+          token: ${{ github.token }}
+      - name: Test
+        run: |
+          make test
+        working-directory: tests
+      - name: Test ASan
+        run: |
+          make test-asan
+        working-directory: tests
+      - name: Test Coverage
+        run: |
+          make test-cov
+        working-directory: tests
+    timeout-minutes: 30
