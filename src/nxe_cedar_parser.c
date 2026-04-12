@@ -38,6 +38,8 @@ static nxe_cedar_node_t *nxe_cedar_parse_expr(
     nxe_cedar_parser_ctx_t *ctx);
 static nxe_cedar_node_t *nxe_cedar_parse_entity_ref_with_ident(
     nxe_cedar_parser_ctx_t *ctx, ngx_str_t first_ident);
+static nxe_cedar_node_t *nxe_cedar_parse_unary_expr(
+    nxe_cedar_parser_ctx_t *ctx);
 
 
 static void
@@ -107,6 +109,38 @@ nxe_cedar_parse_long(ngx_str_t *s, ngx_int_t *result)
         }
 
         val = val * 10 + digit;
+    }
+
+    *result = val;
+    return NGX_OK;
+}
+
+
+/*
+ * parse negative integer from ngx_str_t
+ * accumulates in negative domain to handle MIN_INT correctly
+ * returns NGX_ERROR on underflow (sets *result to 0)
+ */
+static ngx_int_t
+nxe_cedar_parse_neg_long(ngx_str_t *s, ngx_int_t *result)
+{
+    ngx_int_t val, digit;
+    ngx_int_t min_val;
+    size_t i;
+
+    min_val = -NGX_MAX_INT_T_VALUE - 1;
+    val = 0;
+
+    for (i = 0; i < s->len; i++) {
+        digit = s->data[i] - '0';
+
+        /* underflow check: val * 10 - digit < min_val */
+        if (val < (min_val + digit) / 10) {
+            *result = 0;
+            return NGX_ERROR;
+        }
+
+        val = val * 10 - digit;
     }
 
     *result = val;
@@ -437,14 +471,14 @@ nxe_cedar_parse_member_expr(nxe_cedar_parser_ctx_t *ctx)
 }
 
 
-/* parse relation expression: member { (== | != | in) member } */
+/* parse relation expression: unary { (== | != | in) unary } */
 static nxe_cedar_node_t *
 nxe_cedar_parse_relation_expr(nxe_cedar_parser_ctx_t *ctx)
 {
     nxe_cedar_node_t *left, *right, *binop;
     ngx_uint_t op;
 
-    left = nxe_cedar_parse_member_expr(ctx);
+    left = nxe_cedar_parse_unary_expr(ctx);
     if (ctx->error) {
         return NULL;
     }
@@ -469,7 +503,7 @@ nxe_cedar_parse_relation_expr(nxe_cedar_parser_ctx_t *ctx)
 
     nxe_cedar_parser_advance(ctx);
 
-    right = nxe_cedar_parse_member_expr(ctx);
+    right = nxe_cedar_parse_unary_expr(ctx);
     if (ctx->error) {
         return NULL;
     }
@@ -487,11 +521,62 @@ nxe_cedar_parse_relation_expr(nxe_cedar_parser_ctx_t *ctx)
 }
 
 
-/* parse unary expression: ! unary | relation */
+/* parse unary expression: [! | -] unary | relation */
 static nxe_cedar_node_t *
 nxe_cedar_parse_unary_expr(nxe_cedar_parser_ctx_t *ctx)
 {
     nxe_cedar_node_t *node, *operand;
+
+    if (ctx->current.type == NXE_CEDAR_TOKEN_NEGATE) {
+        nxe_cedar_parser_advance(ctx);
+
+        /* fold -literal into single negative LONG_LIT */
+        if (ctx->current.type == NXE_CEDAR_TOKEN_NUMBER) {
+            node = nxe_cedar_parser_alloc_node(ctx,
+                                               NXE_CEDAR_NODE_LONG_LIT);
+            if (node == NULL) {
+                return NULL;
+            }
+
+            if (nxe_cedar_parse_neg_long(&ctx->current.value,
+                                         &node->u.long_val) != NGX_OK)
+            {
+                ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                              "nxe_cedar_parse: integer overflow");
+                ctx->error = 1;
+                return NULL;
+            }
+
+            nxe_cedar_parser_advance(ctx);
+            return node;
+        }
+
+        /* non-literal operand: wrap in NEGATE node */
+        ctx->depth++;
+
+        if (ctx->depth > NXE_CEDAR_MAX_PARSE_DEPTH) {
+            ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                          "nxe_cedar_parse: expression too deeply nested");
+            ctx->error = 1;
+            ctx->depth--;
+            return NULL;
+        }
+
+        operand = nxe_cedar_parse_unary_expr(ctx);
+        ctx->depth--;
+
+        if (ctx->error) {
+            return NULL;
+        }
+
+        node = nxe_cedar_parser_alloc_node(ctx, NXE_CEDAR_NODE_NEGATE);
+        if (node == NULL) {
+            return NULL;
+        }
+
+        node->u.unop.operand = operand;
+        return node;
+    }
 
     if (ctx->current.type == NXE_CEDAR_TOKEN_NOT) {
         nxe_cedar_parser_advance(ctx);
@@ -522,18 +607,18 @@ nxe_cedar_parse_unary_expr(nxe_cedar_parser_ctx_t *ctx)
         return node;
     }
 
-    return nxe_cedar_parse_relation_expr(ctx);
+    return nxe_cedar_parse_member_expr(ctx);
 }
 
 
-/* parse and expression: unary { && unary } */
+/* parse and expression: relation { && relation } */
 static nxe_cedar_node_t *
 nxe_cedar_parse_and_expr(nxe_cedar_parser_ctx_t *ctx)
 {
     nxe_cedar_node_t *left, *right, *binop;
     ngx_uint_t chain;
 
-    left = nxe_cedar_parse_unary_expr(ctx);
+    left = nxe_cedar_parse_relation_expr(ctx);
     if (ctx->error) {
         return NULL;
     }
@@ -550,7 +635,7 @@ nxe_cedar_parse_and_expr(nxe_cedar_parser_ctx_t *ctx)
 
         nxe_cedar_parser_advance(ctx);
 
-        right = nxe_cedar_parse_unary_expr(ctx);
+        right = nxe_cedar_parse_relation_expr(ctx);
         if (ctx->error) {
             return NULL;
         }

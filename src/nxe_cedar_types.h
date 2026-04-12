@@ -51,6 +51,7 @@ typedef enum {
     NXE_CEDAR_TOKEN_AND,            /* && */
     NXE_CEDAR_TOKEN_OR,             /* || */
     NXE_CEDAR_TOKEN_NOT,            /* ! */
+    NXE_CEDAR_TOKEN_NEGATE,         /* - (unary) */
     NXE_CEDAR_TOKEN_LT,             /* <  (Phase 2) */
     NXE_CEDAR_TOKEN_GT,             /* >  (Phase 2) */
     NXE_CEDAR_TOKEN_LE,             /* <= (Phase 2) */
@@ -129,6 +130,7 @@ typedef enum {
     NXE_CEDAR_NODE_ATTR_ACCESS,     /* expr.ident */
     NXE_CEDAR_NODE_BINOP,           /* ==, !=, <, >, <=, >=, &&, ||, in */
     NXE_CEDAR_NODE_UNOP,            /* ! */
+    NXE_CEDAR_NODE_NEGATE,          /* - (unary) */
 
     /* Phase 2 */
     NXE_CEDAR_NODE_HAS,             /* expr has ident */

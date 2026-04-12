@@ -383,6 +383,9 @@ nxe_cedar_lexer_next(nxe_cedar_lexer_t *lexer)
     case '!':
         token.type = NXE_CEDAR_TOKEN_NOT;
         return token;
+    case '-':
+        token.type = NXE_CEDAR_TOKEN_NEGATE;
+        return token;
     case '.':
         token.type = NXE_CEDAR_TOKEN_DOT;
         return token;

@@ -486,6 +486,21 @@ nxe_cedar_expr_eval(nxe_cedar_node_t *node,
         }
         return nxe_cedar_make_bool(!left.v.bool_val);
 
+    case NXE_CEDAR_NODE_NEGATE:
+        left = nxe_cedar_expr_eval(node->u.unop.operand, ctx,
+                                   pool, log);
+        if (left.type == NXE_CEDAR_RVAL_ERROR) {
+            return left;
+        }
+        if (left.type != NXE_CEDAR_RVAL_LONG) {
+            return nxe_cedar_make_error();
+        }
+        /* -MIN_INT is undefined; reject it */
+        if (left.v.long_val == (-NGX_MAX_INT_T_VALUE - 1)) {
+            return nxe_cedar_make_error();
+        }
+        return nxe_cedar_make_long(-left.v.long_val);
+
     default:
         return nxe_cedar_make_error();
     }
