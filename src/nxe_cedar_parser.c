@@ -801,9 +801,9 @@ nxe_cedar_parse_entity_ref_target(nxe_cedar_parser_ctx_t *ctx)
 /*
  * parse scope: keyword [ (== | in) target ]
  *
- * Cedar spec: == always takes entity_ref.
- * in takes entity_ref or set_literal, but set_literal
- * is only valid for action scope.
+ * Cedar spec:
+ *   == always takes entity_ref.
+ *   in takes entity_ref (all scopes) or set_literal (action only).
  */
 static ngx_int_t
 nxe_cedar_parse_scope(nxe_cedar_parser_ctx_t *ctx,
@@ -824,29 +824,30 @@ nxe_cedar_parse_scope(nxe_cedar_parser_ctx_t *ctx,
         }
 
     } else if (ctx->current.type == NXE_CEDAR_TOKEN_IN) {
-        /* 'in' requires entity hierarchy; only action scope supported */
-        if (var_token != NXE_CEDAR_TOKEN_ACTION) {
-            ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
-                          "nxe_cedar_parse: 'in' constraint not supported"
-                          " for principal/resource scope"
-                          " (entity hierarchy not implemented)");
-            ctx->error = 1;
-            return NGX_ERROR;
-        }
-
         scope->constraint = NXE_CEDAR_SCOPE_IN;
         nxe_cedar_parser_advance(ctx);
 
-        scope->target = nxe_cedar_parse_entity_or_set(ctx);
+        if (var_token == NXE_CEDAR_TOKEN_ACTION) {
+            /* action: entity_ref or set_literal */
+            scope->target = nxe_cedar_parse_entity_or_set(ctx);
 
-        if (ctx->error) {
-            return NGX_ERROR;
-        }
+            if (ctx->error) {
+                return NGX_ERROR;
+            }
 
-        if (nxe_cedar_parser_validate_scope_set(ctx, scope->target)
-            != NGX_OK)
-        {
-            return NGX_ERROR;
+            if (nxe_cedar_parser_validate_scope_set(ctx,
+                                                    scope->target)
+                != NGX_OK)
+            {
+                return NGX_ERROR;
+            }
+        } else {
+            /* principal/resource: entity_ref only */
+            scope->target = nxe_cedar_parse_entity_ref_target(ctx);
+
+            if (ctx->error) {
+                return NGX_ERROR;
+            }
         }
 
     } else {
