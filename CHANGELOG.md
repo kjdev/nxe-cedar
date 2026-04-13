@@ -1,5 +1,11 @@
 # Changelog
 
+## [4fdc11d](../../commit/4fdc11d) - 2026-04-14
+
+### Fixed
+
+- Allow `principal in entity_ref` and `resource in entity_ref` scope constraints per Cedar spec (previously only `action in` was accepted)
+
 ## [8ef7e85](../../commit/8ef7e85) - 2026-04-14
 
 ### Added
