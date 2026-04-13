@@ -1,0 +1,115 @@
+{
+    "description": "typed attributes (long/bool) for principal, action, resource",
+    "phase": 1,
+    "tests": [
+        {
+            "name": "principal_long_attr",
+            "description": "principal integer attribute comparison",
+            "policy": "permit (principal, action, resource) when { principal.age == 18 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"age": 18}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "principal_bool_attr_true",
+            "description": "principal boolean attribute true",
+            "policy": "permit (principal, action, resource) when { principal.active == true };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"active": true}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "principal_bool_attr_false_denies",
+            "description": "principal boolean attribute false denies",
+            "policy": "permit (principal, action, resource) when { principal.active == true };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"active": false}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "action_long_attr",
+            "description": "action integer attribute comparison",
+            "policy": "permit (principal, action, resource) when { action.level == 3 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "action_attrs": {"level": 3}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "action_bool_attr",
+            "description": "action boolean attribute true",
+            "policy": "permit (principal, action, resource) when { action.readOnly == true };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "action_attrs": {"readOnly": true}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "resource_long_attr",
+            "description": "resource integer attribute comparison",
+            "policy": "permit (principal, action, resource) when { resource.priority == 1 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "resource_attrs": {"priority": 1}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "resource_bool_attr",
+            "description": "resource boolean attribute true allows access to public resource",
+            "policy": "permit (principal, action, resource) when { resource.isPublic == true };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "resource_attrs": {"isPublic": true}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "context_bool_attr",
+            "description": "context boolean attribute",
+            "policy": "permit (principal, action, resource) when { context.mfa == true };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"mfa": true}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "mixed_typed_attrs",
+            "description": "mixed string, long, and bool attributes across entities",
+            "policy": "permit (principal, action, resource) when { principal.role == \"admin\" && principal.level == 5 && resource.isPublic == true };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "admin", "level": 5},
+                "resource_attrs": {"isPublic": true}
+            },
+            "expected": "allow"
+        }
+    ]
+}
