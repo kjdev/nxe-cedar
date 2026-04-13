@@ -68,6 +68,29 @@
                 "resource": {"type": "Endpoint", "id": "/api/data"}
             },
             "expected": "error"
+        },
+        {
+            "name": "scope_set_with_integer_literal",
+            "description": "action in set with non-entity element (integer) should fail",
+            "policy": "permit (principal, action in [1, Action::\"GET\"], resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "scope_set_with_variable",
+            "description": "action in set with variable reference should fail",
+            "policy": "permit (principal, action in [context.foo], resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"foo": "bar"}
+            },
+            "expected": "error"
         }
     ]
 }
