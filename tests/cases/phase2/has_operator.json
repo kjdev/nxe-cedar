@@ -1,0 +1,290 @@
+{
+    "description": "has operator for attribute existence check",
+    "phase": 2,
+    "tests": [
+        {
+            "name": "has_context_attr_true",
+            "description": "context has debug_mode should be true when attr exists",
+            "policy": "permit (principal, action, resource) when { context has debug_mode };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"debug_mode": true}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "has_context_attr_false",
+            "description": "context has debug_mode should be false when attr missing",
+            "policy": "permit (principal, action, resource) when { context has debug_mode };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"other_attr": "value"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "has_principal_attr_true",
+            "description": "principal has email should be true when principal_attrs contains email",
+            "policy": "permit (principal, action, resource) when { principal has email };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"email": "alice@example.com"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "has_principal_attr_false",
+            "description": "principal has phone should be false when not in principal_attrs",
+            "policy": "permit (principal, action, resource) when { principal has phone };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"email": "alice@example.com"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "has_with_attr_access",
+            "description": "has guard followed by attribute access: principal has role && principal.role == admin",
+            "policy": "permit (principal, action, resource) when { principal has role && principal.role == \"admin\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "admin"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "has_with_attr_access_wrong_value",
+            "description": "has true but attr value does not match",
+            "policy": "permit (principal, action, resource) when { principal has role && principal.role == \"admin\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "viewer"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "has_resource_attr",
+            "description": "resource has classification",
+            "policy": "forbid (principal, action, resource) when { resource has classified && resource.classified == true };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Document", "id": "secret.pdf"},
+                "resource_attrs": {"classified": true}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "has_in_forbid_missing",
+            "description": "forbid with has on missing attr does not apply",
+            "policy": "permit (principal, action, resource);\nforbid (principal, action, resource) when { resource has classified && resource.classified == true };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Document", "id": "readme.txt"},
+                "resource_attrs": {"public": true}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "has_empty_context",
+            "description": "has on context with no context attrs should be false",
+            "policy": "permit (principal, action, resource) when { context has token };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "has_negated",
+            "description": "negated has: !(principal has banned)",
+            "policy": "permit (principal, action, resource) when { !(principal has banned) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "user"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "has_action_attr_true",
+            "description": "action has level should be true when action_attrs contains level",
+            "policy": "permit (principal, action, resource) when { action has level && action.level == \"read\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "action_attrs": {"level": "read"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "has_action_attr_false",
+            "description": "action has level should be false when action_attrs missing level",
+            "policy": "permit (principal, action, resource) when { action has level };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "action_attrs": {"scope": "public"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "has_in_unless_clause",
+            "description": "unless clause with has: deny when principal has banned",
+            "policy": "permit (principal, action, resource) unless { principal has banned };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"banned": true}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "has_in_unless_clause_missing",
+            "description": "unless clause with has on missing attr allows",
+            "policy": "permit (principal, action, resource) unless { principal has banned };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "user"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "has_with_or_operator",
+            "description": "has combined with || operator",
+            "policy": "permit (principal, action, resource) when { principal has admin || context has override };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"override": true}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "has_string_attr_true",
+            "description": "has with string literal should match existing attr",
+            "policy": "permit (principal, action, resource) when { context has \"debug_mode\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"debug_mode": true}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "has_string_attr_false",
+            "description": "has with string literal should be false when attr missing",
+            "policy": "permit (principal, action, resource) when { context has \"missing\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"other": "value"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "has_string_hyphenated_attr",
+            "description": "has with hyphenated string attr name (existence check only)",
+            "policy": "permit (principal, action, resource) when { context has \"content-type\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"content-type": "application/json"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "has_followed_by_integer",
+            "description": "has followed by integer literal should fail to parse",
+            "policy": "permit (principal, action, resource) when { context has 42 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "has_followed_by_keyword",
+            "description": "has followed by keyword (true) should fail to parse",
+            "policy": "permit (principal, action, resource) when { context has true };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "has_principal_no_attrs",
+            "description": "has on principal when principal_attrs not provided should be false",
+            "policy": "permit (principal, action, resource) when { principal has role };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "has_guard_prevents_attr_error",
+            "description": "has guard false should short-circuit && and prevent attr access error",
+            "policy": "permit (principal, action, resource) when { principal has role && principal.role == \"admin\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"email": "alice@example.com"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "has_chained_and",
+            "description": "chained has with &&: principal has role && principal has dept",
+            "policy": "permit (principal, action, resource) when { principal has role && principal has dept };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "admin", "dept": "engineering"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "has_chained_and_partial",
+            "description": "chained has with && where only one attr exists should deny",
+            "policy": "permit (principal, action, resource) when { principal has role && principal has dept };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "admin"}
+            },
+            "expected": "deny"
+        }
+    ]
+}
