@@ -724,6 +724,38 @@ nxe_cedar_parse_expr(nxe_cedar_parser_ctx_t *ctx)
 }
 
 
+/* validate that all elements in a scope set are entity refs */
+static ngx_int_t
+nxe_cedar_parser_validate_scope_set(nxe_cedar_parser_ctx_t *ctx,
+    nxe_cedar_node_t *node)
+{
+    nxe_cedar_node_t **elts;
+    ngx_uint_t i;
+
+    if (node->type != NXE_CEDAR_NODE_SET) {
+        return NGX_OK;
+    }
+
+    if (node->u.set_elts == NULL) {
+        return NGX_OK;
+    }
+
+    elts = node->u.set_elts->elts;
+
+    for (i = 0; i < node->u.set_elts->nelts; i++) {
+        if (elts[i]->type != NXE_CEDAR_NODE_ENTITY_REF) {
+            ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                          "nxe_cedar_parse: scope set must contain"
+                          " only entity references");
+            ctx->error = 1;
+            return NGX_ERROR;
+        }
+    }
+
+    return NGX_OK;
+}
+
+
 /* parse entity_ref or set literal for scope targets */
 static nxe_cedar_node_t *
 nxe_cedar_parse_entity_or_set(nxe_cedar_parser_ctx_t *ctx)
@@ -808,6 +840,12 @@ nxe_cedar_parse_scope(nxe_cedar_parser_ctx_t *ctx,
         scope->target = nxe_cedar_parse_entity_or_set(ctx);
 
         if (ctx->error) {
+            return NGX_ERROR;
+        }
+
+        if (nxe_cedar_parser_validate_scope_set(ctx, scope->target)
+            != NGX_OK)
+        {
             return NGX_ERROR;
         }
 
