@@ -63,6 +63,66 @@
             "expected": "deny"
         },
         {
+            "name": "escaped_carriage_return",
+            "description": "string containing escaped carriage return matches",
+            "policy": "permit (principal, action, resource) when { context.text == \"line1\\rline2\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"text": "line1\rline2"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "hex_escape_ascii",
+            "description": "hex escape \\x41 equals A",
+            "policy": "permit (principal, action, resource) when { context.ch == \"\\x41\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"ch": "A"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "hex_escape_space",
+            "description": "hex escape \\x20 equals space",
+            "policy": "permit (principal, action, resource) when { context.ch == \"\\x20\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"ch": " "}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "unicode_escape_ascii",
+            "description": "unicode escape \\u{41} equals A",
+            "policy": "permit (principal, action, resource) when { context.ch == \"\\u{41}\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"ch": "A"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "unicode_escape_multibyte",
+            "description": "unicode escape \\u{00E9} equals e-acute",
+            "policy": "permit (principal, action, resource) when { context.ch == \"\\u{00E9}\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"ch": "\u00e9"}
+            },
+            "expected": "allow"
+        },
+        {
             "name": "invalid_escape_sequence",
             "description": "unknown escape sequence causes parse error",
             "policy": "permit (principal, action, resource) when { context.msg == \"test\\q\" };",
