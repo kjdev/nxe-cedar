@@ -1,5 +1,5 @@
 {
-    "description": "スコープ制約（==）のテスト",
+    "description": "スコープ制約（==, in）のテスト",
     "phase": 1,
     "tests": [
         {
@@ -61,6 +61,72 @@
             "name": "all_scope_constraints",
             "description": "全スコープ制約が一致する場合のみ許可",
             "policy": "permit (principal == User::\"alice\", action == Action::\"GET\", resource == Endpoint::\"/api/data\");",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "principal_in_match",
+            "description": "principal in entity_ref match allows",
+            "policy": "permit (principal in User::\"alice\", action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "principal_in_no_match",
+            "description": "principal in entity_ref mismatch denies",
+            "policy": "permit (principal in User::\"bob\", action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "resource_in_match",
+            "description": "resource in entity_ref match allows",
+            "policy": "permit (principal, action, resource in Endpoint::\"/api/data\");",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "resource_in_no_match",
+            "description": "resource in entity_ref mismatch denies",
+            "policy": "permit (principal, action, resource in Endpoint::\"/api/other\");",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "action_in_entity_match",
+            "description": "action in entity_ref match allows",
+            "policy": "permit (principal, action in Action::\"GET\", resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "all_in_constraints",
+            "description": "all scopes with in constraints match",
+            "policy": "permit (principal in User::\"alice\", action in Action::\"GET\", resource in Endpoint::\"/api/data\");",
             "request": {
                 "principal": {"type": "User", "id": "alice"},
                 "action": {"type": "Action", "id": "GET"},
