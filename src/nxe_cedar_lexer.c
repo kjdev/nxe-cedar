@@ -84,6 +84,55 @@ nxe_cedar_lexer_skip_whitespace(nxe_cedar_lexer_t *lexer)
 }
 
 
+static ngx_int_t
+nxe_cedar_hex_value(u_char c)
+{
+    if (c >= '0' && c <= '9') {
+        return c - '0';
+    }
+
+    if (c >= 'a' && c <= 'f') {
+        return c - 'a' + 10;
+    }
+
+    if (c >= 'A' && c <= 'F') {
+        return c - 'A' + 10;
+    }
+
+    return -1;
+}
+
+
+static ngx_uint_t
+nxe_cedar_utf8_encode(ngx_uint_t cp, u_char *dst)
+{
+    if (cp <= 0x7F) {
+        dst[0] = (u_char) cp;
+        return 1;
+    }
+
+    if (cp <= 0x7FF) {
+        dst[0] = (u_char) (0xC0 | (cp >> 6));
+        dst[1] = (u_char) (0x80 | (cp & 0x3F));
+        return 2;
+    }
+
+    if (cp <= 0xFFFF) {
+        dst[0] = (u_char) (0xE0 | (cp >> 12));
+        dst[1] = (u_char) (0x80 | ((cp >> 6) & 0x3F));
+        dst[2] = (u_char) (0x80 | (cp & 0x3F));
+        return 3;
+    }
+
+    /* cp <= 0x10FFFF */
+    dst[0] = (u_char) (0xF0 | (cp >> 18));
+    dst[1] = (u_char) (0x80 | ((cp >> 12) & 0x3F));
+    dst[2] = (u_char) (0x80 | ((cp >> 6) & 0x3F));
+    dst[3] = (u_char) (0x80 | (cp & 0x3F));
+    return 4;
+}
+
+
 static nxe_cedar_token_t
 nxe_cedar_lexer_read_string(nxe_cedar_lexer_t *lexer)
 {
@@ -163,12 +212,117 @@ nxe_cedar_lexer_read_string(nxe_cedar_lexer_t *lexer)
             case 'n':
                 *dst++ = '\n';
                 break;
+            case 'r':
+                *dst++ = '\r';
+                break;
             case 't':
                 *dst++ = '\t';
                 break;
             case '0':
                 *dst++ = '\0';
                 break;
+
+            case 'x':
+            {
+                ngx_int_t h1, h2;
+
+                if (i + 2 >= start + len) {
+                    token.type = NXE_CEDAR_TOKEN_ERROR;
+                    token.value.data =
+                        (u_char *) "incomplete \\x escape";
+                    token.value.len = 20;
+                    return token;
+                }
+
+                h1 = nxe_cedar_hex_value(
+                    lexer->input.data[i + 1]);
+                h2 = nxe_cedar_hex_value(
+                    lexer->input.data[i + 2]);
+
+                if (h1 < 0 || h2 < 0) {
+                    token.type = NXE_CEDAR_TOKEN_ERROR;
+                    token.value.data =
+                        (u_char *) "invalid hex digit in \\x escape";
+                    token.value.len = 30;
+                    return token;
+                }
+
+                *dst++ = (u_char) (h1 * 16 + h2);
+                i += 2;
+            }
+            break;
+
+            case 'u':
+            {
+                ngx_uint_t cp, n_digits, nbytes;
+                ngx_int_t d;
+
+                if (i + 1 >= start + len
+                    || lexer->input.data[i + 1] != '{')
+                {
+                    token.type = NXE_CEDAR_TOKEN_ERROR;
+                    token.value.data =
+                        (u_char *) "expected '{' after \\u";
+                    token.value.len = 21;
+                    return token;
+                }
+
+                i += 2;      /* skip u{ */
+                cp = 0;
+                n_digits = 0;
+
+                while (i < start + len
+                       && lexer->input.data[i] != '}')
+                {
+                    d = nxe_cedar_hex_value(
+                        lexer->input.data[i]);
+                    if (d < 0) {
+                        token.type = NXE_CEDAR_TOKEN_ERROR;
+                        token.value.data = (u_char *)
+                                           "invalid hex digit in \\u escape";
+                        token.value.len = 30;
+                        return token;
+                    }
+
+                    cp = cp * 16 + d;
+                    n_digits++;
+
+                    if (n_digits > 6) {
+                        token.type = NXE_CEDAR_TOKEN_ERROR;
+                        token.value.data = (u_char *)
+                                           "too many digits in \\u escape";
+                        token.value.len = 28;
+                        return token;
+                    }
+
+                    i++;
+                }
+
+                if (i >= start + len || n_digits == 0) {
+                    token.type = NXE_CEDAR_TOKEN_ERROR;
+                    token.value.data = (u_char *)
+                                       "incomplete \\u escape";
+                    token.value.len = 20;
+                    return token;
+                }
+
+                if (cp > 0x10FFFF
+                    || (cp >= 0xD800 && cp <= 0xDFFF))
+                {
+                    token.type = NXE_CEDAR_TOKEN_ERROR;
+                    token.value.data = (u_char *)
+                                       "invalid unicode codepoint";
+                    token.value.len = 25;
+                    return token;
+                }
+
+                nbytes = nxe_cedar_utf8_encode(cp, dst);
+                dst += nbytes;
+                /* -1 because loop adds 1 via len++ below */
+                token.value.len += nbytes - 1;
+            }
+            break;
+
             default:
                 token.type = NXE_CEDAR_TOKEN_ERROR;
                 token.value.data = (u_char *) "invalid escape sequence";
