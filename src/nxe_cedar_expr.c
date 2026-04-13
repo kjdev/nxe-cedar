@@ -172,6 +172,31 @@ nxe_cedar_attr_to_value(nxe_cedar_attr_t *attr)
 }
 
 
+/* resolve variable type to its attribute array */
+static ngx_array_t *
+nxe_cedar_resolve_var_attrs(nxe_cedar_var_type_t var_type,
+    nxe_cedar_eval_ctx_t *ctx)
+{
+    switch (var_type) {
+
+    case NXE_CEDAR_VAR_PRINCIPAL:
+        return ctx->principal_attrs;
+
+    case NXE_CEDAR_VAR_ACTION:
+        return ctx->action_attrs;
+
+    case NXE_CEDAR_VAR_RESOURCE:
+        return ctx->resource_attrs;
+
+    case NXE_CEDAR_VAR_CONTEXT:
+        return ctx->context_attrs;
+
+    default:
+        return NULL;
+    }
+}
+
+
 /* evaluate attribute access on a variable node */
 static nxe_cedar_value_t
 nxe_cedar_eval_attr_access(nxe_cedar_node_t *node,
@@ -185,25 +210,8 @@ nxe_cedar_eval_attr_access(nxe_cedar_node_t *node,
 
     /* fast path: direct variable access */
     if (object->type == NXE_CEDAR_NODE_VAR) {
-        switch (object->u.var_type) {
-
-        case NXE_CEDAR_VAR_PRINCIPAL:
-            attrs = ctx->principal_attrs;
-            break;
-
-        case NXE_CEDAR_VAR_ACTION:
-            attrs = ctx->action_attrs;
-            break;
-
-        case NXE_CEDAR_VAR_RESOURCE:
-            attrs = ctx->resource_attrs;
-            break;
-
-        case NXE_CEDAR_VAR_CONTEXT:
-            attrs = ctx->context_attrs;
-            break;
-
-        default:
+        attrs = nxe_cedar_resolve_var_attrs(object->u.var_type, ctx);
+        if (attrs == NULL) {
             return nxe_cedar_make_error();
         }
 
@@ -216,6 +224,31 @@ nxe_cedar_eval_attr_access(nxe_cedar_node_t *node,
     }
 
     /* nested access not supported in Phase 1 */
+    return nxe_cedar_make_error();
+}
+
+
+/* evaluate has expression: check if attribute exists */
+static nxe_cedar_value_t
+nxe_cedar_eval_has(nxe_cedar_node_t *node,
+    nxe_cedar_eval_ctx_t *ctx)
+{
+    nxe_cedar_node_t *object;
+    ngx_array_t *attrs;
+
+    object = node->u.has.object;
+
+    if (object->type == NXE_CEDAR_NODE_VAR) {
+        attrs = nxe_cedar_resolve_var_attrs(object->u.var_type, ctx);
+        if (attrs == NULL) {
+            return nxe_cedar_make_bool(0);
+        }
+
+        return nxe_cedar_make_bool(
+            nxe_cedar_find_attr(attrs, &node->u.has.attr) != NULL);
+    }
+
+    /* nested access (e.g. record has field) not yet supported */
     return nxe_cedar_make_error();
 }
 
@@ -500,6 +533,10 @@ nxe_cedar_expr_eval(nxe_cedar_node_t *node,
             return nxe_cedar_make_error();
         }
         return nxe_cedar_make_long(-left.v.long_val);
+
+    /* Phase 2 */
+    case NXE_CEDAR_NODE_HAS:
+        return nxe_cedar_eval_has(node, ctx);
 
     default:
         return nxe_cedar_make_error();

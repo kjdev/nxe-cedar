@@ -471,16 +471,42 @@ nxe_cedar_parse_member_expr(nxe_cedar_parser_ctx_t *ctx)
 }
 
 
-/* parse relation expression: unary { (== | != | in) unary } */
+/* parse relation expression: unary { (== | != | in | has | like) ... } */
 static nxe_cedar_node_t *
 nxe_cedar_parse_relation_expr(nxe_cedar_parser_ctx_t *ctx)
 {
-    nxe_cedar_node_t *left, *right, *binop;
+    nxe_cedar_node_t *left, *right, *binop, *has_node;
     ngx_uint_t op;
 
     left = nxe_cedar_parse_unary_expr(ctx);
     if (ctx->error) {
         return NULL;
+    }
+
+    /* has operator: expr has (IDENT | STRING) */
+    if (ctx->current.type == NXE_CEDAR_TOKEN_HAS) {
+        nxe_cedar_parser_advance(ctx);
+
+        if (ctx->current.type != NXE_CEDAR_TOKEN_IDENT
+            && ctx->current.type != NXE_CEDAR_TOKEN_STRING)
+        {
+            ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                          "nxe_cedar_parse: "
+                          "expected identifier or string after 'has'");
+            ctx->error = 1;
+            return NULL;
+        }
+
+        has_node = nxe_cedar_parser_alloc_node(ctx, NXE_CEDAR_NODE_HAS);
+        if (has_node == NULL) {
+            return NULL;
+        }
+
+        has_node->u.has.object = left;
+        has_node->u.has.attr = ctx->current.value;
+        nxe_cedar_parser_advance(ctx);
+
+        return has_node;
     }
 
     if (ctx->current.type == NXE_CEDAR_TOKEN_EQ) {
