@@ -1,5 +1,11 @@
 # Changelog
 
+## [8ef7e85](../../commit/8ef7e85) - 2026-04-14
+
+### Added
+
+- Validate that scope set literals (`action in [...]`) contain only entity references; reject non-entity elements (integers, variables, etc.) at parse time
+
 ## [ce3e49e](../../commit/ce3e49e) - 2026-04-14
 
 ### Added
