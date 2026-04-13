@@ -1,5 +1,17 @@
 # Changelog
 
+## [4fa236b](../../commit/4fa236b) - 2026-04-14
+
+### Added
+
+- Add typed attribute builders (`_long`, `_bool`) for all entity types (principal, action, resource, context)
+
+## [61ff651](../../commit/61ff651) - 2026-04-14
+
+### Added
+
+- Add missing Cedar string escape sequences: `\r` (carriage return), `\xHH` (2-digit ASCII hex), `\u{...}` (1-6 digit Unicode)
+
 ## [4fdc11d](../../commit/4fdc11d) - 2026-04-14
 
 ### Fixed
