@@ -79,19 +79,30 @@ parse_entity(json_t *obj, ngx_str_t *type_out, ngx_str_t *id_out)
 }
 
 
+/* function pointer types for typed attribute adders */
+typedef ngx_int_t (*add_str_attr_pt)(nxe_cedar_eval_ctx_t *,
+    ngx_str_t *, ngx_str_t *);
+typedef ngx_int_t (*add_long_attr_pt)(nxe_cedar_eval_ctx_t *,
+    ngx_str_t *, ngx_int_t);
+typedef ngx_int_t (*add_bool_attr_pt)(nxe_cedar_eval_ctx_t *,
+    ngx_str_t *, ngx_flag_t);
+
+
 /*
- * Add attributes from a JSON object to nxe_cedar_eval_ctx.
+ * Add attributes from a JSON object via the public eval_ctx API.
  * Value types are auto-detected from JSON native types:
- *   - string  -> NXE_CEDAR_VALUE_STRING
- *   - integer -> NXE_CEDAR_VALUE_LONG
- *   - boolean -> NXE_CEDAR_VALUE_BOOL
+ *   - string  -> add_str
+ *   - integer -> add_long
+ *   - boolean -> add_bool
  */
 static int
-add_attrs_to_array(ngx_array_t *attrs, json_t *obj)
+add_attrs_via_api(nxe_cedar_eval_ctx_t *ctx, json_t *obj,
+    add_str_attr_pt add_str, add_long_attr_pt add_long,
+    add_bool_attr_pt add_bool)
 {
     const char *key;
     json_t *value;
-    nxe_cedar_attr_t *attr;
+    ngx_str_t name, str_val;
 
     if (obj == NULL) {
         return 0;
@@ -103,29 +114,33 @@ add_attrs_to_array(ngx_array_t *attrs, json_t *obj)
     }
 
     json_object_foreach(obj, key, value) {
-        attr = ngx_array_push(attrs);
-        if (attr == NULL) {
-            set_error("failed to allocate attribute");
-            return -1;
-        }
-
-        attr->name.len = strlen(key);
-        attr->name.data = (u_char *) key;
+        name.len = strlen(key);
+        name.data = (u_char *) key;
 
         if (json_is_string(value)) {
-            const char *s = json_string_value(value);
+            str_val.len = json_string_length(value);
+            str_val.data = (u_char *) json_string_value(value);
 
-            attr->value_type = NXE_CEDAR_VALUE_STRING;
-            attr->value.str_val.len = json_string_length(value);
-            attr->value.str_val.data = (u_char *) s;
+            if (add_str(ctx, &name, &str_val) != NGX_OK) {
+                set_error("failed to add attribute: %s", key);
+                return -1;
+            }
 
         } else if (json_is_integer(value)) {
-            attr->value_type = NXE_CEDAR_VALUE_LONG;
-            attr->value.long_val = (ngx_int_t) json_integer_value(value);
+            if (add_long(ctx, &name,
+                         (ngx_int_t) json_integer_value(value)) != NGX_OK)
+            {
+                set_error("failed to add attribute: %s", key);
+                return -1;
+            }
 
         } else if (json_is_boolean(value)) {
-            attr->value_type = NXE_CEDAR_VALUE_BOOL;
-            attr->value.bool_val = json_is_true(value) ? 1 : 0;
+            if (add_bool(ctx, &name,
+                         json_is_true(value) ? 1 : 0) != NGX_OK)
+            {
+                set_error("failed to add attribute: %s", key);
+                return -1;
+            }
 
         } else {
             set_error("unsupported attribute type for key: %s", key);
@@ -247,7 +262,12 @@ nxe_cedar_test_evaluate(const char *policy_text, const char *request_json)
     /* principal_attrs */
     principal_attrs = json_object_get(root, "principal_attrs");
     if (principal_attrs != NULL) {
-        if (add_attrs_to_array(ctx->principal_attrs, principal_attrs) != 0) {
+        if (add_attrs_via_api(ctx, principal_attrs,
+                              nxe_cedar_eval_ctx_add_principal_attr,
+                              nxe_cedar_eval_ctx_add_principal_attr_long,
+                              nxe_cedar_eval_ctx_add_principal_attr_bool)
+            != 0)
+        {
             ngx_destroy_pool(pool);
             json_decref(root);
             return -1;
@@ -257,7 +277,12 @@ nxe_cedar_test_evaluate(const char *policy_text, const char *request_json)
     /* action_attrs */
     action_attrs = json_object_get(root, "action_attrs");
     if (action_attrs != NULL) {
-        if (add_attrs_to_array(ctx->action_attrs, action_attrs) != 0) {
+        if (add_attrs_via_api(ctx, action_attrs,
+                              nxe_cedar_eval_ctx_add_action_attr,
+                              nxe_cedar_eval_ctx_add_action_attr_long,
+                              nxe_cedar_eval_ctx_add_action_attr_bool)
+            != 0)
+        {
             ngx_destroy_pool(pool);
             json_decref(root);
             return -1;
@@ -267,7 +292,12 @@ nxe_cedar_test_evaluate(const char *policy_text, const char *request_json)
     /* resource_attrs */
     resource_attrs = json_object_get(root, "resource_attrs");
     if (resource_attrs != NULL) {
-        if (add_attrs_to_array(ctx->resource_attrs, resource_attrs) != 0) {
+        if (add_attrs_via_api(ctx, resource_attrs,
+                              nxe_cedar_eval_ctx_add_resource_attr,
+                              nxe_cedar_eval_ctx_add_resource_attr_long,
+                              nxe_cedar_eval_ctx_add_resource_attr_bool)
+            != 0)
+        {
             ngx_destroy_pool(pool);
             json_decref(root);
             return -1;
@@ -277,7 +307,12 @@ nxe_cedar_test_evaluate(const char *policy_text, const char *request_json)
     /* context */
     context_obj = json_object_get(root, "context");
     if (context_obj != NULL) {
-        if (add_attrs_to_array(ctx->context_attrs, context_obj) != 0) {
+        if (add_attrs_via_api(ctx, context_obj,
+                              nxe_cedar_eval_ctx_add_context_attr,
+                              nxe_cedar_eval_ctx_add_context_attr_long,
+                              nxe_cedar_eval_ctx_add_context_attr_bool)
+            != 0)
+        {
             ngx_destroy_pool(pool);
             json_decref(root);
             return -1;
