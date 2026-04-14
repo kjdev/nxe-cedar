@@ -1,5 +1,15 @@
 # Changelog
 
+## [cd48da3](../../commit/cd48da3) - 2026-04-14
+
+### Added
+
+- Add `has` operator for attribute existence checks (Phase 2)
+  - Syntax: `expr has ident` / `expr has "string"` in `when` / `unless` conditions
+  - Supported on all variable types: `principal`, `action`, `resource`, `context`
+  - Returns boolean; `false` when attribute array is absent (safe guard for `&&` chaining)
+  - Refactor variable-to-attribute resolution into `nxe_cedar_resolve_var_attrs()`
+
 ## [4fa236b](../../commit/4fa236b) - 2026-04-14
 
 ### Added
