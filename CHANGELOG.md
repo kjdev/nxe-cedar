@@ -1,5 +1,15 @@
 # Changelog
 
+## [58d3e58](../../commit/58d3e58) - 2026-04-15
+
+### Added
+
+- Add `containsAll` / `containsAny` set methods (Phase 2)
+  - Syntax: `expr.containsAll(expr)`, `expr.containsAny(expr)` in `when` / `unless` conditions
+  - Both operands must be set-typed; type mismatch returns evaluation error
+  - General method call parsing in `nxe_cedar_parse_member_expr()`: `expr.ident(expr)` pattern
+  - Method dispatch by name in `nxe_cedar_eval_method_call()` (extensible for Phase 3 `contains`, `isInRange`)
+
 ## [83dcfdc](../../commit/83dcfdc) - 2026-04-15
 
 ### Added
