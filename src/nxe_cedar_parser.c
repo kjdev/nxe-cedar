@@ -88,6 +88,112 @@ nxe_cedar_parser_alloc_node(nxe_cedar_parser_ctx_t *ctx,
 
 
 /*
+ * Compile a like pattern from raw source bytes (between quotes).
+ * Unescaped '*' becomes 0xFF (wildcard marker).
+ * '\*' is the only escape that produces a literal '*'.
+ * Other escapes that decode to '*' (e.g. \x2A, \u{2A}) become
+ * wildcards, matching Cedar's official semantics.
+ * Returns NGX_ERROR on invalid escape (sets ctx->error).
+ */
+static ngx_int_t
+nxe_cedar_parser_compile_pattern(nxe_cedar_parser_ctx_t *ctx,
+    ngx_str_t *raw, ngx_str_t *out)
+{
+    u_char *src, *dst, *end;
+
+    dst = ngx_palloc(ctx->pool, raw->len);
+    if (dst == NULL) {
+        ctx->error = 1;
+        return NGX_ERROR;
+    }
+
+    out->data = dst;
+    src = raw->data;
+    end = src + raw->len;
+
+    while (src < end) {
+        /* reject raw 0xFF: reserved as wildcard sentinel */
+        if (*src == 0xFF) {
+            ctx->error = 1;
+            return NGX_ERROR;
+        }
+
+        if (*src == '*') {
+            *dst++ = 0xFF;
+            src++;
+            continue;
+        }
+
+        if (*src == '\\') {
+            if (src + 1 >= end) {
+                ctx->error = 1;
+                return NGX_ERROR;
+            }
+
+            src++;  /* skip backslash */
+
+            /* \* is the only escape producing literal '*' */
+            if (*src == '*') {
+                *dst++ = '*';
+                src++;
+                continue;
+            }
+
+            {
+                u_char *dst_before;
+
+                dst_before = dst;
+
+                if (nxe_cedar_decode_escape(&src, end, &dst, 1)
+                    != NGX_OK)
+                {
+                    ctx->error = 1;
+                    return NGX_ERROR;
+                }
+
+                /*
+                 * If an escape like \x2A or \u{2A} produced '*',
+                 * treat it as a wildcard (Cedar semantics).
+                 */
+                if (dst == dst_before + 1 && *dst_before == '*') {
+                    *dst_before = 0xFF;
+                }
+            }
+
+            continue;
+        }
+
+        *dst++ = *src++;
+    }
+
+    out->len = dst - out->data;
+
+    /* compress consecutive wildcards: "**" → single 0xFF */
+    {
+        u_char *r, *w, *oend;
+
+        r = out->data;
+        w = out->data;
+        oend = r + out->len;
+
+        while (r < oend) {
+            *w++ = *r++;
+
+            if (*(r - 1) == 0xFF) {
+                while (r < oend && *r == 0xFF) {
+                    r++;
+                }
+            }
+        }
+
+        out->len = w - out->data;
+    }
+
+    return NGX_OK;
+}
+
+
+/*
  * parse integer from ngx_str_t
  * returns NGX_ERROR on overflow (sets *result to 0)
  */
@@ -170,6 +276,14 @@ nxe_cedar_parse_entity_ref_with_ident(nxe_cedar_parser_ctx_t *ctx,
         nxe_cedar_parser_advance(ctx);  /* skip :: */
 
         if (ctx->current.type == NXE_CEDAR_TOKEN_STRING) {
+            if (ctx->current.has_star_escape) {
+                ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                              "nxe_cedar_parse: "
+                              "\\* escape is only valid in like patterns");
+                ctx->error = 1;
+                return NULL;
+            }
+
             /* Type::"id" - this is the entity id */
             node = nxe_cedar_parser_alloc_node(ctx,
                                                NXE_CEDAR_NODE_ENTITY_REF);
@@ -348,6 +462,13 @@ nxe_cedar_parse_primary(nxe_cedar_parser_ctx_t *ctx)
         return node;
 
     case NXE_CEDAR_TOKEN_STRING:
+        if (ctx->current.has_star_escape) {
+            ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                          "nxe_cedar_parse: "
+                          "\\* escape is only valid in like patterns");
+            ctx->error = 1;
+            return NULL;
+        }
         node = nxe_cedar_parser_alloc_node(ctx,
                                            NXE_CEDAR_NODE_STRING_LIT);
         if (node == NULL) {
@@ -497,6 +618,16 @@ nxe_cedar_parse_relation_expr(nxe_cedar_parser_ctx_t *ctx)
             return NULL;
         }
 
+        if (ctx->current.type == NXE_CEDAR_TOKEN_STRING
+            && ctx->current.has_star_escape)
+        {
+            ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                          "nxe_cedar_parse: "
+                          "\\* escape is only valid in like patterns");
+            ctx->error = 1;
+            return NULL;
+        }
+
         has_node = nxe_cedar_parser_alloc_node(ctx, NXE_CEDAR_NODE_HAS);
         if (has_node == NULL) {
             return NULL;
@@ -507,6 +638,44 @@ nxe_cedar_parse_relation_expr(nxe_cedar_parser_ctx_t *ctx)
         nxe_cedar_parser_advance(ctx);
 
         return has_node;
+    }
+
+    /* like operator: expr like STRING */
+    if (ctx->current.type == NXE_CEDAR_TOKEN_LIKE) {
+        nxe_cedar_node_t *like_node;
+
+        nxe_cedar_parser_advance(ctx);
+
+        if (ctx->current.type != NXE_CEDAR_TOKEN_STRING) {
+            ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                          "nxe_cedar_parse: "
+                          "expected string pattern after 'like'");
+            ctx->error = 1;
+            return NULL;
+        }
+
+        like_node = nxe_cedar_parser_alloc_node(ctx,
+                                                NXE_CEDAR_NODE_LIKE);
+        if (like_node == NULL) {
+            return NULL;
+        }
+
+        like_node->u.like.object = left;
+
+        if (nxe_cedar_parser_compile_pattern(ctx,
+                                             &ctx->current.raw,
+                                             &like_node->u.like.pattern)
+            != NGX_OK)
+        {
+            ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                          "nxe_cedar_parse: "
+                          "invalid like pattern");
+            return NULL;
+        }
+
+        nxe_cedar_parser_advance(ctx);
+
+        return like_node;
     }
 
     if (ctx->current.type == NXE_CEDAR_TOKEN_EQ) {

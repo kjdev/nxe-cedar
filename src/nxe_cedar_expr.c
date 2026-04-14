@@ -253,6 +253,64 @@ nxe_cedar_eval_has(nxe_cedar_node_t *node,
 }
 
 
+/*
+ * Wildcard pattern matching for like operator.
+ * Pattern bytes: 0xFF = wildcard (matches 0+ chars), all others = literal.
+ * Uses a greedy/backtracking approach.
+ *
+ * Invariant: patterns are always produced by
+ * nxe_cedar_parser_compile_pattern(), which guarantees that 0xFF bytes
+ * in the pattern are exclusively wildcard markers.  Subject strings may
+ * contain arbitrary bytes (including 0xFF in non-UTF-8 input), but this
+ * is safe: pattern-side 0xFF is always consumed first by the wildcard
+ * branch (line *p == 0xFF), so it never reaches the literal comparison.
+ */
+static ngx_flag_t
+nxe_cedar_like_match(ngx_str_t *subject, ngx_str_t *pattern)
+{
+    u_char *s, *p, *s_end, *p_end;
+    u_char *star_p, *star_s;
+
+    s = subject->data;
+    s_end = s + subject->len;
+    p = pattern->data;
+    p_end = p + pattern->len;
+    star_p = NULL;
+    star_s = NULL;
+
+    while (s < s_end) {
+        if (p < p_end && *p == 0xFF) {
+            /* wildcard: record position for backtracking */
+            star_p = ++p;
+            star_s = s;
+            continue;
+        }
+
+        if (p < p_end && *p == *s) {
+            p++;
+            s++;
+            continue;
+        }
+
+        /* mismatch: backtrack to last wildcard */
+        if (star_p != NULL) {
+            p = star_p;
+            s = ++star_s;
+            continue;
+        }
+
+        return 0;
+    }
+
+    /* consume trailing wildcards in pattern */
+    while (p < p_end && *p == 0xFF) {
+        p++;
+    }
+
+    return (p == p_end);
+}
+
+
 /* entity in entity-or-set check */
 static nxe_cedar_value_t
 nxe_cedar_eval_in(nxe_cedar_value_t *left, nxe_cedar_value_t *right)
@@ -537,6 +595,19 @@ nxe_cedar_expr_eval(nxe_cedar_node_t *node,
     /* Phase 2 */
     case NXE_CEDAR_NODE_HAS:
         return nxe_cedar_eval_has(node, ctx);
+
+    case NXE_CEDAR_NODE_LIKE:
+        left = nxe_cedar_expr_eval(node->u.like.object, ctx,
+                                   pool, log);
+        if (left.type == NXE_CEDAR_RVAL_ERROR) {
+            return left;
+        }
+        if (left.type != NXE_CEDAR_RVAL_STRING) {
+            return nxe_cedar_make_error();
+        }
+        return nxe_cedar_make_bool(
+            nxe_cedar_like_match(&left.v.str_val,
+                                 &node->u.like.pattern));
 
     default:
         return nxe_cedar_make_error();

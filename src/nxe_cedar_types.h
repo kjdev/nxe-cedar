@@ -85,6 +85,9 @@ typedef enum {
 typedef struct {
     nxe_cedar_token_type_t  type;
     ngx_str_t               value;      /* string representation */
+    ngx_str_t               raw;        /* raw source for STRING tokens
+                                           (used by like pattern compiler) */
+    ngx_flag_t              has_star_escape;  /* 1 if \* found in string */
 } nxe_cedar_token_t;
 
 
