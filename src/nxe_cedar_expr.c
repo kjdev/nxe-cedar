@@ -311,6 +311,105 @@ nxe_cedar_like_match(ngx_str_t *subject, ngx_str_t *pattern)
 }
 
 
+/* evaluate method call: expr.method(arg) */
+static nxe_cedar_value_t
+nxe_cedar_eval_method_call(nxe_cedar_node_t *node,
+    nxe_cedar_eval_ctx_t *ctx, ngx_pool_t *pool,
+    ngx_log_t *log)
+{
+    nxe_cedar_value_t obj, arg;
+    ngx_str_t *method;
+    nxe_cedar_value_t *obj_elts, *arg_elts;
+    ngx_uint_t i, j;
+
+    obj = nxe_cedar_expr_eval(node->u.method_call.object, ctx,
+                              pool, log);
+    if (obj.type == NXE_CEDAR_RVAL_ERROR) {
+        return obj;
+    }
+
+    arg = nxe_cedar_expr_eval(node->u.method_call.arg, ctx,
+                              pool, log);
+    if (arg.type == NXE_CEDAR_RVAL_ERROR) {
+        return arg;
+    }
+
+    method = &node->u.method_call.method;
+
+    /* containsAll */
+    if (method->len == 11
+        && ngx_memcmp(method->data, "containsAll", 11) == 0)
+    {
+        if (obj.type != NXE_CEDAR_RVAL_SET
+            || arg.type != NXE_CEDAR_RVAL_SET)
+        {
+            return nxe_cedar_make_error();
+        }
+
+        if (obj.v.set_elts == NULL || arg.v.set_elts == NULL) {
+            return nxe_cedar_make_error();
+        }
+
+        obj_elts = obj.v.set_elts->elts;
+        arg_elts = arg.v.set_elts->elts;
+
+        /* every element in arg must exist in obj */
+        for (i = 0; i < arg.v.set_elts->nelts; i++) {
+            ngx_flag_t found = 0;
+
+            for (j = 0; j < obj.v.set_elts->nelts; j++) {
+                if (nxe_cedar_value_equals(&arg_elts[i],
+                                           &obj_elts[j]))
+                {
+                    found = 1;
+                    break;
+                }
+            }
+
+            if (!found) {
+                return nxe_cedar_make_bool(0);
+            }
+        }
+
+        return nxe_cedar_make_bool(1);
+    }
+
+    /* containsAny */
+    if (method->len == 11
+        && ngx_memcmp(method->data, "containsAny", 11) == 0)
+    {
+        if (obj.type != NXE_CEDAR_RVAL_SET
+            || arg.type != NXE_CEDAR_RVAL_SET)
+        {
+            return nxe_cedar_make_error();
+        }
+
+        if (obj.v.set_elts == NULL || arg.v.set_elts == NULL) {
+            return nxe_cedar_make_error();
+        }
+
+        obj_elts = obj.v.set_elts->elts;
+        arg_elts = arg.v.set_elts->elts;
+
+        /* at least one element in arg must exist in obj */
+        for (i = 0; i < arg.v.set_elts->nelts; i++) {
+            for (j = 0; j < obj.v.set_elts->nelts; j++) {
+                if (nxe_cedar_value_equals(&arg_elts[i],
+                                           &obj_elts[j]))
+                {
+                    return nxe_cedar_make_bool(1);
+                }
+            }
+        }
+
+        return nxe_cedar_make_bool(0);
+    }
+
+    /* unknown method */
+    return nxe_cedar_make_error();
+}
+
+
 /* entity in entity-or-set check */
 static nxe_cedar_value_t
 nxe_cedar_eval_in(nxe_cedar_value_t *left, nxe_cedar_value_t *right)
@@ -608,6 +707,9 @@ nxe_cedar_expr_eval(nxe_cedar_node_t *node,
         return nxe_cedar_make_bool(
             nxe_cedar_like_match(&left.v.str_val,
                                  &node->u.like.pattern));
+
+    case NXE_CEDAR_NODE_METHOD_CALL:
+        return nxe_cedar_eval_method_call(node, ctx, pool, log);
 
     default:
         return nxe_cedar_make_error();

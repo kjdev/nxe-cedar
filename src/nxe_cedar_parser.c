@@ -545,11 +545,12 @@ nxe_cedar_parse_primary(nxe_cedar_parser_ctx_t *ctx)
 }
 
 
-/* parse member expression: primary { .ident } */
+/* parse member expression: primary { .ident | .ident(expr) } */
 static nxe_cedar_node_t *
 nxe_cedar_parse_member_expr(nxe_cedar_parser_ctx_t *ctx)
 {
     nxe_cedar_node_t *node, *access;
+    ngx_str_t ident;
     ngx_uint_t chain;
 
     node = nxe_cedar_parse_primary(ctx);
@@ -575,6 +576,39 @@ nxe_cedar_parse_member_expr(nxe_cedar_parser_ctx_t *ctx)
             return NULL;
         }
 
+        ident = ctx->current.value;
+        nxe_cedar_parser_advance(ctx);
+
+        /* method call: expr.method(arg) */
+        if (ctx->current.type == NXE_CEDAR_TOKEN_LPAREN) {
+            nxe_cedar_node_t *call;
+
+            nxe_cedar_parser_advance(ctx);
+
+            call = nxe_cedar_parser_alloc_node(ctx,
+                                               NXE_CEDAR_NODE_METHOD_CALL);
+            if (call == NULL) {
+                return NULL;
+            }
+
+            call->u.method_call.object = node;
+            call->u.method_call.method = ident;
+            call->u.method_call.arg = nxe_cedar_parse_expr(ctx);
+            if (ctx->error) {
+                return NULL;
+            }
+
+            if (nxe_cedar_parser_expect(ctx, NXE_CEDAR_TOKEN_RPAREN)
+                != NGX_OK)
+            {
+                return NULL;
+            }
+
+            node = call;
+            continue;
+        }
+
+        /* attribute access: expr.ident */
         access = nxe_cedar_parser_alloc_node(ctx,
                                              NXE_CEDAR_NODE_ATTR_ACCESS);
         if (access == NULL) {
@@ -582,8 +616,7 @@ nxe_cedar_parse_member_expr(nxe_cedar_parser_ctx_t *ctx)
         }
 
         access->u.attr_access.object = node;
-        access->u.attr_access.attr = ctx->current.value;
-        nxe_cedar_parser_advance(ctx);
+        access->u.attr_access.attr = ident;
 
         node = access;
     }
