@@ -1,0 +1,217 @@
+{
+    "description": "containsAll and containsAny set methods",
+    "phase": 2,
+    "tests": [
+        {
+            "name": "containsAll_true",
+            "description": "set containsAll subset should be true",
+            "policy": "permit (principal, action, resource) when { [Action::\"GET\", Action::\"POST\", Action::\"DELETE\"].containsAll([Action::\"GET\", Action::\"POST\"]) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "containsAll_false",
+            "description": "set does not contain all elements of argument",
+            "policy": "permit (principal, action, resource) when { [Action::\"GET\", Action::\"POST\"].containsAll([Action::\"GET\", Action::\"DELETE\"]) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "containsAll_equal_sets",
+            "description": "containsAll with identical sets should be true",
+            "policy": "permit (principal, action, resource) when { [Action::\"GET\", Action::\"POST\"].containsAll([Action::\"GET\", Action::\"POST\"]) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "containsAll_empty_arg",
+            "description": "any set containsAll empty set should be true",
+            "policy": "permit (principal, action, resource) when { [Action::\"GET\"].containsAll([]) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "containsAny_true",
+            "description": "set containsAny should be true when at least one element matches",
+            "policy": "permit (principal, action, resource) when { [Action::\"GET\", Action::\"POST\"].containsAny([Action::\"POST\", Action::\"DELETE\"]) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "containsAny_false",
+            "description": "set containsAny should be false when no elements match",
+            "policy": "permit (principal, action, resource) when { [Action::\"GET\", Action::\"POST\"].containsAny([Action::\"DELETE\", Action::\"PUT\"]) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "containsAny_empty_arg",
+            "description": "containsAny with empty arg set should be false",
+            "policy": "permit (principal, action, resource) when { [Action::\"GET\"].containsAny([]) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "containsAny_with_action_variable",
+            "description": "action in set checked via containsAny with action variable in arg",
+            "policy": "permit (principal, action, resource) when { [Action::\"GET\", Action::\"POST\", Action::\"DELETE\"].containsAny([action]) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "containsAny_with_action_variable_no_match",
+            "description": "action not in set via containsAny",
+            "policy": "permit (principal, action, resource) when { [Action::\"POST\", Action::\"DELETE\"].containsAny([action]) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "containsAll_type_mismatch",
+            "description": "calling containsAll on non-set should produce error and deny",
+            "policy": "permit (principal, action, resource) when { context.name.containsAll([\"a\"]) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"name": "alice"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "containsAny_in_forbid",
+            "description": "forbid with containsAny overrides permit",
+            "policy": "permit (principal, action, resource);\nforbid (principal, action, resource) when { [Action::\"GET\", Action::\"POST\"].containsAny([action]) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "POST"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "containsAll_integer_sets",
+            "description": "containsAll works with integer set literals",
+            "policy": "permit (principal, action, resource) when { [1, 2, 3, 4, 5].containsAll([2, 4]) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "containsAny_string_sets",
+            "description": "containsAny works with string set literals",
+            "policy": "permit (principal, action, resource) when { [\"read\", \"write\"].containsAny([\"write\", \"admin\"]) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "containsAll_negated",
+            "description": "negated containsAll: !(set.containsAll(arg))",
+            "policy": "permit (principal, action, resource) when { !([Action::\"GET\"].containsAll([Action::\"GET\", Action::\"POST\"])) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "containsAll_empty_receiver_empty_arg",
+            "description": "empty set containsAll empty set should be true (vacuous truth)",
+            "policy": "permit (principal, action, resource) when { [].containsAll([]) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "containsAll_empty_receiver_nonempty_arg",
+            "description": "empty set does not containsAll non-empty set",
+            "policy": "permit (principal, action, resource) when { [].containsAll([Action::\"GET\"]) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "containsAny_empty_receiver_empty_arg",
+            "description": "empty set containsAny empty set should be false",
+            "policy": "permit (principal, action, resource) when { [].containsAny([]) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "containsAny_empty_receiver_nonempty_arg",
+            "description": "empty set containsAny non-empty set should be false",
+            "policy": "permit (principal, action, resource) when { [].containsAny([Action::\"GET\"]) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "containsAny_type_mismatch",
+            "description": "calling containsAny on non-set should produce error and deny",
+            "policy": "permit (principal, action, resource) when { context.name.containsAny([\"a\"]) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"name": "alice"}
+            },
+            "expected": "deny"
+        }
+    ]
+}
