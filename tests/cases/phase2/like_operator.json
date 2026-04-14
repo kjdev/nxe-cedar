@@ -1,0 +1,505 @@
+{
+    "description": "like operator for wildcard pattern matching on strings",
+    "phase": 2,
+    "tests": [
+        {
+            "name": "like_suffix_wildcard_match",
+            "description": "resource.path like '/api/*' should match '/api/v1/users'",
+            "policy": "permit (principal, action, resource) when { resource.path like \"/api/*\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/v1/users"},
+                "resource_attrs": {"path": "/api/v1/users"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "like_suffix_wildcard_no_match",
+            "description": "resource.path like '/api/*' should not match '/admin/settings'",
+            "policy": "permit (principal, action, resource) when { resource.path like \"/api/*\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/admin/settings"},
+                "resource_attrs": {"path": "/admin/settings"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "like_prefix_wildcard_match",
+            "description": "'*@example.com' should match 'alice@example.com'",
+            "policy": "permit (principal, action, resource) when { context.email like \"*@example.com\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"email": "alice@example.com"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "like_prefix_wildcard_no_match",
+            "description": "'*@example.com' should not match 'alice@other.com'",
+            "policy": "permit (principal, action, resource) when { context.email like \"*@example.com\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"email": "alice@other.com"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "like_multiple_wildcards",
+            "description": "'/api/*/public/*' should match '/api/v2/public/docs'",
+            "policy": "permit (principal, action, resource) when { context.path like \"/api/*/public/*\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"path": "/api/v2/public/docs"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "like_exact_literal",
+            "description": "pattern without wildcard requires exact match",
+            "policy": "permit (principal, action, resource) when { context.path like \"/api/v1\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"path": "/api/v1"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "like_exact_literal_no_match",
+            "description": "exact pattern should not match different string",
+            "policy": "permit (principal, action, resource) when { context.path like \"/api/v1\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"path": "/api/v1/extra"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "like_wildcard_only",
+            "description": "pattern '*' should match any string",
+            "policy": "permit (principal, action, resource) when { context.name like \"*\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"name": "anything goes here"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "like_wildcard_empty_string",
+            "description": "pattern '*' should match empty string",
+            "policy": "permit (principal, action, resource) when { context.val like \"*\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"val": ""}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "like_escaped_star",
+            "description": "'rate\\*limit' should match literal 'rate*limit'",
+            "policy": "permit (principal, action, resource) when { context.label like \"rate\\*limit\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"label": "rate*limit"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "like_escaped_star_no_match",
+            "description": "'rate\\*limit' should not match 'rate_limit'",
+            "policy": "permit (principal, action, resource) when { context.label like \"rate\\*limit\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"label": "rate_limit"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "like_type_mismatch_integer",
+            "description": "like on non-string LHS should produce error and deny",
+            "policy": "permit (principal, action, resource) when { context.level like \"*\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"level": 5}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "like_in_forbid",
+            "description": "forbid with like pattern should override permit",
+            "policy": "permit (principal, action, resource);\nforbid (principal, action, resource) when { resource.path like \"/admin/*\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/admin/settings"},
+                "resource_attrs": {"path": "/admin/settings"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "like_negated",
+            "description": "negated like: !(resource.path like '/admin/*')",
+            "policy": "permit (principal, action, resource) when { !(resource.path like \"/admin/*\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "resource_attrs": {"path": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "like_suffix_wildcard_empty_segment",
+            "description": "'/api/*' should match '/api/' (wildcard matches empty)",
+            "policy": "permit (principal, action, resource) when { context.path like \"/api/*\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"path": "/api/"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "like_middle_wildcard",
+            "description": "wildcard in middle: '/api/*/data' matches '/api/v1/data'",
+            "policy": "permit (principal, action, resource) when { context.path like \"/api/*/data\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"path": "/api/v1/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "like_middle_wildcard_no_match",
+            "description": "'/api/*/data' should not match '/api/v1/other'",
+            "policy": "permit (principal, action, resource) when { context.path like \"/api/*/data\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"path": "/api/v1/other"}
+            },
+            "expected": "deny"
+        },
+
+        {
+            "name": "like_consecutive_wildcards_double",
+            "description": "pattern '**' should match any string (same as '*')",
+            "policy": "permit (principal, action, resource) when { context.val like \"**\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"val": "hello world"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "like_consecutive_wildcards_triple",
+            "description": "pattern '***' should match any string",
+            "policy": "permit (principal, action, resource) when { context.val like \"***\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"val": "abc"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "like_consecutive_wildcards_with_literal",
+            "description": "pattern 'a**b' should match 'aXYZb'",
+            "policy": "permit (principal, action, resource) when { context.val like \"a**b\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"val": "aXYZb"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "like_consecutive_wildcards_empty_match",
+            "description": "pattern 'a**b' should match 'ab' (wildcards match empty)",
+            "policy": "permit (principal, action, resource) when { context.val like \"a**b\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"val": "ab"}
+            },
+            "expected": "allow"
+        },
+
+        {
+            "name": "like_escaped_star_only",
+            "description": "pattern '\\*' should match exactly '*'",
+            "policy": "permit (principal, action, resource) when { context.label like \"\\*\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"label": "*"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "like_escaped_star_only_no_match",
+            "description": "pattern '\\*' should not match 'x'",
+            "policy": "permit (principal, action, resource) when { context.label like \"\\*\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"label": "x"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "like_double_escaped_stars",
+            "description": "pattern '\\*\\*' should match literal '**'",
+            "policy": "permit (principal, action, resource) when { context.label like \"\\*\\*\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"label": "**"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "like_double_escaped_stars_no_match",
+            "description": "pattern '\\*\\*' should not match 'ab'",
+            "policy": "permit (principal, action, resource) when { context.label like \"\\*\\*\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"label": "ab"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "like_mixed_wildcard_and_escaped_star",
+            "description": "pattern '*\\**' should match 'foo*bar'",
+            "policy": "permit (principal, action, resource) when { context.val like \"*\\**\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"val": "foo*bar"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "like_mixed_wildcard_and_escaped_star_no_match",
+            "description": "pattern '*\\**' should not match 'foobar' (no literal star)",
+            "policy": "permit (principal, action, resource) when { context.val like \"*\\**\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"val": "foobar"}
+            },
+            "expected": "deny"
+        },
+
+        {
+            "name": "like_empty_pattern_empty_string",
+            "description": "empty pattern '' should match empty string",
+            "policy": "permit (principal, action, resource) when { context.val like \"\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"val": ""}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "like_empty_pattern_nonempty_string",
+            "description": "empty pattern '' should not match non-empty string",
+            "policy": "permit (principal, action, resource) when { context.val like \"\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"val": "x"}
+            },
+            "expected": "deny"
+        },
+
+        {
+            "name": "like_hex_escape_star_is_wildcard",
+            "description": "\\x2A decodes to '*' which is a wildcard, should match any string",
+            "policy": "permit (principal, action, resource) when { context.label like \"\\x2A\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"label": "anything"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "like_hex_escape_star_matches_empty",
+            "description": "\\x2A acts as wildcard, should match empty string",
+            "policy": "permit (principal, action, resource) when { context.label like \"\\x2A\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"label": ""}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "like_hex_escape_literal",
+            "description": "pattern '\\x41*' (hex A + wildcard) should match 'Alice'",
+            "policy": "permit (principal, action, resource) when { context.name like \"\\x41*\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"name": "Alice"}
+            },
+            "expected": "allow"
+        },
+
+        {
+            "name": "like_unicode_escape_in_pattern",
+            "description": "pattern with unicode escape '\\u{E9}*' should match string starting with e-acute",
+            "policy": "permit (principal, action, resource) when { context.name like \"\\u{E9}*\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"name": "\u00e9clat"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "like_unicode_escape_in_pattern_no_match",
+            "description": "pattern with unicode escape '\\u{E9}*' should not match 'eclat'",
+            "policy": "permit (principal, action, resource) when { context.name like \"\\u{E9}*\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"name": "eclat"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "like_unicode_escape_star_is_wildcard",
+            "description": "\\u{2A} decodes to '*' which is a wildcard, should match any string",
+            "policy": "permit (principal, action, resource) when { context.val like \"\\u{2A}\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"val": "hello"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "like_unicode_subject_with_wildcard",
+            "description": "wildcard should match across multibyte UTF-8 characters",
+            "policy": "permit (principal, action, resource) when { context.msg like \"*world\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"msg": "\u3053\u3093\u306b\u3061\u306f world"}
+            },
+            "expected": "allow"
+        },
+
+        {
+            "name": "like_backtracking_multiple_wildcards_match",
+            "description": "pattern 'a*b*c*d' should match 'aXbYcZd'",
+            "policy": "permit (principal, action, resource) when { context.val like \"a*b*c*d\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"val": "aXbYcZd"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "like_backtracking_multiple_wildcards_no_match",
+            "description": "pattern 'a*b*c*end' should not match 'aXbXcXaXbXcX'",
+            "policy": "permit (principal, action, resource) when { context.val like \"a*b*c*end\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"val": "aXbXcXaXbXcX"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "like_backtracking_repeated_near_match",
+            "description": "pattern '*abc' should match when 'abc' appears at end after false starts",
+            "policy": "permit (principal, action, resource) when { context.val like \"*abc\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"val": "abababababc"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "like_backtracking_repeated_near_miss",
+            "description": "pattern '*abc' should not match when only 'ab' repeats",
+            "policy": "permit (principal, action, resource) when { context.val like \"*abc\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"val": "abababababab"}
+            },
+            "expected": "deny"
+        },
+
+        {
+            "name": "like_reject_escaped_xff_in_pattern",
+            "description": "\\xFF in like pattern must be rejected (0xFF is reserved as wildcard marker)",
+            "policy": "permit (principal, action, resource) when { context.val like \"\\xFF\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"val": "anything"}
+            },
+            "expected": "error"
+        }
+    ]
+}
