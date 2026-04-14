@@ -1,5 +1,20 @@
 # Changelog
 
+## [83dcfdc](../../commit/83dcfdc) - 2026-04-15
+
+### Added
+
+- Add `like` operator for wildcard pattern matching on strings (Phase 2)
+  - Syntax: `expr like "pattern"` in `when` / `unless` conditions
+  - `*` matches zero or more arbitrary characters; `\*` matches a literal `*`
+  - Escape sequences `\x2A` and `\u{2A}` are treated as wildcards (Cedar spec)
+  - Pattern compiled at parse time: unescaped `*` → 0xFF sentinel, consecutive wildcards compressed
+  - `\*` escape is accepted only in `like` patterns; rejected in regular strings and entity IDs at parse time
+  - Reject raw 0xFF bytes in pattern source to prevent wildcard sentinel collision
+  - O(n+m) greedy/backtracking matcher in `nxe_cedar_like_match()`
+  - Refactor string escape decoding into shared `nxe_cedar_decode_escape()` (lexer + pattern compiler)
+  - Add `raw` and `has_star_escape` fields to `nxe_cedar_token_t` for pattern compilation
+
 ## [cd48da3](../../commit/cd48da3) - 2026-04-14
 
 ### Added
