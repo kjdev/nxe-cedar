@@ -1,5 +1,16 @@
 # Changelog
 
+## [3c9d106](../../commit/3c9d106) - 2026-04-15
+
+### Added
+
+- Add `contains` single element set membership method (Phase 3)
+  - Syntax: `expr.contains(expr)` in `when` / `unless` conditions
+  - Receiver must be set-typed; non-set receiver returns evaluation error
+  - Argument can be any value type (string, integer, boolean, entity)
+  - Type mismatch between set elements and argument returns `false` (not error)
+  - Reuses existing `nxe_cedar_value_equals()` for element comparison
+
 ## [b8c4385](../../commit/b8c4385) - 2026-04-15
 
 ### Added
