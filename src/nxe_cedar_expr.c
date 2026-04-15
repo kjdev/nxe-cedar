@@ -739,6 +739,55 @@ nxe_cedar_eval_method_call(nxe_cedar_node_t *node,
         return nxe_cedar_make_bool(0);
     }
 
+    /* isInRange (IP address range membership) */
+    if (method->len == 9
+        && ngx_memcmp(method->data, "isInRange", 9) == 0)
+    {
+        ngx_uint_t addr_len, full_bytes, remaining_bits;
+        u_char mask;
+
+        if (obj.type != NXE_CEDAR_RVAL_IP
+            || arg.type != NXE_CEDAR_RVAL_IP)
+        {
+            return nxe_cedar_make_error();
+        }
+
+        /* IPv4/IPv6 mismatch */
+        if (obj.v.ip_addr.is_ipv6 != arg.v.ip_addr.is_ipv6) {
+            return nxe_cedar_make_bool(0);
+        }
+
+        /* obj network must be at least as specific as arg range */
+        if (obj.v.ip_addr.prefix_len < arg.v.ip_addr.prefix_len) {
+            return nxe_cedar_make_bool(0);
+        }
+
+        addr_len = obj.v.ip_addr.is_ipv6 ? 16 : 4;
+        full_bytes = arg.v.ip_addr.prefix_len / 8;
+        remaining_bits = arg.v.ip_addr.prefix_len % 8;
+
+        /* compare full bytes of prefix */
+        if (full_bytes > 0
+            && ngx_memcmp(obj.v.ip_addr.addr,
+                          arg.v.ip_addr.addr, full_bytes) != 0)
+        {
+            return nxe_cedar_make_bool(0);
+        }
+
+        /* compare remaining bits */
+        if (remaining_bits > 0 && full_bytes < addr_len) {
+            mask = (u_char) (0xFF << (8 - remaining_bits));
+
+            if ((obj.v.ip_addr.addr[full_bytes] & mask)
+                != (arg.v.ip_addr.addr[full_bytes] & mask))
+            {
+                return nxe_cedar_make_bool(0);
+            }
+        }
+
+        return nxe_cedar_make_bool(1);
+    }
+
     /* unknown method */
     return nxe_cedar_make_error();
 }
