@@ -1,5 +1,17 @@
 # Changelog
 
+## [b8c4385](../../commit/b8c4385) - 2026-04-15
+
+### Added
+
+- Add `if-then-else` conditional expression (Phase 2)
+  - Syntax: `if expr then expr else expr` in `when` / `unless` conditions
+  - Condition must evaluate to boolean; non-boolean condition returns evaluation error
+  - Short-circuit evaluation: only the selected branch is evaluated (Cedar spec compliant)
+  - Supports `has` guard pattern: `if principal has attr then principal.attr else default`
+  - Supports arbitrary result types (boolean, integer, string, entity) in then/else branches
+  - Nestable: `if c1 then (if c2 then a else b) else c`
+
 ## [58d3e58](../../commit/58d3e58) - 2026-04-15
 
 ### Added
