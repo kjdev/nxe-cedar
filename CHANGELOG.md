@@ -1,5 +1,18 @@
 # Changelog
 
+## [e739b8b](../../commit/e739b8b) - 2026-04-16
+
+### Added
+
+- Add `isInRange` method for IP address range membership (Phase 3)
+  - Syntax: `expr.isInRange(expr)` in `when` / `unless` conditions
+  - Both receiver and argument must be IP-typed; type mismatch returns evaluation error
+  - IPv4/IPv6 family mismatch returns `false`
+  - CIDR prefix matching: full byte comparison + remaining bits mask
+  - Receiver CIDR must be at least as specific as argument range (`/24` in `/8` → true, `/8` in `/24` → false)
+  - Single address (implicit `/32` or `/128`) treated as most-specific prefix
+  - Context attribute support: `context.ip.isInRange(ip("10.0.0.0/8"))`
+
 ## [76ddcb5](../../commit/76ddcb5) - 2026-04-16
 
 ### Added
