@@ -405,6 +405,29 @@ nxe_cedar_eval_method_call(nxe_cedar_node_t *node,
         return nxe_cedar_make_bool(0);
     }
 
+    /* contains (single element membership) */
+    if (method->len == 8
+        && ngx_memcmp(method->data, "contains", 8) == 0)
+    {
+        if (obj.type != NXE_CEDAR_RVAL_SET) {
+            return nxe_cedar_make_error();
+        }
+
+        if (obj.v.set_elts == NULL) {
+            return nxe_cedar_make_error();
+        }
+
+        obj_elts = obj.v.set_elts->elts;
+
+        for (i = 0; i < obj.v.set_elts->nelts; i++) {
+            if (nxe_cedar_value_equals(&obj_elts[i], &arg)) {
+                return nxe_cedar_make_bool(1);
+            }
+        }
+
+        return nxe_cedar_make_bool(0);
+    }
+
     /* unknown method */
     return nxe_cedar_make_error();
 }
