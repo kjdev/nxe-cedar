@@ -929,7 +929,7 @@ nxe_cedar_parse_or_expr(nxe_cedar_parser_ctx_t *ctx)
 }
 
 
-/* parse expression (top-level) */
+/* parse expression (top-level): if-then-else | or_expr */
 static nxe_cedar_node_t *
 nxe_cedar_parse_expr(nxe_cedar_parser_ctx_t *ctx)
 {
@@ -943,6 +943,55 @@ nxe_cedar_parse_expr(nxe_cedar_parser_ctx_t *ctx)
         ctx->error = 1;
         ctx->depth--;
         return NULL;
+    }
+
+    /* if-then-else expression */
+    if (ctx->current.type == NXE_CEDAR_TOKEN_IF) {
+        nxe_cedar_node_t *ite;
+
+        nxe_cedar_parser_advance(ctx);
+
+        ite = nxe_cedar_parser_alloc_node(ctx,
+                                          NXE_CEDAR_NODE_IF_THEN_ELSE);
+        if (ite == NULL) {
+            ctx->depth--;
+            return NULL;
+        }
+
+        ite->u.if_then_else.cond = nxe_cedar_parse_expr(ctx);
+        if (ctx->error) {
+            ctx->depth--;
+            return NULL;
+        }
+
+        if (nxe_cedar_parser_expect(ctx, NXE_CEDAR_TOKEN_THEN)
+            != NGX_OK)
+        {
+            ctx->depth--;
+            return NULL;
+        }
+
+        ite->u.if_then_else.then_expr = nxe_cedar_parse_expr(ctx);
+        if (ctx->error) {
+            ctx->depth--;
+            return NULL;
+        }
+
+        if (nxe_cedar_parser_expect(ctx, NXE_CEDAR_TOKEN_ELSE)
+            != NGX_OK)
+        {
+            ctx->depth--;
+            return NULL;
+        }
+
+        ite->u.if_then_else.else_expr = nxe_cedar_parse_expr(ctx);
+        if (ctx->error) {
+            ctx->depth--;
+            return NULL;
+        }
+
+        ctx->depth--;
+        return ite;
     }
 
     node = nxe_cedar_parse_or_expr(ctx);

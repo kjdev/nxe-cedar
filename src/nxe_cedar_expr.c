@@ -711,6 +711,22 @@ nxe_cedar_expr_eval(nxe_cedar_node_t *node,
     case NXE_CEDAR_NODE_METHOD_CALL:
         return nxe_cedar_eval_method_call(node, ctx, pool, log);
 
+    case NXE_CEDAR_NODE_IF_THEN_ELSE:
+        left = nxe_cedar_expr_eval(node->u.if_then_else.cond, ctx,
+                                   pool, log);
+        if (left.type == NXE_CEDAR_RVAL_ERROR) {
+            return left;
+        }
+        if (left.type != NXE_CEDAR_RVAL_BOOL) {
+            return nxe_cedar_make_error();
+        }
+        if (left.v.bool_val) {
+            return nxe_cedar_expr_eval(
+                node->u.if_then_else.then_expr, ctx, pool, log);
+        }
+        return nxe_cedar_expr_eval(
+            node->u.if_then_else.else_expr, ctx, pool, log);
+
     default:
         return nxe_cedar_make_error();
     }
