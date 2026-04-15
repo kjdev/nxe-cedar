@@ -1,0 +1,599 @@
+{
+    "description": "ip address literal parsing and equality",
+    "phase": 3,
+    "tests": [
+        {
+            "name": "ipv4_eq_same",
+            "description": "two identical IPv4 literals should be equal",
+            "policy": "permit (principal, action, resource) when { ip(\"1.2.3.4\") == ip(\"1.2.3.4\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv4_eq_different",
+            "description": "two different IPv4 literals should not be equal",
+            "policy": "permit (principal, action, resource) when { ip(\"1.2.3.4\") == ip(\"5.6.7.8\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv4_ne",
+            "description": "!= comparison on different IPv4 addresses",
+            "policy": "permit (principal, action, resource) when { ip(\"1.2.3.4\") != ip(\"5.6.7.8\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv4_cidr_eq_same",
+            "description": "two identical IPv4 CIDR should be equal",
+            "policy": "permit (principal, action, resource) when { ip(\"10.0.0.0/8\") == ip(\"10.0.0.0/8\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv4_cidr_eq_different_prefix",
+            "description": "same address but different prefix length should not be equal",
+            "policy": "permit (principal, action, resource) when { ip(\"10.0.0.0/8\") == ip(\"10.0.0.0/16\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv6_eq_same",
+            "description": "two identical IPv6 literals should be equal",
+            "policy": "permit (principal, action, resource) when { ip(\"::1\") == ip(\"::1\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv6_eq_different",
+            "description": "two different IPv6 literals should not be equal",
+            "policy": "permit (principal, action, resource) when { ip(\"::1\") == ip(\"::2\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv6_cidr_eq_same",
+            "description": "two identical IPv6 CIDR should be equal",
+            "policy": "permit (principal, action, resource) when { ip(\"fe80::/10\") == ip(\"fe80::/10\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv4_context_attr_eq",
+            "description": "ip literal equals context IP attribute",
+            "policy": "permit (principal, action, resource) when { ip(\"10.0.0.1\") == context.ip };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"ip": {"__extn": {"fn": "ip", "arg": "10.0.0.1"}}}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv4_context_attr_ne",
+            "description": "ip literal does not equal different context IP attribute",
+            "policy": "permit (principal, action, resource) when { ip(\"10.0.0.1\") == context.ip };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"ip": {"__extn": {"fn": "ip", "arg": "192.168.1.1"}}}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv4_full_octets",
+            "description": "IPv4 with all octets at boundary values",
+            "policy": "permit (principal, action, resource) when { ip(\"0.0.0.0\") == ip(\"0.0.0.0\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv4_max_octets",
+            "description": "IPv4 with max octet values",
+            "policy": "permit (principal, action, resource) when { ip(\"255.255.255.255\") == ip(\"255.255.255.255\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv6_full_form",
+            "description": "IPv6 full form with leading zeros equality",
+            "policy": "permit (principal, action, resource) when { ip(\"2001:0db8:0000:0000:0000:0000:0000:0001\") == ip(\"2001:db8::1\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ip_invalid_string",
+            "description": "invalid IP string should produce error and deny",
+            "policy": "permit (principal, action, resource) when { ip(\"not-an-ip\") == ip(\"1.2.3.4\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ip_in_forbid",
+            "description": "forbid with IP comparison overrides permit",
+            "policy": "permit (principal, action, resource);\nforbid (principal, action, resource) when { ip(\"10.0.0.1\") == context.ip };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"ip": {"__extn": {"fn": "ip", "arg": "10.0.0.1"}}}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv4_prefix_zero",
+            "description": "IPv4 with /0 prefix should be valid",
+            "policy": "permit (principal, action, resource) when { ip(\"0.0.0.0/0\") == ip(\"0.0.0.0/0\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv6_prefix_zero",
+            "description": "IPv6 with /0 prefix should be valid",
+            "policy": "permit (principal, action, resource) when { ip(\"::/0\") == ip(\"::/0\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv6_trailing_double_colon",
+            "description": "IPv6 with trailing :: should be valid",
+            "policy": "permit (principal, action, resource) when { ip(\"2001:db8::\") == ip(\"2001:db8::\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv4_vs_ipv6_cross_family",
+            "description": "IPv4 and IPv6 are different types and should not be equal",
+            "policy": "permit (principal, action, resource) when { ip(\"1.2.3.4\") == ip(\"::1\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv4_leading_zeros_rejected",
+            "description": "IPv4 with leading zeros should be rejected (deny via error)",
+            "policy": "permit (principal, action, resource) when { ip(\"010.0.0.1\") == ip(\"10.0.0.1\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv4_prefix_leading_zeros_rejected",
+            "description": "IPv4 CIDR with leading zeros in prefix should be rejected",
+            "policy": "permit (principal, action, resource) when { ip(\"10.0.0.0/08\") == ip(\"10.0.0.0/8\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv6_five_digit_group_rejected",
+            "description": "IPv6 group with 5+ hex digits should be rejected",
+            "policy": "permit (principal, action, resource) when { ip(\"00001::1\") == ip(\"1::1\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv6_prefix_leading_zeros_rejected",
+            "description": "IPv6 CIDR with leading zeros in prefix should be rejected",
+            "policy": "permit (principal, action, resource) when { ip(\"fe80::/064\") == ip(\"fe80::/64\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv4_mapped_dot_notation_rejected",
+            "description": "IPv4-mapped IPv6 with dot notation should be rejected",
+            "policy": "permit (principal, action, resource) when { ip(\"::ffff:192.168.1.1\") == ip(\"::ffff:192.168.1.1\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv4_mapped_hex_form_valid",
+            "description": "IPv4-mapped IPv6 in pure hex form should be valid",
+            "policy": "permit (principal, action, resource) when { ip(\"::ffff:c0a8:0101\") == ip(\"::ffff:c0a8:0101\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv4_mapped_hex_ne_plain_ipv4",
+            "description": "IPv4-mapped hex and plain IPv4 are different address families",
+            "policy": "permit (principal, action, resource) when { ip(\"::ffff:c0a8:0101\") == ip(\"192.168.1.1\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ip_empty_string_rejected",
+            "description": "empty string should be rejected as IP address",
+            "policy": "permit (principal, action, resource) when { ip(\"\") == ip(\"1.2.3.4\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "context_has_ip_keyword",
+            "description": "has operator should accept ip as unquoted attribute name",
+            "policy": "permit (principal, action, resource) when { context has ip && context.ip == ip(\"10.0.0.1\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"ip": {"__extn": {"fn": "ip", "arg": "10.0.0.1"}}}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "context_has_ip_keyword_missing",
+            "description": "has ip on context without ip attribute should be false",
+            "policy": "permit (principal, action, resource) when { context has ip };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"other": "value"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv4_prefix_33_rejected",
+            "description": "IPv4 CIDR with prefix > 32 should be rejected",
+            "policy": "permit (principal, action, resource) when { ip(\"1.2.3.4/33\") == ip(\"1.2.3.4/33\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv6_prefix_129_rejected",
+            "description": "IPv6 CIDR with prefix > 128 should be rejected",
+            "policy": "permit (principal, action, resource) when { ip(\"::1/129\") == ip(\"::1/129\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv6_nine_groups_rejected",
+            "description": "IPv6 with 9 groups should be rejected",
+            "policy": "permit (principal, action, resource) when { ip(\"1:2:3:4:5:6:7:8:9\") == ip(\"::1\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv6_triple_colon_rejected",
+            "description": "IPv6 with triple colon should be rejected",
+            "policy": "permit (principal, action, resource) when { ip(\"1:::2\") == ip(\"::1\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv4_octet_256_rejected",
+            "description": "IPv4 with octet > 255 should be rejected",
+            "policy": "permit (principal, action, resource) when { ip(\"256.0.0.1\") == ip(\"1.2.3.4\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv4_prefix_slash_only_rejected",
+            "description": "IPv4 with slash but no prefix digits should be rejected",
+            "policy": "permit (principal, action, resource) when { ip(\"1.2.3.4/\") == ip(\"1.2.3.4\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv4_prefix_non_digit_rejected",
+            "description": "IPv4 CIDR with non-digit prefix should be rejected",
+            "policy": "permit (principal, action, resource) when { ip(\"1.2.3.4/abc\") == ip(\"1.2.3.4\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv6_mixed_case_equal",
+            "description": "IPv6 uppercase and lowercase hex should be equal",
+            "policy": "permit (principal, action, resource) when { ip(\"2001:DB8::1\") == ip(\"2001:db8::1\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv6_redundant_double_colon_rejected",
+            "description": "IPv6 with :: expanding to zero groups should be rejected",
+            "policy": "permit (principal, action, resource) when { ip(\"1:2:3:4::5:6:7:8\") == ip(\"1:2:3:4:5:6:7:8\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv6_middle_double_colon",
+            "description": "IPv6 with :: in the middle should expand correctly",
+            "policy": "permit (principal, action, resource) when { ip(\"1:2::3:4\") == ip(\"1:2::3:4\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv6_middle_double_colon_expanded",
+            "description": "IPv6 with :: in the middle equals full form",
+            "policy": "permit (principal, action, resource) when { ip(\"1:2::3:4\") == ip(\"0001:0002:0000:0000:0000:0000:0003:0004\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv6_double_gap_rejected",
+            "description": "IPv6 with two :: gaps should be rejected",
+            "policy": "permit (principal, action, resource) when { ip(\"::1::2\") == ip(\"::1\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv6_trailing_single_colon_rejected",
+            "description": "IPv6 with trailing single colon should be rejected",
+            "policy": "permit (principal, action, resource) when { ip(\"1:2:3:4:5:6:7:8:\") == ip(\"1:2:3:4:5:6:7:8\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv6_leading_single_colon_rejected",
+            "description": "IPv6 with leading single colon should be rejected",
+            "policy": "permit (principal, action, resource) when { ip(\":1\") == ip(\"::1\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "principal_attr_ip_eq",
+            "description": "IP literal equals principal IP attribute",
+            "policy": "permit (principal, action, resource) when { ip(\"192.168.1.100\") == principal.src_ip };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"src_ip": {"__extn": {"fn": "ip", "arg": "192.168.1.100"}}}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "principal_attr_ip_ne",
+            "description": "IP literal does not equal different principal IP attribute",
+            "policy": "permit (principal, action, resource) when { ip(\"192.168.1.100\") == principal.src_ip };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"src_ip": {"__extn": {"fn": "ip", "arg": "10.0.0.1"}}}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "action_attr_ip_eq",
+            "description": "IP literal equals action IP attribute",
+            "policy": "permit (principal, action, resource) when { ip(\"10.0.0.1\") == action.server_ip };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "action_attrs": {"server_ip": {"__extn": {"fn": "ip", "arg": "10.0.0.1"}}}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "resource_attr_ip_eq",
+            "description": "IP literal equals resource IP attribute",
+            "policy": "permit (principal, action, resource) when { ip(\"172.16.0.1\") == resource.bind_ip };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "resource_attrs": {"bind_ip": {"__extn": {"fn": "ip", "arg": "172.16.0.1"}}}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "resource_attr_ip_ne",
+            "description": "IP literal does not equal different resource IP attribute",
+            "policy": "permit (principal, action, resource) when { ip(\"172.16.0.1\") == resource.bind_ip };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "resource_attrs": {"bind_ip": {"__extn": {"fn": "ip", "arg": "172.16.0.2"}}}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv4_octet_overflow_rejected",
+            "description": "IPv4 with extremely long octet should be rejected (overflow guard)",
+            "policy": "permit (principal, action, resource) when { ip(\"99999999999999999999.0.0.1\") == ip(\"1.2.3.4\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv4_prefix_overflow_rejected",
+            "description": "IPv4 CIDR with extremely long prefix should be rejected (overflow guard)",
+            "policy": "permit (principal, action, resource) when { ip(\"10.0.0.0/99999999999999999999\") == ip(\"10.0.0.0/8\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv6_prefix_overflow_rejected",
+            "description": "IPv6 CIDR with extremely long prefix should be rejected (overflow guard)",
+            "policy": "permit (principal, action, resource) when { ip(\"::1/99999999999999999999\") == ip(\"::1/64\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv6_leading_zeros_group_valid",
+            "description": "IPv6 group with leading zeros is valid per Cedar spec",
+            "policy": "permit (principal, action, resource) when { ip(\"0001::1\") == ip(\"1::1\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv6_leading_zero_hex_group_valid",
+            "description": "IPv6 group with leading zero in hex is valid per Cedar spec",
+            "policy": "permit (principal, action, resource) when { ip(\"01ab::1\") == ip(\"1ab::1\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        }
+    ]
+}
