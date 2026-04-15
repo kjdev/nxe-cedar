@@ -1,0 +1,144 @@
+{
+    "description": "if-then-else conditional expression",
+    "phase": 2,
+    "tests": [
+        {
+            "name": "if_then_branch",
+            "description": "if true then 'yes' else 'no' should evaluate to 'yes'",
+            "policy": "permit (principal, action, resource) when { (if true then \"yes\" else \"no\") == \"yes\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "if_else_branch",
+            "description": "if false then 'yes' else 'no' should evaluate to 'no'",
+            "policy": "permit (principal, action, resource) when { (if false then \"yes\" else \"no\") == \"no\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "if_with_has_guard",
+            "description": "if principal has role then principal.role else 'anonymous' with role present",
+            "policy": "permit (principal, action, resource) when { (if principal has role then principal.role else \"anonymous\") == \"admin\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "admin"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "if_with_has_guard_fallback",
+            "description": "if principal has role then principal.role else 'anonymous' without role",
+            "policy": "permit (principal, action, resource) when { (if principal has role then principal.role else \"anonymous\") == \"anonymous\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "if_with_comparison_cond",
+            "description": "if context.age >= 18 then true else false",
+            "policy": "permit (principal, action, resource) when { if context.age >= 18 then true else false };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"age": 25}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "if_with_comparison_cond_false",
+            "description": "if context.age >= 18 then true else false when age < 18",
+            "policy": "permit (principal, action, resource) when { if context.age >= 18 then true else false };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"age": 15}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "if_integer_result",
+            "description": "if-then-else returning integers used in comparison",
+            "policy": "permit (principal, action, resource) when { (if context.premium then 100 else 10) >= 50 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"premium": true}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "if_integer_result_else",
+            "description": "if-then-else else branch integer",
+            "policy": "permit (principal, action, resource) when { (if context.premium then 100 else 10) >= 50 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"premium": false}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "if_in_forbid",
+            "description": "if-then-else in forbid condition",
+            "policy": "permit (principal, action, resource);\nforbid (principal, action, resource) when { if context.restricted then true else false };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"restricted": true}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "if_non_bool_cond_denies",
+            "description": "if-then-else with non-boolean condition should produce error",
+            "policy": "permit (principal, action, resource) when { if \"not_a_bool\" then true else false };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "if_nested",
+            "description": "nested if-then-else: if cond1 then (if cond2 then a else b) else c",
+            "policy": "permit (principal, action, resource) when { (if true then (if false then \"a\" else \"b\") else \"c\") == \"b\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "if_cond_error_denies",
+            "description": "if cond produces error (missing attr), policy does not apply",
+            "policy": "permit (principal, action, resource) when { if context.missing > 0 then true else false };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        }
+    ]
+}
