@@ -1,0 +1,184 @@
+{
+    "description": "set contains single element membership test",
+    "phase": 3,
+    "tests": [
+        {
+            "name": "contains_integer_true",
+            "description": "set contains integer element should be true",
+            "policy": "permit (principal, action, resource) when { [1, 2, 3].contains(2) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "contains_integer_false",
+            "description": "set does not contain the element",
+            "policy": "permit (principal, action, resource) when { [1, 2, 3].contains(4) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "contains_entity_true",
+            "description": "set contains action entity via variable",
+            "policy": "permit (principal, action, resource) when { [Action::\"GET\", Action::\"POST\"].contains(action) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "contains_entity_false",
+            "description": "set does not contain the action entity",
+            "policy": "permit (principal, action, resource) when { [Action::\"POST\", Action::\"DELETE\"].contains(action) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "contains_string_true",
+            "description": "set contains string element should be true",
+            "policy": "permit (principal, action, resource) when { [\"read\", \"write\", \"admin\"].contains(\"write\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "contains_string_false",
+            "description": "set does not contain string element",
+            "policy": "permit (principal, action, resource) when { [\"read\", \"write\"].contains(\"admin\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "contains_empty_set",
+            "description": "empty set does not contain any element",
+            "policy": "permit (principal, action, resource) when { [].contains(1) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "contains_bool_true",
+            "description": "set contains boolean element",
+            "policy": "permit (principal, action, resource) when { [true, false].contains(true) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "contains_in_forbid",
+            "description": "forbid with set contains overrides permit",
+            "policy": "permit (principal, action, resource);\nforbid (principal, action, resource) when { [Action::\"GET\", Action::\"DELETE\"].contains(action) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "contains_negated",
+            "description": "negated set contains: !(set.contains(elem))",
+            "policy": "permit (principal, action, resource) when { ![Action::\"DELETE\", Action::\"PUT\"].contains(action) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "contains_with_context_attr",
+            "description": "set contains with context attribute value",
+            "policy": "permit (principal, action, resource) when { [\"admin\", \"editor\"].contains(context.role) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"role": "admin"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "contains_with_context_attr_miss",
+            "description": "set does not contain context attribute value",
+            "policy": "permit (principal, action, resource) when { [\"admin\", \"editor\"].contains(context.role) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"role": "viewer"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "contains_type_mismatch_receiver",
+            "description": "calling contains on non-set should produce error and deny",
+            "policy": "permit (principal, action, resource) when { \"hello\".contains(\"h\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "contains_single_element_set",
+            "description": "single element set contains that element",
+            "policy": "permit (principal, action, resource) when { [42].contains(42) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "contains_bool_false",
+            "description": "set does not contain the boolean element",
+            "policy": "permit (principal, action, resource) when { [false].contains(true) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "contains_type_mismatch_arg",
+            "description": "arg type differs from set element type returns false",
+            "policy": "permit (principal, action, resource) when { [1, 2, 3].contains(\"hello\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        }
+    ]
+}
