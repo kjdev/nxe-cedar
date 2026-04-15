@@ -1,0 +1,299 @@
+{
+    "description": "ip isInRange method for IP range membership",
+    "phase": 3,
+    "tests": [
+        {
+            "name": "ipv4_in_range_true",
+            "description": "IPv4 address is in the CIDR range",
+            "policy": "permit (principal, action, resource) when { ip(\"10.1.2.3\").isInRange(ip(\"10.0.0.0/8\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv4_in_range_false",
+            "description": "IPv4 address is not in the CIDR range",
+            "policy": "permit (principal, action, resource) when { ip(\"192.168.1.1\").isInRange(ip(\"10.0.0.0/8\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv4_in_range_context",
+            "description": "context IP is in the network range",
+            "policy": "permit (principal, action, resource) when { context.ip.isInRange(ip(\"10.0.0.0/8\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"ip": {"__extn": {"fn": "ip", "arg": "10.5.5.5"}}}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv4_not_in_range_context",
+            "description": "context IP is not in the network range",
+            "policy": "permit (principal, action, resource) when { context.ip.isInRange(ip(\"10.0.0.0/8\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"ip": {"__extn": {"fn": "ip", "arg": "172.16.0.1"}}}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv4_single_contains_self",
+            "description": "single IPv4 address isInRange of itself",
+            "policy": "permit (principal, action, resource) when { ip(\"10.0.0.1\").isInRange(ip(\"10.0.0.1\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv4_single_not_in_single",
+            "description": "single IPv4 address is not in range of different single address",
+            "policy": "permit (principal, action, resource) when { ip(\"10.0.0.1\").isInRange(ip(\"10.0.0.2\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv4_network_boundary",
+            "description": "network address itself is in range",
+            "policy": "permit (principal, action, resource) when { ip(\"192.168.0.0\").isInRange(ip(\"192.168.0.0/24\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv4_broadcast_boundary",
+            "description": "broadcast address is in range",
+            "policy": "permit (principal, action, resource) when { ip(\"192.168.0.255\").isInRange(ip(\"192.168.0.0/24\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv4_just_outside_range",
+            "description": "address just outside the CIDR range",
+            "policy": "permit (principal, action, resource) when { ip(\"192.168.1.0\").isInRange(ip(\"192.168.0.0/24\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv6_in_range_true",
+            "description": "IPv6 address is in the CIDR range",
+            "policy": "permit (principal, action, resource) when { ip(\"fe80::1\").isInRange(ip(\"fe80::/10\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv6_in_range_false",
+            "description": "IPv6 address is not in the CIDR range",
+            "policy": "permit (principal, action, resource) when { ip(\"2001:db8::1\").isInRange(ip(\"fe80::/10\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv4_v6_mismatch",
+            "description": "IPv4 isInRange IPv6 network should be false",
+            "policy": "permit (principal, action, resource) when { ip(\"10.0.0.1\").isInRange(ip(\"fe80::/10\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "type_mismatch_receiver",
+            "description": "non-IP receiver should produce error and deny",
+            "policy": "permit (principal, action, resource) when { context.name.isInRange(ip(\"10.0.0.0/8\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"name": "alice"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "type_mismatch_arg",
+            "description": "non-IP argument should produce error and deny",
+            "policy": "permit (principal, action, resource) when { ip(\"10.0.0.1\").isInRange(\"10.0.0.0/8\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "forbid_unless_in_range",
+            "description": "forbid unless IP is in allowed range (use case 6)",
+            "policy": "forbid (principal, action, resource) unless { context.ip.isInRange(ip(\"10.0.0.0/8\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"ip": {"__extn": {"fn": "ip", "arg": "10.1.2.3"}}}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "permit_and_forbid_unless_in_range",
+            "description": "permit + forbid unless IP is in range allows when in range",
+            "policy": "permit (principal, action, resource);\nforbid (principal, action, resource) unless { context.ip.isInRange(ip(\"10.0.0.0/8\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"ip": {"__extn": {"fn": "ip", "arg": "10.1.2.3"}}}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "permit_and_forbid_unless_out_of_range",
+            "description": "permit + forbid unless IP is in range denies when out of range",
+            "policy": "permit (principal, action, resource);\nforbid (principal, action, resource) unless { context.ip.isInRange(ip(\"10.0.0.0/8\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"ip": {"__extn": {"fn": "ip", "arg": "192.168.1.1"}}}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv4_prefix_zero",
+            "description": "/0 prefix matches any IPv4 address",
+            "policy": "permit (principal, action, resource) when { ip(\"192.168.1.1\").isInRange(ip(\"0.0.0.0/0\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "cidr_wider_obj_not_in_narrower_range",
+            "description": "wider /8 network is not in narrower /24 range",
+            "policy": "permit (principal, action, resource) when { ip(\"10.0.0.0/8\").isInRange(ip(\"10.0.0.0/24\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "cidr_narrower_obj_in_wider_range",
+            "description": "narrower /24 network is in wider /8 range",
+            "policy": "permit (principal, action, resource) when { ip(\"10.0.0.0/24\").isInRange(ip(\"10.0.0.0/8\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "cidr_same_prefix_in_range",
+            "description": "same CIDR range is in range of itself",
+            "policy": "permit (principal, action, resource) when { ip(\"10.0.0.0/24\").isInRange(ip(\"10.0.0.0/24\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "cidr_with_host_bits_in_range",
+            "description": "CIDR with host bits set is in wider range",
+            "policy": "permit (principal, action, resource) when { ip(\"10.0.0.5/24\").isInRange(ip(\"10.0.0.0/8\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv6_prefix_zero",
+            "description": "/0 prefix matches any IPv6 address",
+            "policy": "permit (principal, action, resource) when { ip(\"2001:db8::1\").isInRange(ip(\"::/0\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv6_just_outside_range",
+            "description": "IPv6 address just outside the CIDR range",
+            "policy": "permit (principal, action, resource) when { ip(\"fe80::1\").isInRange(ip(\"2001:db8::/32\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv6_in_range_64",
+            "description": "IPv6 address in /64 range",
+            "policy": "permit (principal, action, resource) when { ip(\"2001:db8::1\").isInRange(ip(\"2001:db8::/64\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv6_context_in_range",
+            "description": "IPv6 context IP is in the network range",
+            "policy": "permit (principal, action, resource) when { context.ip.isInRange(ip(\"2001:db8::/32\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"ip": {"__extn": {"fn": "ip", "arg": "2001:db8::1"}}}
+            },
+            "expected": "allow"
+        }
+    ]
+}
