@@ -1,5 +1,21 @@
 # Changelog
 
+## [76ddcb5](../../commit/76ddcb5) - 2026-04-16
+
+### Added
+
+- Add `ip()` extension function for IP address literals (Phase 3)
+  - Syntax: `ip("addr")` in `when` / `unless` conditions
+  - IPv4 (`1.2.3.4`), IPv6 (`::1`, `2001:db8::1`), CIDR (`10.0.0.0/8`, `fe80::/10`)
+  - Binary representation: 4-byte (IPv4) or 16-byte (IPv6) network byte order with prefix length
+  - Equality / inequality operators (`==`, `!=`) between same-family IP values
+  - Context attribute support via `__extn` JSON format and `nxe_cedar_eval_ctx_add_*_attr_ip()` API
+  - `ip` keyword usable as attribute name in member access (`context.ip`) and `has` operator (`context has ip`)
+  - Strict parsing: reject leading zeros in octets/groups/prefix, max 4 hex digits per IPv6 group
+  - IPv4-mapped IPv6 dot notation (`::ffff:192.168.1.1`) rejected per Cedar spec; hex form (`::ffff:c0a8:0101`) accepted
+  - `nxe_cedar_parse_cidr_prefix()` shared helper for IPv4/IPv6 prefix parsing
+  - `nxe_cedar_token_is_ident()` helper for extensible keyword-as-attribute-name handling
+
 ## [3c9d106](../../commit/3c9d106) - 2026-04-15
 
 ### Added
