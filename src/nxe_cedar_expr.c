@@ -72,6 +72,308 @@ nxe_cedar_make_entity(ngx_str_t type, ngx_str_t id)
 }
 
 
+/* parse bounded decimal: overflow-safe with leading-zero rejection */
+static ngx_int_t
+nxe_cedar_parse_bounded_dec(u_char **pp, u_char *end, ngx_uint_t max,
+    ngx_uint_t *out)
+{
+    u_char *p, *start;
+    ngx_uint_t val, digit;
+
+    p = *pp;
+    start = p;
+    val = 0;
+
+    if (p >= end || *p < '0' || *p > '9') {
+        return NGX_ERROR;
+    }
+
+    while (p < end && *p >= '0' && *p <= '9') {
+        digit = *p - '0';
+        if (val > (max - digit) / 10) {
+            return NGX_ERROR;
+        }
+        val = val * 10 + digit;
+        p++;
+    }
+
+    /* reject leading zeros (e.g. "08", "010") */
+    if (p - start > 1 && *start == '0') {
+        return NGX_ERROR;
+    }
+
+    *out = val;
+    *pp = p;
+
+    return NGX_OK;
+}
+
+
+/* parse CIDR prefix length: digits after '/' with leading-zero rejection */
+static ngx_int_t
+nxe_cedar_parse_cidr_prefix(u_char **pp, u_char *end,
+    ngx_uint_t max_prefix, ngx_uint_t *prefix_len)
+{
+    return nxe_cedar_parse_bounded_dec(pp, end, max_prefix, prefix_len);
+}
+
+
+/* parse IPv4 address: "a.b.c.d" with optional "/prefix" */
+static ngx_int_t
+nxe_cedar_parse_ipv4(u_char *data, size_t len,
+    u_char *addr, ngx_uint_t *prefix_len)
+{
+    u_char *p, *end;
+    ngx_uint_t octet, i;
+
+    p = data;
+    end = data + len;
+
+    for (i = 0; i < 4; i++) {
+
+        if (nxe_cedar_parse_bounded_dec(&p, end, 255, &octet) != NGX_OK) {
+            return NGX_ERROR;
+        }
+
+        addr[i] = (u_char) octet;
+
+        if (i < 3) {
+            if (p >= end || *p != '.') {
+                return NGX_ERROR;
+            }
+            p++;
+        }
+    }
+
+    if (p < end && *p == '/') {
+        p++;
+
+        if (nxe_cedar_parse_cidr_prefix(&p, end, 32, prefix_len)
+            != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+
+    } else {
+        *prefix_len = 32;
+    }
+
+    if (p != end) {
+        return NGX_ERROR;
+    }
+
+    return NGX_OK;
+}
+
+
+/* parse IPv6 address with optional "/prefix" */
+static ngx_int_t
+nxe_cedar_parse_ipv6(u_char *data, size_t len,
+    u_char *addr, ngx_uint_t *prefix_len)
+{
+    u_char *p, *end, *slash;
+    ngx_uint_t groups[8], n_groups, gap_pos, i, val;
+    size_t addr_len;
+
+    p = data;
+
+    /* split off /prefix if present */
+    slash = memchr(data, '/', len);
+
+    if (slash != NULL) {
+        addr_len = slash - data;
+    } else {
+        addr_len = len;
+    }
+
+    end = data + addr_len;
+    ngx_memzero(groups, sizeof(groups));
+    n_groups = 0;
+    gap_pos = 8; /* sentinel: no gap */
+
+    /* handle leading "::" */
+    if (addr_len >= 2 && p[0] == ':' && p[1] == ':') {
+        gap_pos = 0;
+        p += 2;
+
+        if (p == end) {
+            /* just "::" */
+            goto done_groups;
+        }
+    }
+
+    while (p < end) {
+        ngx_uint_t digits;
+
+        if (n_groups >= 8) {
+            return NGX_ERROR;
+        }
+
+        val = 0;
+        digits = 0;
+
+        if (*p < '0'
+            || (*p > '9' && *p < 'A')
+            || (*p > 'F' && *p < 'a')
+            || *p > 'f')
+        {
+            return NGX_ERROR;
+        }
+
+        while (p < end && *p != ':') {
+            if (++digits > 4) {
+                return NGX_ERROR;
+            }
+
+            if (*p >= '0' && *p <= '9') {
+                val = (val << 4) + (*p - '0');
+            } else if (*p >= 'a' && *p <= 'f') {
+                val = (val << 4) + (*p - 'a' + 10);
+            } else if (*p >= 'A' && *p <= 'F') {
+                val = (val << 4) + (*p - 'A' + 10);
+            } else {
+                return NGX_ERROR;
+            }
+
+            p++;
+        }
+
+        groups[n_groups++] = val;
+
+        if (p < end && *p == ':') {
+            p++;
+
+            if (p < end && *p == ':') {
+                if (gap_pos != 8) {
+                    return NGX_ERROR; /* double :: */
+                }
+                gap_pos = n_groups;
+                p++;
+
+                if (p == end) {
+                    break;
+                }
+
+            } else if (p >= end) {
+                return NGX_ERROR; /* trailing single colon */
+            }
+        }
+    }
+
+done_groups:
+
+    /* expand :: gap into 16-byte addr */
+    ngx_memzero(addr, 16);
+
+    if (gap_pos == 8) {
+        /* no gap: must have exactly 8 groups */
+        if (n_groups != 8) {
+            return NGX_ERROR;
+        }
+
+        for (i = 0; i < 8; i++) {
+            addr[i * 2] = (u_char) (groups[i] >> 8);
+            addr[i * 2 + 1] = (u_char) (groups[i] & 0xFF);
+        }
+
+    } else {
+        ngx_uint_t tail;
+
+        if (n_groups < gap_pos) {
+            return NGX_ERROR;
+        }
+
+        tail = n_groups - gap_pos;
+
+        /* :: must expand to at least one zero group */
+        if (gap_pos + tail >= 8) {
+            return NGX_ERROR;
+        }
+
+        for (i = 0; i < gap_pos; i++) {
+            addr[i * 2] = (u_char) (groups[i] >> 8);
+            addr[i * 2 + 1] = (u_char) (groups[i] & 0xFF);
+        }
+
+        for (i = 0; i < tail; i++) {
+            ngx_uint_t pos = 8 - tail + i;
+            addr[pos * 2] =
+                (u_char) (groups[gap_pos + i] >> 8);
+            addr[pos * 2 + 1] =
+                (u_char) (groups[gap_pos + i] & 0xFF);
+        }
+    }
+
+    /* parse prefix */
+    if (slash != NULL) {
+        p = slash + 1;
+        end = data + len;
+
+        if (nxe_cedar_parse_cidr_prefix(&p, end, 128, prefix_len)
+            != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+
+        if (p != end) {
+            return NGX_ERROR;
+        }
+
+    } else {
+        *prefix_len = 128;
+    }
+
+    return NGX_OK;
+}
+
+
+/* parse IP string to binary runtime value */
+static nxe_cedar_value_t
+nxe_cedar_make_ip(ngx_str_t *s)
+{
+    nxe_cedar_value_t val;
+
+    /*
+     * zero the entire value including addr[4..15] so IPv4
+     * (which only writes addr[0..3]) leaves no uninitialised bytes
+     */
+    /* max valid: "xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx/128" = 43 chars;
+     * use 45 as a conservative upper bound */
+    if (s->len == 0 || s->len > 45) {
+        return nxe_cedar_make_error();
+    }
+
+    ngx_memzero(&val, sizeof(nxe_cedar_value_t));
+    val.type = NXE_CEDAR_RVAL_IP;
+
+    /* try IPv4 first (contains dots, no colons) */
+    if (memchr(s->data, ':', s->len) == NULL) {
+        if (nxe_cedar_parse_ipv4(s->data, s->len,
+                                 val.v.ip_addr.addr,
+                                 &val.v.ip_addr.prefix_len)
+            != NGX_OK)
+        {
+            return nxe_cedar_make_error();
+        }
+
+        val.v.ip_addr.is_ipv6 = 0;
+        return val;
+    }
+
+    /* IPv6 */
+    if (nxe_cedar_parse_ipv6(s->data, s->len,
+                             val.v.ip_addr.addr,
+                             &val.v.ip_addr.prefix_len)
+        != NGX_OK)
+    {
+        return nxe_cedar_make_error();
+    }
+
+    val.v.ip_addr.is_ipv6 = 1;
+    return val;
+}
+
+
 /* value equality (same-type comparison) */
 static ngx_int_t
 nxe_cedar_value_equals(nxe_cedar_value_t *a, nxe_cedar_value_t *b)
@@ -94,6 +396,12 @@ nxe_cedar_value_equals(nxe_cedar_value_t *a, nxe_cedar_value_t *b)
     case NXE_CEDAR_RVAL_ENTITY:
         return (nxe_cedar_str_eq(&a->v.entity.type, &b->v.entity.type)
                 && nxe_cedar_str_eq(&a->v.entity.id, &b->v.entity.id));
+
+    case NXE_CEDAR_RVAL_IP:
+        return (a->v.ip_addr.is_ipv6 == b->v.ip_addr.is_ipv6
+                && a->v.ip_addr.prefix_len == b->v.ip_addr.prefix_len
+                && ngx_memcmp(a->v.ip_addr.addr, b->v.ip_addr.addr,
+                              a->v.ip_addr.is_ipv6 ? 16 : 4) == 0);
 
     case NXE_CEDAR_RVAL_SET:
         if (a->v.set_elts == NULL || b->v.set_elts == NULL) {
@@ -165,6 +473,9 @@ nxe_cedar_attr_to_value(nxe_cedar_attr_t *attr)
 
     case NXE_CEDAR_VALUE_BOOL:
         return nxe_cedar_make_bool(attr->value.bool_val);
+
+    case NXE_CEDAR_VALUE_IP:
+        return nxe_cedar_make_ip(&attr->value.ip_str);
 
     default:
         return nxe_cedar_make_error();
@@ -495,6 +806,9 @@ nxe_cedar_expr_eval(nxe_cedar_node_t *node,
 
     case NXE_CEDAR_NODE_LONG_LIT:
         return nxe_cedar_make_long(node->u.long_val);
+
+    case NXE_CEDAR_NODE_IP_LITERAL:
+        return nxe_cedar_make_ip(&node->u.ip_literal.addr);
 
     case NXE_CEDAR_NODE_ENTITY_REF:
         return nxe_cedar_make_entity(node->u.entity_ref.entity_type,

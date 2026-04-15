@@ -258,6 +258,7 @@ typedef struct {
 #define NXE_CEDAR_VALUE_STRING      0
 #define NXE_CEDAR_VALUE_LONG        1
 #define NXE_CEDAR_VALUE_BOOL        2
+#define NXE_CEDAR_VALUE_IP          3
 
 /* attribute key-value pair */
 typedef struct {
@@ -267,6 +268,7 @@ typedef struct {
         ngx_str_t   str_val;
         ngx_int_t   long_val;
         ngx_flag_t  bool_val;
+        ngx_str_t   ip_str;                /* IP address string for NXE_CEDAR_VALUE_IP */
     } value;
 } nxe_cedar_attr_t;
 

@@ -152,6 +152,25 @@ nxe_cedar_eval_ctx_add_bool_attr(ngx_array_t *attrs,
 }
 
 
+static ngx_int_t
+nxe_cedar_eval_ctx_add_ip_attr(ngx_array_t *attrs,
+    ngx_str_t *name, ngx_str_t *value)
+{
+    nxe_cedar_attr_t *attr;
+
+    attr = ngx_array_push(attrs);
+    if (attr == NULL) {
+        return NGX_ERROR;
+    }
+
+    attr->name = *name;
+    attr->value_type = NXE_CEDAR_VALUE_IP;
+    attr->value.ip_str = *value;
+
+    return NGX_OK;
+}
+
+
 nxe_cedar_eval_ctx_t *
 nxe_cedar_eval_ctx_create(ngx_pool_t *pool)
 {
@@ -225,6 +244,15 @@ nxe_cedar_eval_ctx_add_principal_attr_bool(nxe_cedar_eval_ctx_t *ctx,
 }
 
 
+ngx_int_t
+nxe_cedar_eval_ctx_add_principal_attr_ip(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *name, ngx_str_t *value)
+{
+    return nxe_cedar_eval_ctx_add_ip_attr(ctx->principal_attrs,
+                                          name, value);
+}
+
+
 void
 nxe_cedar_eval_ctx_set_action(nxe_cedar_eval_ctx_t *ctx,
     ngx_str_t *type, ngx_str_t *id)
@@ -258,6 +286,15 @@ nxe_cedar_eval_ctx_add_action_attr_bool(nxe_cedar_eval_ctx_t *ctx,
 {
     return nxe_cedar_eval_ctx_add_bool_attr(ctx->action_attrs,
                                             name, value);
+}
+
+
+ngx_int_t
+nxe_cedar_eval_ctx_add_action_attr_ip(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *name, ngx_str_t *value)
+{
+    return nxe_cedar_eval_ctx_add_ip_attr(ctx->action_attrs,
+                                          name, value);
 }
 
 
@@ -298,6 +335,15 @@ nxe_cedar_eval_ctx_add_resource_attr_bool(nxe_cedar_eval_ctx_t *ctx,
 
 
 ngx_int_t
+nxe_cedar_eval_ctx_add_resource_attr_ip(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *name, ngx_str_t *value)
+{
+    return nxe_cedar_eval_ctx_add_ip_attr(ctx->resource_attrs,
+                                          name, value);
+}
+
+
+ngx_int_t
 nxe_cedar_eval_ctx_add_context_attr(nxe_cedar_eval_ctx_t *ctx,
     ngx_str_t *name, ngx_str_t *value)
 {
@@ -321,6 +367,15 @@ nxe_cedar_eval_ctx_add_context_attr_bool(nxe_cedar_eval_ctx_t *ctx,
 {
     return nxe_cedar_eval_ctx_add_bool_attr(ctx->context_attrs,
                                             name, value);
+}
+
+
+ngx_int_t
+nxe_cedar_eval_ctx_add_context_attr_ip(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *name, ngx_str_t *value)
+{
+    return nxe_cedar_eval_ctx_add_ip_attr(ctx->context_attrs,
+                                          name, value);
 }
 
 
