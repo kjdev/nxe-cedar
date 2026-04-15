@@ -69,6 +69,23 @@ fn json_value_to_restricted_expr(
             }
         }
         serde_json::Value::Bool(b) => Ok(RestrictedExpression::new_bool(*b)),
+        serde_json::Value::Object(obj) => {
+            if let Some(extn) = obj.get("__extn") {
+                let fn_name = extn
+                    .get("fn")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| "missing __extn.fn".to_string())?;
+                let arg = extn
+                    .get("arg")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| "missing __extn.arg".to_string())?;
+                let expr_str = format!("{fn_name}(\"{arg}\")");
+                RestrictedExpression::from_str(&expr_str)
+                    .map_err(|e| format!("extension parse error: {e}"))
+            } else {
+                Err(format!("unsupported JSON object: {value}"))
+            }
+        }
         _ => Err(format!("unsupported JSON value type: {value}")),
     }
 }

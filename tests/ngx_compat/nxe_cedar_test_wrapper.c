@@ -86,6 +86,8 @@ typedef ngx_int_t (*add_long_attr_pt)(nxe_cedar_eval_ctx_t *,
     ngx_str_t *, ngx_int_t);
 typedef ngx_int_t (*add_bool_attr_pt)(nxe_cedar_eval_ctx_t *,
     ngx_str_t *, ngx_flag_t);
+typedef ngx_int_t (*add_ip_attr_pt)(nxe_cedar_eval_ctx_t *,
+    ngx_str_t *, ngx_str_t *);
 
 
 /*
@@ -94,11 +96,12 @@ typedef ngx_int_t (*add_bool_attr_pt)(nxe_cedar_eval_ctx_t *,
  *   - string  -> add_str
  *   - integer -> add_long
  *   - boolean -> add_bool
+ *   - object with "__extn" -> extension type (ip -> add_ip)
  */
 static int
 add_attrs_via_api(nxe_cedar_eval_ctx_t *ctx, json_t *obj,
     add_str_attr_pt add_str, add_long_attr_pt add_long,
-    add_bool_attr_pt add_bool)
+    add_bool_attr_pt add_bool, add_ip_attr_pt add_ip)
 {
     const char *key;
     json_t *value;
@@ -139,6 +142,40 @@ add_attrs_via_api(nxe_cedar_eval_ctx_t *ctx, json_t *obj,
                          json_is_true(value) ? 1 : 0) != NGX_OK)
             {
                 set_error("failed to add attribute: %s", key);
+                return -1;
+            }
+
+        } else if (json_is_object(value)) {
+            /* Cedar extension type: {"__extn": {"fn": "ip", "arg": "..."}} */
+            json_t *extn, *fn, *arg;
+
+            extn = json_object_get(value, "__extn");
+            if (extn == NULL || !json_is_object(extn)) {
+                set_error("unsupported object attribute for key: %s", key);
+                return -1;
+            }
+
+            fn = json_object_get(extn, "fn");
+            arg = json_object_get(extn, "arg");
+
+            if (fn == NULL || !json_is_string(fn)
+                || arg == NULL || !json_is_string(arg))
+            {
+                set_error("invalid __extn format for key: %s", key);
+                return -1;
+            }
+
+            if (strcmp(json_string_value(fn), "ip") == 0) {
+                str_val.len = json_string_length(arg);
+                str_val.data = (u_char *) json_string_value(arg);
+
+                if (add_ip(ctx, &name, &str_val) != NGX_OK) {
+                    set_error("failed to add IP attribute: %s", key);
+                    return -1;
+                }
+            } else {
+                set_error("unsupported extension function: %s",
+                          json_string_value(fn));
                 return -1;
             }
 
@@ -265,7 +302,8 @@ nxe_cedar_test_evaluate(const char *policy_text, const char *request_json)
         if (add_attrs_via_api(ctx, principal_attrs,
                               nxe_cedar_eval_ctx_add_principal_attr,
                               nxe_cedar_eval_ctx_add_principal_attr_long,
-                              nxe_cedar_eval_ctx_add_principal_attr_bool)
+                              nxe_cedar_eval_ctx_add_principal_attr_bool,
+                              nxe_cedar_eval_ctx_add_principal_attr_ip)
             != 0)
         {
             ngx_destroy_pool(pool);
@@ -280,7 +318,8 @@ nxe_cedar_test_evaluate(const char *policy_text, const char *request_json)
         if (add_attrs_via_api(ctx, action_attrs,
                               nxe_cedar_eval_ctx_add_action_attr,
                               nxe_cedar_eval_ctx_add_action_attr_long,
-                              nxe_cedar_eval_ctx_add_action_attr_bool)
+                              nxe_cedar_eval_ctx_add_action_attr_bool,
+                              nxe_cedar_eval_ctx_add_action_attr_ip)
             != 0)
         {
             ngx_destroy_pool(pool);
@@ -295,7 +334,8 @@ nxe_cedar_test_evaluate(const char *policy_text, const char *request_json)
         if (add_attrs_via_api(ctx, resource_attrs,
                               nxe_cedar_eval_ctx_add_resource_attr,
                               nxe_cedar_eval_ctx_add_resource_attr_long,
-                              nxe_cedar_eval_ctx_add_resource_attr_bool)
+                              nxe_cedar_eval_ctx_add_resource_attr_bool,
+                              nxe_cedar_eval_ctx_add_resource_attr_ip)
             != 0)
         {
             ngx_destroy_pool(pool);
@@ -310,7 +350,8 @@ nxe_cedar_test_evaluate(const char *policy_text, const char *request_json)
         if (add_attrs_via_api(ctx, context_obj,
                               nxe_cedar_eval_ctx_add_context_attr,
                               nxe_cedar_eval_ctx_add_context_attr_long,
-                              nxe_cedar_eval_ctx_add_context_attr_bool)
+                              nxe_cedar_eval_ctx_add_context_attr_bool,
+                              nxe_cedar_eval_ctx_add_context_attr_ip)
             != 0)
         {
             ngx_destroy_pool(pool);
