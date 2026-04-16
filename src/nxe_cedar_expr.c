@@ -622,7 +622,66 @@ nxe_cedar_like_match(ngx_str_t *subject, ngx_str_t *pattern)
 }
 
 
-/* evaluate method call: expr.method(arg) */
+/* CIDR containment: true if obj (host or range) is entirely within range */
+static ngx_flag_t
+nxe_cedar_ip_cidr_contains(nxe_cedar_value_t *obj,
+    nxe_cedar_value_t *range)
+{
+    ngx_uint_t addr_len, full_bytes, remaining_bits;
+    u_char mask;
+
+    if (obj->v.ip_addr.is_ipv6 != range->v.ip_addr.is_ipv6) {
+        return 0;
+    }
+
+    if (obj->v.ip_addr.prefix_len < range->v.ip_addr.prefix_len) {
+        return 0;
+    }
+
+    addr_len = obj->v.ip_addr.is_ipv6 ? 16 : 4;
+    full_bytes = range->v.ip_addr.prefix_len / 8;
+    remaining_bits = range->v.ip_addr.prefix_len % 8;
+
+    if (full_bytes > 0
+        && ngx_memcmp(obj->v.ip_addr.addr,
+                      range->v.ip_addr.addr, full_bytes) != 0)
+    {
+        return 0;
+    }
+
+    if (remaining_bits > 0 && full_bytes < addr_len) {
+        mask = (u_char) (0xFF << (8 - remaining_bits));
+
+        if ((obj->v.ip_addr.addr[full_bytes] & mask)
+            != (range->v.ip_addr.addr[full_bytes] & mask))
+        {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+
+/* build well-known IP CIDR range from a fixed prefix byte sequence */
+static nxe_cedar_value_t
+nxe_cedar_make_ip_range(ngx_flag_t is_ipv6,
+    const u_char *prefix_bytes, ngx_uint_t prefix_len)
+{
+    nxe_cedar_value_t val;
+    ngx_uint_t addr_len;
+
+    ngx_memzero(&val, sizeof(nxe_cedar_value_t));
+    val.type = NXE_CEDAR_RVAL_IP;
+    val.v.ip_addr.is_ipv6 = is_ipv6;
+    val.v.ip_addr.prefix_len = prefix_len;
+    addr_len = is_ipv6 ? 16 : 4;
+    ngx_memcpy(val.v.ip_addr.addr, prefix_bytes, addr_len);
+    return val;
+}
+
+
+/* evaluate method call: expr.method(arg) or expr.method() */
 static nxe_cedar_value_t
 nxe_cedar_eval_method_call(nxe_cedar_node_t *node,
     nxe_cedar_eval_ctx_t *ctx, ngx_pool_t *pool,
@@ -639,13 +698,81 @@ nxe_cedar_eval_method_call(nxe_cedar_node_t *node,
         return obj;
     }
 
+    method = &node->u.method_call.method;
+
+    /* zero-argument IP inspection methods */
+    if (node->u.method_call.arg == NULL) {
+        if (obj.type != NXE_CEDAR_RVAL_IP) {
+            return nxe_cedar_make_error();
+        }
+
+        /* isIpv4 */
+        if (method->len == 6
+            && ngx_memcmp(method->data, "isIpv4", 6) == 0)
+        {
+            return nxe_cedar_make_bool(!obj.v.ip_addr.is_ipv6);
+        }
+
+        /* isIpv6 */
+        if (method->len == 6
+            && ngx_memcmp(method->data, "isIpv6", 6) == 0)
+        {
+            return nxe_cedar_make_bool(obj.v.ip_addr.is_ipv6);
+        }
+
+        /* isLoopback: IPv4 127.0.0.0/8, IPv6 ::1/128 */
+        if (method->len == 10
+            && ngx_memcmp(method->data, "isLoopback", 10) == 0)
+        {
+            static const u_char loopback_v4[4] = { 127, 0, 0, 0 };
+            static const u_char loopback_v6[16] = {
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 1
+            };
+            nxe_cedar_value_t range;
+
+            if (obj.v.ip_addr.is_ipv6) {
+                range = nxe_cedar_make_ip_range(1, loopback_v6, 128);
+
+            } else {
+                range = nxe_cedar_make_ip_range(0, loopback_v4, 8);
+            }
+
+            return nxe_cedar_make_bool(
+                nxe_cedar_ip_cidr_contains(&obj, &range));
+        }
+
+        /* isMulticast: IPv4 224.0.0.0/4, IPv6 ff00::/8 */
+        if (method->len == 11
+            && ngx_memcmp(method->data, "isMulticast", 11) == 0)
+        {
+            static const u_char multicast_v4[4] = { 224, 0, 0, 0 };
+            static const u_char multicast_v6[16] = {
+                0xff, 0, 0, 0, 0, 0, 0, 0,
+                0,    0, 0, 0, 0, 0, 0, 0
+            };
+            nxe_cedar_value_t range;
+
+            if (obj.v.ip_addr.is_ipv6) {
+                range = nxe_cedar_make_ip_range(1, multicast_v6, 8);
+
+            } else {
+                range = nxe_cedar_make_ip_range(0, multicast_v4, 4);
+            }
+
+            return nxe_cedar_make_bool(
+                nxe_cedar_ip_cidr_contains(&obj, &range));
+        }
+
+        /* unknown zero-arg method */
+        return nxe_cedar_make_error();
+    }
+
     arg = nxe_cedar_expr_eval(node->u.method_call.arg, ctx,
                               pool, log);
     if (arg.type == NXE_CEDAR_RVAL_ERROR) {
         return arg;
     }
-
-    method = &node->u.method_call.method;
 
     /* containsAll */
     if (method->len == 11
@@ -743,49 +870,14 @@ nxe_cedar_eval_method_call(nxe_cedar_node_t *node,
     if (method->len == 9
         && ngx_memcmp(method->data, "isInRange", 9) == 0)
     {
-        ngx_uint_t addr_len, full_bytes, remaining_bits;
-        u_char mask;
-
         if (obj.type != NXE_CEDAR_RVAL_IP
             || arg.type != NXE_CEDAR_RVAL_IP)
         {
             return nxe_cedar_make_error();
         }
 
-        /* IPv4/IPv6 mismatch */
-        if (obj.v.ip_addr.is_ipv6 != arg.v.ip_addr.is_ipv6) {
-            return nxe_cedar_make_bool(0);
-        }
-
-        /* obj network must be at least as specific as arg range */
-        if (obj.v.ip_addr.prefix_len < arg.v.ip_addr.prefix_len) {
-            return nxe_cedar_make_bool(0);
-        }
-
-        addr_len = obj.v.ip_addr.is_ipv6 ? 16 : 4;
-        full_bytes = arg.v.ip_addr.prefix_len / 8;
-        remaining_bits = arg.v.ip_addr.prefix_len % 8;
-
-        /* compare full bytes of prefix */
-        if (full_bytes > 0
-            && ngx_memcmp(obj.v.ip_addr.addr,
-                          arg.v.ip_addr.addr, full_bytes) != 0)
-        {
-            return nxe_cedar_make_bool(0);
-        }
-
-        /* compare remaining bits */
-        if (remaining_bits > 0 && full_bytes < addr_len) {
-            mask = (u_char) (0xFF << (8 - remaining_bits));
-
-            if ((obj.v.ip_addr.addr[full_bytes] & mask)
-                != (arg.v.ip_addr.addr[full_bytes] & mask))
-            {
-                return nxe_cedar_make_bool(0);
-            }
-        }
-
-        return nxe_cedar_make_bool(1);
+        return nxe_cedar_make_bool(
+            nxe_cedar_ip_cidr_contains(&obj, &arg));
     }
 
     /* unknown method */

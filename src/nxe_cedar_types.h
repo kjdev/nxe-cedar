@@ -204,8 +204,12 @@ struct nxe_cedar_node_s {
             ngx_str_t         method;           /* "containsAll",
                                                    "containsAny",
                                                    "contains",
-                                                   "isInRange" */
-            nxe_cedar_node_t *arg;
+                                                   "isInRange",
+                                                   "isIpv4", "isIpv6",
+                                                   "isLoopback",
+                                                   "isMulticast" */
+            nxe_cedar_node_t *arg;              /* NULL for zero-arg
+                                                   methods (isIpv4 etc.) */
         } method_call;
 
         struct {                                /* IP_LITERAL */

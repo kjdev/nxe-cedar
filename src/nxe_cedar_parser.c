@@ -629,7 +629,7 @@ nxe_cedar_parse_member_expr(nxe_cedar_parser_ctx_t *ctx)
         ident = ctx->current.value;
         nxe_cedar_parser_advance(ctx);
 
-        /* method call: expr.method(arg) */
+        /* method call: expr.method(arg) or expr.method() */
         if (ctx->current.type == NXE_CEDAR_TOKEN_LPAREN) {
             nxe_cedar_node_t *call;
 
@@ -643,9 +643,15 @@ nxe_cedar_parse_member_expr(nxe_cedar_parser_ctx_t *ctx)
 
             call->u.method_call.object = node;
             call->u.method_call.method = ident;
-            call->u.method_call.arg = nxe_cedar_parse_expr(ctx);
-            if (ctx->error) {
-                return NULL;
+
+            if (ctx->current.type == NXE_CEDAR_TOKEN_RPAREN) {
+                call->u.method_call.arg = NULL;
+
+            } else {
+                call->u.method_call.arg = nxe_cedar_parse_expr(ctx);
+                if (ctx->error) {
+                    return NULL;
+                }
             }
 
             if (nxe_cedar_parser_expect(ctx, NXE_CEDAR_TOKEN_RPAREN)
