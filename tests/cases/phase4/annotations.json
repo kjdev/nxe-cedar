@@ -1,0 +1,162 @@
+{
+    "description": "annotation parsing and metadata attachment",
+    "phase": 4,
+    "tests": [
+        {
+            "name": "annotation_single_value",
+            "description": "single annotation with value",
+            "policy": "@id(\"p1\") permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "annotation_multiple",
+            "description": "multiple annotations with values",
+            "policy": "@id(\"p1\") @advice(\"testing\") permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "annotation_valueless",
+            "description": "valueless annotation form @key",
+            "policy": "@deprecated forbid (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "annotation_mixed",
+            "description": "mixed value and valueless annotations",
+            "policy": "@id(\"p1\") @internal permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "annotation_no_eval_effect",
+            "description": "annotations do not change forbid-priority semantics",
+            "policy": "@id(\"deny-all\") forbid (principal, action, resource);\npermit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "annotation_with_condition",
+            "description": "annotation combined with when condition",
+            "policy": "@advice(\"must be admin\") permit (principal, action, resource) when { context.role == \"admin\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"role": "admin"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "annotation_with_condition_deny",
+            "description": "annotation combined with when condition that does not match",
+            "policy": "@advice(\"must be admin\") permit (principal, action, resource) when { context.role == \"admin\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"role": "guest"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "annotation_with_scope",
+            "description": "annotation combined with scope constraint",
+            "policy": "@id(\"admin-only\") permit (principal == User::\"alice\", action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "annotation_escape_in_value",
+            "description": "annotation value with escape sequence",
+            "policy": "@advice(\"line1\\nline2\") permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "annotation_on_forbid",
+            "description": "annotation on forbid policy",
+            "policy": "@id(\"block\") @advice(\"blocked by policy\") forbid (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "annotation_empty_value",
+            "description": "annotation with empty string value",
+            "policy": "@id(\"\") permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "annotation_multi_policy_both_annotated",
+            "description": "both policies in a multi-policy set have annotations",
+            "policy": "@id(\"p1\") permit (principal == User::\"alice\", action, resource);\n@id(\"p2\") forbid (principal == User::\"bob\", action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "annotation_duplicate_key_across_policies",
+            "description": "same annotation key on different policies is allowed",
+            "policy": "@id(\"p1\") permit (principal, action, resource);\n@id(\"p2\") forbid (principal == User::\"bob\", action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "annotation_max_count",
+            "description": "exactly 16 annotations (max) should be accepted",
+            "policy": "@a1(\"1\") @a2(\"2\") @a3(\"3\") @a4(\"4\") @a5(\"5\") @a6(\"6\") @a7(\"7\") @a8(\"8\") @a9(\"9\") @a10(\"10\") @a11(\"11\") @a12(\"12\") @a13(\"13\") @a14(\"14\") @a15(\"15\") @a16(\"16\") permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        }
+    ]
+}

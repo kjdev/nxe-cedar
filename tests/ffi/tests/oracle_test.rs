@@ -51,6 +51,10 @@ struct TestCase {
     policy: String,
     request: serde_json::Value,
     expected: String,
+    /// C implementation-specific limit test (not a Cedar spec requirement).
+    /// Skipped in oracle validation and c_vs_oracle comparison.
+    #[serde(default)]
+    c_limit: bool,
 }
 
 fn expected_to_int(expected: &str) -> i32 {
@@ -149,6 +153,7 @@ fn oracle_validation() {
 
     let mut total = 0;
     let mut passed = 0;
+    let mut skipped = 0;
 
     for file in &files {
         let content = fs::read_to_string(file)
@@ -164,6 +169,12 @@ fn oracle_validation() {
         let label = extract_label(file);
 
         for tc in &test_file.tests {
+            if tc.c_limit {
+                skipped += 1;
+                eprintln!("  {label} :: {} ... skipped (c_limit)", tc.name);
+                continue;
+            }
+
             total += 1;
 
             let policy = CString::new(tc.policy.as_str()).unwrap();
@@ -200,7 +211,11 @@ fn oracle_validation() {
         dir.display()
     );
 
-    eprintln!("{passed} passed, {} failed", total - passed);
+    eprint!("{passed} passed, {} failed", total - passed);
+    if skipped > 0 {
+        eprint!(", {skipped} skipped");
+    }
+    eprintln!();
 }
 
 /// C implementation vs oracle comparison test
@@ -224,7 +239,7 @@ fn c_vs_oracle() {
 
     let mut total = 0;
     let mut passed = 0;
-    let skipped = 0;
+    let mut skipped = 0;
 
     for file in &files {
         let content = fs::read_to_string(file).unwrap();
@@ -237,6 +252,12 @@ fn c_vs_oracle() {
         let label = extract_label(file);
 
         for tc in &test_file.tests {
+            if tc.c_limit {
+                skipped += 1;
+                eprintln!("  {label} :: {} ... skipped (c_limit)", tc.name);
+                continue;
+            }
+
             total += 1;
 
             let policy = CString::new(tc.policy.as_str()).unwrap();
@@ -297,7 +318,7 @@ fn c_vs_oracle() {
         dir.display()
     );
 
-    let failed = total - passed - skipped;
+    let failed = total - passed;
     eprint!("{passed} passed, {failed} failed");
     if skipped > 0 {
         eprint!(", {skipped} skipped");

@@ -1,0 +1,106 @@
+{
+    "description": "annotation parse error cases",
+    "phase": 4,
+    "tests": [
+        {
+            "name": "duplicate_key",
+            "description": "duplicate annotation key should be a parse error",
+            "policy": "@id(\"a\") @id(\"b\") permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "missing_ident_after_at",
+            "description": "@ followed by non-identifier (keyword) should error",
+            "policy": "@ permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "missing_rparen",
+            "description": "annotation value missing closing parenthesis",
+            "policy": "@id(\"a\" permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "non_string_value",
+            "description": "annotation value must be a string, not a number",
+            "policy": "@id(42) permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "annotation_only_no_policy",
+            "description": "annotation without a following policy body",
+            "policy": "@id(\"orphan\")",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "annotation_after_policy",
+            "description": "annotation after complete policy should error (no permit/forbid follows)",
+            "policy": "permit (principal, action, resource); @id(\"late\")",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "star_escape_in_value",
+            "description": "\\* escape in annotation value is invalid (only valid in like patterns)",
+            "policy": "@advice(\"hello\\*world\") permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "at_sign_at_eof",
+            "description": "bare @ at end of input should error",
+            "policy": "@",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "too_many_annotations",
+            "description": "17 annotations exceeds C implementation maximum (16)",
+            "c_limit": true,
+            "policy": "@a1(\"1\") @a2(\"2\") @a3(\"3\") @a4(\"4\") @a5(\"5\") @a6(\"6\") @a7(\"7\") @a8(\"8\") @a9(\"9\") @a10(\"10\") @a11(\"11\") @a12(\"12\") @a13(\"13\") @a14(\"14\") @a15(\"15\") @a16(\"16\") @a17(\"17\") permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        }
+    ]
+}
