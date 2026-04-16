@@ -1,5 +1,18 @@
 # Changelog
 
+## [365c197](../../commit/365c197) - 2026-04-17
+
+### Added
+
+- Add IP inspection methods `isIpv4`, `isIpv6`, `isLoopback`, `isMulticast` (Phase 4)
+  - Syntax: `expr.isIpv4()`, `expr.isIpv6()`, `expr.isLoopback()`, `expr.isMulticast()` in `when` / `unless` conditions
+  - Receiver must be IP-typed; non-IP receiver returns evaluation error
+  - `isIpv4` / `isIpv6`: true when receiver is IPv4 / IPv6 (host or CIDR)
+  - `isLoopback`: receiver CIDR must be entirely within `127.0.0.0/8` (IPv4) or `::1/128` (IPv6)
+  - `isMulticast`: receiver CIDR must be entirely within `224.0.0.0/4` (IPv4) or `ff00::/8` (IPv6)
+  - Zero-argument method call syntax `method()` supported in parser (`arg = NULL` in AST)
+  - `nxe_cedar_ip_cidr_contains()` helper shared with `isInRange` for consistent CIDR membership semantics
+
 ## [89673d8](../../commit/89673d8) - 2026-04-16
 
 ### Added
