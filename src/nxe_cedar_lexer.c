@@ -618,6 +618,9 @@ nxe_cedar_lexer_next(nxe_cedar_lexer_t *lexer)
     case ']':
         token.type = NXE_CEDAR_TOKEN_RBRACKET;
         return token;
+    case '@':
+        token.type = NXE_CEDAR_TOKEN_AT;
+        return token;
     case '<':
         token.type = NXE_CEDAR_TOKEN_LT;
         return token;

@@ -68,6 +68,7 @@ typedef enum {
     NXE_CEDAR_TOKEN_LBRACKET,       /* [ */
     NXE_CEDAR_TOKEN_RBRACKET,       /* ] */
     NXE_CEDAR_TOKEN_COLONCOLON,     /* :: */
+    NXE_CEDAR_TOKEN_AT,             /* @  (Phase 4) */
 
     /* literals */
     NXE_CEDAR_TOKEN_STRING,         /* "..." */
@@ -230,6 +231,12 @@ typedef struct {
                                                (NULL if NONE) */
 } nxe_cedar_scope_t;
 
+/* annotation (Phase 4) */
+typedef struct {
+    ngx_str_t  key;                     /* annotation name (e.g. "id", "advice") */
+    ngx_str_t  value;                   /* annotation value; empty if valueless */
+} nxe_cedar_annotation_t;
+
 /* condition clause */
 typedef struct {
     unsigned          is_unless:1;          /* 0 = when, 1 = unless */
@@ -239,6 +246,8 @@ typedef struct {
 /* single policy */
 typedef struct {
     unsigned           is_forbid:1;         /* 0 = permit, 1 = forbid */
+    ngx_array_t       *annotations;         /* array of nxe_cedar_annotation_t
+                                               (Phase 4, NULL if none) */
     nxe_cedar_scope_t  principal;
     nxe_cedar_scope_t  action;
     nxe_cedar_scope_t  resource;

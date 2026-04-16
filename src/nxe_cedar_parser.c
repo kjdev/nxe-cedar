@@ -17,6 +17,7 @@
 #define NXE_CEDAR_MAX_POLICIES     256
 #define NXE_CEDAR_MAX_CONDITIONS    16
 #define NXE_CEDAR_MAX_SET_ELEMENTS 256
+#define NXE_CEDAR_MAX_ANNOTATIONS   16
 #define NXE_CEDAR_MAX_TYPE_PARTS    16
 #define NXE_CEDAR_MAX_MEMBER_CHAIN  16
 #define NXE_CEDAR_MAX_BINOP_CHAIN  256
@@ -1219,6 +1220,115 @@ nxe_cedar_parse_condition(nxe_cedar_parser_ctx_t *ctx,
 }
 
 
+/* parse annotations: { "@" IDENT [ "(" STRING ")" ] } */
+static ngx_int_t
+nxe_cedar_parse_annotations(nxe_cedar_parser_ctx_t *ctx,
+    nxe_cedar_policy_t *policy)
+{
+    nxe_cedar_annotation_t *ann;
+    nxe_cedar_annotation_t *elts;
+    ngx_uint_t i, count;
+
+    policy->annotations = NULL;
+    count = 0;
+
+    while (ctx->current.type == NXE_CEDAR_TOKEN_AT) {
+
+        if (++count > NXE_CEDAR_MAX_ANNOTATIONS) {
+            ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                          "nxe_cedar_parse: too many annotations");
+            ctx->error = 1;
+            return NGX_ERROR;
+        }
+
+        nxe_cedar_parser_advance(ctx);  /* consume @ */
+
+        /* expect identifier for annotation key */
+        if (!nxe_cedar_token_is_ident(ctx->current.type)) {
+            ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                          "nxe_cedar_parse: "
+                          "expected identifier after '@'");
+            ctx->error = 1;
+            return NGX_ERROR;
+        }
+
+        /* lazy-create annotations array */
+        if (policy->annotations == NULL) {
+            policy->annotations = ngx_array_create(ctx->pool, 4,
+                                                   sizeof(nxe_cedar_annotation_t));
+            if (policy->annotations == NULL) {
+                ctx->error = 1;
+                return NGX_ERROR;
+            }
+        }
+
+        ann = ngx_array_push(policy->annotations);
+        if (ann == NULL) {
+            ctx->error = 1;
+            return NGX_ERROR;
+        }
+
+        ann->key = ctx->current.value;
+        ann->value.data = NULL;
+        ann->value.len = 0;
+
+        nxe_cedar_parser_advance(ctx);  /* consume IDENT */
+
+        /* optional value: "(" STRING ")" */
+        if (ctx->current.type == NXE_CEDAR_TOKEN_LPAREN) {
+            nxe_cedar_parser_advance(ctx);  /* consume ( */
+
+            if (ctx->current.type != NXE_CEDAR_TOKEN_STRING) {
+                ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                              "nxe_cedar_parse: "
+                              "expected string in annotation value");
+                ctx->error = 1;
+                return NGX_ERROR;
+            }
+
+            if (ctx->current.has_star_escape) {
+                ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                              "nxe_cedar_parse: "
+                              "\\* escape is only valid in like patterns");
+                ctx->error = 1;
+                return NGX_ERROR;
+            }
+
+            ann->value = ctx->current.value;
+
+            nxe_cedar_parser_advance(ctx);  /* consume STRING */
+
+            if (nxe_cedar_parser_expect(ctx,
+                                        NXE_CEDAR_TOKEN_RPAREN) != NGX_OK)
+            {
+                return NGX_ERROR;
+            }
+        }
+
+        /* duplicate key check */
+        if (policy->annotations->nelts > 1) {
+            elts = policy->annotations->elts;
+
+            for (i = 0; i < policy->annotations->nelts - 1; i++) {
+                if (elts[i].key.len == ann->key.len
+                    && ngx_memcmp(elts[i].key.data,
+                                  ann->key.data,
+                                  ann->key.len) == 0)
+                {
+                    ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                                  "nxe_cedar_parse: "
+                                  "duplicate annotation key");
+                    ctx->error = 1;
+                    return NGX_ERROR;
+                }
+            }
+        }
+    }
+
+    return NGX_OK;
+}
+
+
 /* parse a single policy */
 static ngx_int_t
 nxe_cedar_parse_policy(nxe_cedar_parser_ctx_t *ctx,
@@ -1351,7 +1461,8 @@ nxe_cedar_parse(ngx_pool_t *pool, ngx_log_t *log, const ngx_str_t *text)
     }
 
     while (ctx.current.type == NXE_CEDAR_TOKEN_PERMIT
-           || ctx.current.type == NXE_CEDAR_TOKEN_FORBID)
+           || ctx.current.type == NXE_CEDAR_TOKEN_FORBID
+           || ctx.current.type == NXE_CEDAR_TOKEN_AT)
     {
         if (ps->policies->nelts >= NXE_CEDAR_MAX_POLICIES) {
             ngx_log_error(NGX_LOG_ERR, log, 0,
@@ -1366,6 +1477,20 @@ nxe_cedar_parse(ngx_pool_t *pool, ngx_log_t *log, const ngx_str_t *text)
         }
 
         ngx_memzero(policy, sizeof(nxe_cedar_policy_t));
+
+        /* parse annotations before effect (Phase 4) */
+        if (nxe_cedar_parse_annotations(&ctx, policy) != NGX_OK) {
+            return NULL;
+        }
+
+        if (ctx.current.type != NXE_CEDAR_TOKEN_PERMIT
+            && ctx.current.type != NXE_CEDAR_TOKEN_FORBID)
+        {
+            ngx_log_error(NGX_LOG_ERR, log, 0,
+                          "nxe_cedar_parse: "
+                          "expected permit or forbid after annotations");
+            return NULL;
+        }
 
         if (nxe_cedar_parse_policy(&ctx, policy) != NGX_OK) {
             return NULL;
