@@ -1,0 +1,228 @@
+{
+    "description": "is operator: scope + expression forms, including is-in",
+    "phase": 4,
+    "tests": [
+        {
+            "name": "scope_is_match",
+            "description": "principal is User matches when principal type is User",
+            "policy": "permit (principal is User, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "scope_is_mismatch",
+            "description": "principal is Admin does not match User principal",
+            "policy": "permit (principal is Admin, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "scope_is_resource",
+            "description": "resource is Endpoint matches Endpoint resource",
+            "policy": "permit (principal, action, resource is Endpoint);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "scope_is_resource_mismatch",
+            "description": "resource is Document does not match Endpoint",
+            "policy": "permit (principal, action, resource is Document);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "scope_is_in_self",
+            "description": "principal is User in User::\"alice\" matches same entity",
+            "policy": "permit (principal is User in User::\"alice\", action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "scope_is_in_different_id",
+            "description": "principal is User in User::\"bob\" does not match alice",
+            "policy": "permit (principal is User in User::\"bob\", action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "scope_is_in_different_type",
+            "description": "principal is User in Group::\"admin\" does not match User::\"alice\"",
+            "policy": "permit (principal is User in Group::\"admin\", action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "scope_is_with_namespace",
+            "description": "namespaced type name in scope",
+            "policy": "permit (principal is NS::User, action, resource);",
+            "request": {
+                "principal": {"type": "NS::User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "scope_is_forbid",
+            "description": "forbid principal is ServiceAccount blocks matching principal",
+            "policy": "forbid (principal is ServiceAccount, action, resource);\npermit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "ServiceAccount", "id": "svc1"},
+                "action": {"type": "Action", "id": "DELETE"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "scope_is_forbid_non_match",
+            "description": "forbid scope is does not block non-matching principal",
+            "policy": "forbid (principal is ServiceAccount, action, resource);\npermit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "expr_is_match",
+            "description": "expression principal is User in when clause",
+            "policy": "permit (principal, action, resource) when { principal is User };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "expr_is_mismatch",
+            "description": "expression principal is Admin does not match",
+            "policy": "permit (principal, action, resource) when { principal is Admin };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "expr_is_negated",
+            "description": "negated expression !(principal is Admin)",
+            "policy": "permit (principal, action, resource) when { !(principal is Admin) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "expr_is_with_and",
+            "description": "expression is combined with && on attribute",
+            "policy": "permit (principal, action, resource) when { principal is User && principal.role == \"viewer\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "viewer"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "expr_is_in_self",
+            "description": "expression principal is User in User::\"alice\" matches",
+            "policy": "permit (principal, action, resource) when { principal is User in User::\"alice\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "expr_is_in_other",
+            "description": "expression principal is User in User::\"bob\" does not match",
+            "policy": "permit (principal, action, resource) when { principal is User in User::\"bob\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "expr_is_on_resource",
+            "description": "expression resource is Endpoint evaluates on resource var",
+            "policy": "permit (principal, action, resource) when { resource is Endpoint };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "expr_is_on_action",
+            "description": "expression action is Action matches action type",
+            "policy": "permit (principal, action, resource) when { action is Action };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "use_case_viewer",
+            "description": "use case 9: permit User principal reading with role viewer",
+            "policy": "permit (principal is User, action == Action::\"GET\", resource) when { principal.role == \"viewer\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "viewer"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "use_case_service_account_denied",
+            "description": "use case 10: forbid ServiceAccount on DELETE",
+            "policy": "forbid (principal is ServiceAccount, action in [Action::\"DELETE\", Action::\"PUT\"], resource);\npermit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "ServiceAccount", "id": "deploy"},
+                "action": {"type": "Action", "id": "DELETE"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        }
+    ]
+}
