@@ -923,6 +923,42 @@ nxe_cedar_eval_in(nxe_cedar_value_t *left, nxe_cedar_value_t *right)
 }
 
 
+/* evaluate entity type check: expr is Type [in expr] */
+static nxe_cedar_value_t
+nxe_cedar_eval_is_check(nxe_cedar_node_t *node,
+    nxe_cedar_eval_ctx_t *ctx, ngx_pool_t *pool,
+    ngx_log_t *log)
+{
+    nxe_cedar_value_t left, right;
+
+    left = nxe_cedar_expr_eval(node->u.is_check.object, ctx, pool, log);
+    if (left.type == NXE_CEDAR_RVAL_ERROR) {
+        return left;
+    }
+    if (left.type != NXE_CEDAR_RVAL_ENTITY) {
+        return nxe_cedar_make_error();
+    }
+
+    if (!nxe_cedar_str_eq(&left.v.entity.type,
+                          &node->u.is_check.entity_type))
+    {
+        return nxe_cedar_make_bool(0);
+    }
+
+    if (node->u.is_check.in_entity == NULL) {
+        return nxe_cedar_make_bool(1);
+    }
+
+    right = nxe_cedar_expr_eval(node->u.is_check.in_entity, ctx,
+                                pool, log);
+    if (right.type == NXE_CEDAR_RVAL_ERROR) {
+        return right;
+    }
+
+    return nxe_cedar_eval_in(&left, &right);
+}
+
+
 nxe_cedar_value_t
 nxe_cedar_expr_eval(nxe_cedar_node_t *node,
     nxe_cedar_eval_ctx_t *ctx, ngx_pool_t *pool,
@@ -1188,6 +1224,9 @@ nxe_cedar_expr_eval(nxe_cedar_node_t *node,
 
     case NXE_CEDAR_NODE_METHOD_CALL:
         return nxe_cedar_eval_method_call(node, ctx, pool, log);
+
+    case NXE_CEDAR_NODE_IS:
+        return nxe_cedar_eval_is_check(node, ctx, pool, log);
 
     case NXE_CEDAR_NODE_IF_THEN_ELSE:
         left = nxe_cedar_expr_eval(node->u.if_then_else.cond, ctx,

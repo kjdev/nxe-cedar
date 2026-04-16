@@ -270,6 +270,96 @@ nxe_cedar_parse_neg_long(ngx_str_t *s, ngx_int_t *result)
 
 
 /*
+ * Append "::"IDENT to type_name, advancing the parser past the IDENT.
+ * The current token must already be IDENT (caller checks).
+ * Allocates a new buffer from ctx->pool and returns it in *type_name.
+ */
+static ngx_int_t
+nxe_cedar_parser_append_type_segment(nxe_cedar_parser_ctx_t *ctx,
+    ngx_str_t *type_name, ngx_uint_t *parts)
+{
+    u_char *p;
+    size_t new_len;
+
+    if (++(*parts) > NXE_CEDAR_MAX_TYPE_PARTS) {
+        ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                      "nxe_cedar_parse: too many type name segments");
+        ctx->error = 1;
+        return NGX_ERROR;
+    }
+
+    new_len = type_name->len + 2 + ctx->current.value.len;
+    if (new_len < type_name->len) {
+        ctx->error = 1;
+        return NGX_ERROR;
+    }
+
+    p = ngx_palloc(ctx->pool, new_len);
+    if (p == NULL) {
+        ctx->error = 1;
+        return NGX_ERROR;
+    }
+
+    ngx_memcpy(p, type_name->data, type_name->len);
+    p[type_name->len] = ':';
+    p[type_name->len + 1] = ':';
+    ngx_memcpy(p + type_name->len + 2,
+               ctx->current.value.data, ctx->current.value.len);
+
+    type_name->data = p;
+    type_name->len = new_len;
+    nxe_cedar_parser_advance(ctx);
+
+    return NGX_OK;
+}
+
+
+/*
+ * parse type name: IDENT { "::" IDENT }
+ * Consumes the type name tokens and writes the joined name into *out.
+ * Differs from entity_ref in that there is no trailing "::"id part.
+ */
+static ngx_int_t
+nxe_cedar_parse_type_name(nxe_cedar_parser_ctx_t *ctx, ngx_str_t *out)
+{
+    ngx_str_t type_name;
+    ngx_uint_t parts;
+
+    if (ctx->current.type != NXE_CEDAR_TOKEN_IDENT) {
+        ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                      "nxe_cedar_parse: expected type name after 'is'");
+        ctx->error = 1;
+        return NGX_ERROR;
+    }
+
+    type_name = ctx->current.value;
+    nxe_cedar_parser_advance(ctx);
+    parts = 1;
+
+    while (ctx->current.type == NXE_CEDAR_TOKEN_COLONCOLON) {
+        nxe_cedar_parser_advance(ctx);
+
+        if (ctx->current.type != NXE_CEDAR_TOKEN_IDENT) {
+            ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                          "nxe_cedar_parse: "
+                          "expected identifier after '::' in type name");
+            ctx->error = 1;
+            return NGX_ERROR;
+        }
+
+        if (nxe_cedar_parser_append_type_segment(ctx, &type_name, &parts)
+            != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+    }
+
+    *out = type_name;
+    return NGX_OK;
+}
+
+
+/*
  * parse_entity_ref_with_ident: IDENT already consumed, parse rest
  * Format: Type { :: Type } :: "id"
  */
@@ -279,9 +369,7 @@ nxe_cedar_parse_entity_ref_with_ident(nxe_cedar_parser_ctx_t *ctx,
 {
     nxe_cedar_node_t *node;
     ngx_str_t type_name;
-    u_char *p;
     ngx_uint_t parts;
-    size_t new_len;
 
     type_name = first_ident;
     parts = 1;
@@ -313,36 +401,13 @@ nxe_cedar_parse_entity_ref_with_ident(nxe_cedar_parser_ctx_t *ctx,
         }
 
         if (ctx->current.type == NXE_CEDAR_TOKEN_IDENT) {
-            if (++parts > NXE_CEDAR_MAX_TYPE_PARTS) {
-                ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
-                              "nxe_cedar_parse: too many type name segments");
-                ctx->error = 1;
-                return NULL;
-            }
-
             /* Type::SubType - concatenate */
-            new_len = type_name.len + 2 + ctx->current.value.len;
-            if (new_len < type_name.len) {
-                /* overflow */
-                ctx->error = 1;
+            if (nxe_cedar_parser_append_type_segment(ctx, &type_name,
+                                                     &parts)
+                != NGX_OK)
+            {
                 return NULL;
             }
-
-            p = ngx_palloc(ctx->pool, new_len);
-            if (p == NULL) {
-                ctx->error = 1;
-                return NULL;
-            }
-
-            ngx_memcpy(p, type_name.data, type_name.len);
-            p[type_name.len] = ':';
-            p[type_name.len + 1] = ':';
-            ngx_memcpy(p + type_name.len + 2,
-                       ctx->current.value.data, ctx->current.value.len);
-
-            type_name.data = p;
-            type_name.len = new_len;
-            nxe_cedar_parser_advance(ctx);  /* consume ident */
             continue;
         }
 
@@ -727,6 +792,40 @@ nxe_cedar_parse_relation_expr(nxe_cedar_parser_ctx_t *ctx)
         nxe_cedar_parser_advance(ctx);
 
         return has_node;
+    }
+
+    /* is operator: expr is type_name [in expr] */
+    if (ctx->current.type == NXE_CEDAR_TOKEN_IS) {
+        nxe_cedar_node_t *is_node;
+
+        nxe_cedar_parser_advance(ctx);  /* consume is */
+
+        is_node = nxe_cedar_parser_alloc_node(ctx, NXE_CEDAR_NODE_IS);
+        if (is_node == NULL) {
+            return NULL;
+        }
+
+        is_node->u.is_check.object = left;
+        is_node->u.is_check.in_entity = NULL;
+
+        if (nxe_cedar_parse_type_name(ctx,
+                                      &is_node->u.is_check.entity_type)
+            != NGX_OK)
+        {
+            return NULL;
+        }
+
+        if (ctx->current.type == NXE_CEDAR_TOKEN_IN) {
+            nxe_cedar_parser_advance(ctx);
+
+            is_node->u.is_check.in_entity =
+                nxe_cedar_parse_unary_expr(ctx);
+            if (ctx->error) {
+                return NULL;
+            }
+        }
+
+        return is_node;
     }
 
     /* like operator: expr like STRING */
@@ -1132,11 +1231,12 @@ nxe_cedar_parse_entity_ref_target(nxe_cedar_parser_ctx_t *ctx)
 
 
 /*
- * parse scope: keyword [ (== | in) target ]
+ * parse scope: keyword [ (== | in) target | is type_name [in entity_ref] ]
  *
  * Cedar spec:
  *   == always takes entity_ref.
  *   in takes entity_ref (all scopes) or set_literal (action only).
+ *   is/is-in is only allowed on principal and resource (not action).
  */
 static ngx_int_t
 nxe_cedar_parse_scope(nxe_cedar_parser_ctx_t *ctx,
@@ -1181,6 +1281,37 @@ nxe_cedar_parse_scope(nxe_cedar_parser_ctx_t *ctx,
             if (ctx->error) {
                 return NGX_ERROR;
             }
+        }
+
+    } else if (ctx->current.type == NXE_CEDAR_TOKEN_IS) {
+        if (var_token == NXE_CEDAR_TOKEN_ACTION) {
+            ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                          "nxe_cedar_parse: "
+                          "'is' is not allowed in action scope");
+            ctx->error = 1;
+            return NGX_ERROR;
+        }
+
+        nxe_cedar_parser_advance(ctx);  /* consume is */
+
+        if (nxe_cedar_parse_type_name(ctx, &scope->entity_type)
+            != NGX_OK)
+        {
+            return NGX_ERROR;
+        }
+
+        if (ctx->current.type == NXE_CEDAR_TOKEN_IN) {
+            scope->constraint = NXE_CEDAR_SCOPE_IS_IN;
+            nxe_cedar_parser_advance(ctx);
+
+            scope->target = nxe_cedar_parse_entity_ref_target(ctx);
+            if (ctx->error) {
+                return NGX_ERROR;
+            }
+
+        } else {
+            scope->constraint = NXE_CEDAR_SCOPE_IS;
+            scope->target = NULL;
         }
 
     } else {

@@ -44,6 +44,7 @@ typedef enum {
     NXE_CEDAR_TOKEN_HAS,            /* Phase 2 */
     NXE_CEDAR_TOKEN_LIKE,           /* Phase 2 */
     NXE_CEDAR_TOKEN_IP,             /* Phase 3 */
+    NXE_CEDAR_TOKEN_IS,             /* Phase 4 */
 
     /* operators */
     NXE_CEDAR_TOKEN_EQ,             /* == */
@@ -143,7 +144,10 @@ typedef enum {
     NXE_CEDAR_NODE_METHOD_CALL,     /* expr.method(args) */
 
     /* Phase 3 */
-    NXE_CEDAR_NODE_IP_LITERAL       /* ip("addr") */
+    NXE_CEDAR_NODE_IP_LITERAL,      /* ip("addr") */
+
+    /* Phase 4 */
+    NXE_CEDAR_NODE_IS               /* expr is type_name [in expr] */
 } nxe_cedar_node_type_t;
 
 
@@ -215,6 +219,14 @@ struct nxe_cedar_node_s {
         struct {                                /* IP_LITERAL */
             ngx_str_t  addr;
         } ip_literal;
+
+        struct {                                /* IS (Phase 4) */
+            nxe_cedar_node_t *object;           /* expression under test */
+            ngx_str_t         entity_type;      /* type_name
+                                                   ("User", "Ns::User", ...) */
+            nxe_cedar_node_t *in_entity;        /* "is T in expr" expr,
+                                                   NULL if plain "is T" */
+        } is_check;
     } u;
 };
 
@@ -225,14 +237,19 @@ struct nxe_cedar_node_s {
 typedef enum {
     NXE_CEDAR_SCOPE_NONE,           /* no constraint (matches all) */
     NXE_CEDAR_SCOPE_EQ,             /* == entity_ref */
-    NXE_CEDAR_SCOPE_IN              /* in entity_ref | set */
+    NXE_CEDAR_SCOPE_IN,             /* in entity_ref | set */
+    NXE_CEDAR_SCOPE_IS,             /* is type_name (Phase 4) */
+    NXE_CEDAR_SCOPE_IS_IN           /* is type_name in entity_ref
+                                       (Phase 4) */
 } nxe_cedar_scope_constraint_t;
 
 /* scope constraint */
 typedef struct {
     nxe_cedar_scope_constraint_t  constraint;
     nxe_cedar_node_t             *target;   /* entity_ref or set
-                                               (NULL if NONE) */
+                                               (NULL if NONE, IS) */
+    ngx_str_t                     entity_type;  /* type_name (IS, IS_IN
+                                                   only; empty otherwise) */
 } nxe_cedar_scope_t;
 
 /* annotation (Phase 4) */

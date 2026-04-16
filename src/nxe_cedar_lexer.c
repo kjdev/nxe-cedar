@@ -38,6 +38,7 @@ static nxe_cedar_keyword_t nxe_cedar_keywords[] = {
     { ngx_string("has"),       NXE_CEDAR_TOKEN_HAS },
     { ngx_string("like"),      NXE_CEDAR_TOKEN_LIKE },
     { ngx_string("ip"),        NXE_CEDAR_TOKEN_IP },
+    { ngx_string("is"),        NXE_CEDAR_TOKEN_IS },
     { ngx_null_string,         0 }
 };
 

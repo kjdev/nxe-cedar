@@ -29,6 +29,32 @@ nxe_cedar_scope_matches(nxe_cedar_scope_t *scope,
         return 1;
     }
 
+    if (scope->constraint == NXE_CEDAR_SCOPE_IS
+        || scope->constraint == NXE_CEDAR_SCOPE_IS_IN)
+    {
+        if (!nxe_cedar_str_eq(entity_type, &scope->entity_type)) {
+            return 0;
+        }
+
+        if (scope->constraint == NXE_CEDAR_SCOPE_IS) {
+            return 1;
+        }
+
+        /* IS_IN: fall through to target entity_ref check */
+        target = scope->target;
+
+        if (target == NULL
+            || target->type != NXE_CEDAR_NODE_ENTITY_REF)
+        {
+            return 0;
+        }
+
+        return (nxe_cedar_str_eq(entity_type,
+                                 &target->u.entity_ref.entity_type)
+                && nxe_cedar_str_eq(entity_id,
+                                    &target->u.entity_ref.entity_id));
+    }
+
     target = scope->target;
     if (target == NULL) {
         return 0;
