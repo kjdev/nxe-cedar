@@ -1,5 +1,18 @@
 # Changelog
 
+## [89673d8](../../commit/89673d8) - 2026-04-16
+
+### Added
+
+- Add annotation parsing for policy metadata (Phase 4)
+  - Syntax: `@key` or `@key("value")` before `permit` / `forbid`
+  - Multiple annotations per policy supported (max 16)
+  - Duplicate annotation keys within a single policy rejected as parse error
+  - Annotations do not affect evaluation semantics (forbid-priority preserved)
+  - `nxe_cedar_annotation_t` struct: key/value pair stored in `nxe_cedar_policy_t.annotations` (`ngx_array_t`)
+  - Lazy-create pattern: annotations array allocated only when `@` is encountered
+  - `\*` escape in annotation values rejected (only valid in `like` patterns)
+
 ## [e739b8b](../../commit/e739b8b) - 2026-04-16
 
 ### Added
