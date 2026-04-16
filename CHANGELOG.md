@@ -1,5 +1,21 @@
 # Changelog
 
+## [51d92d4](../../commit/51d92d4) - 2026-04-17
+
+### Added
+
+- Add `is` operator for entity type checks (Phase 4)
+  - Scope syntax: `principal is Type`, `principal is Type in entity_ref` (same for `resource`)
+  - Expression syntax: `expr is Type`, `expr is Type in expr` in `when` / `unless` conditions
+  - `is` in action scope is rejected as parse error (principal / resource only)
+  - Type name supports namespaces: `principal is NS::User`
+  - Expression `is` requires LHS to evaluate to an entity; non-entity LHS returns evaluation error
+  - `is-in` variant additionally performs entity-hierarchy membership (`in` degrades to `==` per existing `in` semantics)
+  - `NXE_CEDAR_TOKEN_IS` keyword added to lexer (reserved: not usable as attribute name)
+  - `NXE_CEDAR_NODE_IS` AST node holds `{object, entity_type, in_entity}`
+  - `NXE_CEDAR_SCOPE_IS` / `NXE_CEDAR_SCOPE_IS_IN` scope constraint kinds added; `entity_type` field added to `nxe_cedar_scope_t`
+  - `nxe_cedar_parse_type_name()` helper introduced for `IDENT { "::" IDENT }` paths without a trailing quoted id
+
 ## [365c197](../../commit/365c197) - 2026-04-17
 
 ### Added
