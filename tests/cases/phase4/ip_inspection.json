@@ -1,0 +1,366 @@
+{
+    "description": "ip inspection methods: isIpv4, isIpv6, isLoopback, isMulticast",
+    "phase": 4,
+    "tests": [
+        {
+            "name": "ipv4_is_ipv4",
+            "description": "IPv4 address is IPv4",
+            "policy": "permit (principal, action, resource) when { ip(\"10.0.0.1\").isIpv4() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv6_not_ipv4",
+            "description": "IPv6 address is not IPv4",
+            "policy": "permit (principal, action, resource) when { ip(\"::1\").isIpv4() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv4_cidr_is_ipv4",
+            "description": "IPv4 CIDR is IPv4",
+            "policy": "permit (principal, action, resource) when { ip(\"10.0.0.0/8\").isIpv4() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv6_is_ipv6",
+            "description": "IPv6 address is IPv6",
+            "policy": "permit (principal, action, resource) when { ip(\"2001:db8::1\").isIpv6() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv4_not_ipv6",
+            "description": "IPv4 address is not IPv6",
+            "policy": "permit (principal, action, resource) when { ip(\"10.0.0.1\").isIpv6() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv6_cidr_is_ipv6",
+            "description": "IPv6 CIDR is IPv6",
+            "policy": "permit (principal, action, resource) when { ip(\"fe80::/10\").isIpv6() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv4_loopback_true",
+            "description": "127.0.0.1 is loopback",
+            "policy": "permit (principal, action, resource) when { ip(\"127.0.0.1\").isLoopback() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv4_loopback_range_edge",
+            "description": "127.255.255.255 is loopback",
+            "policy": "permit (principal, action, resource) when { ip(\"127.255.255.255\").isLoopback() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv4_loopback_false",
+            "description": "10.0.0.1 is not loopback",
+            "policy": "permit (principal, action, resource) when { ip(\"10.0.0.1\").isLoopback() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv4_loopback_cidr_in_range",
+            "description": "127.0.0.0/16 is loopback (entirely within 127.0.0.0/8)",
+            "policy": "permit (principal, action, resource) when { ip(\"127.0.0.0/16\").isLoopback() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv4_loopback_cidr_wider",
+            "description": "127.0.0.0/7 is not loopback (wider than 127.0.0.0/8)",
+            "policy": "permit (principal, action, resource) when { ip(\"127.0.0.0/7\").isLoopback() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv6_loopback_true",
+            "description": "::1 is loopback",
+            "policy": "permit (principal, action, resource) when { ip(\"::1\").isLoopback() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv6_loopback_false",
+            "description": "::2 is not loopback",
+            "policy": "permit (principal, action, resource) when { ip(\"::2\").isLoopback() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv4_multicast_true",
+            "description": "224.0.0.1 is multicast",
+            "policy": "permit (principal, action, resource) when { ip(\"224.0.0.1\").isMulticast() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv4_multicast_upper_edge",
+            "description": "239.255.255.255 is multicast",
+            "policy": "permit (principal, action, resource) when { ip(\"239.255.255.255\").isMulticast() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv4_multicast_false",
+            "description": "10.0.0.1 is not multicast",
+            "policy": "permit (principal, action, resource) when { ip(\"10.0.0.1\").isMulticast() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv4_multicast_just_below",
+            "description": "223.255.255.255 is not multicast",
+            "policy": "permit (principal, action, resource) when { ip(\"223.255.255.255\").isMulticast() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv4_multicast_cidr_in_range",
+            "description": "224.0.0.0/8 is multicast (within 224.0.0.0/4)",
+            "policy": "permit (principal, action, resource) when { ip(\"224.0.0.0/8\").isMulticast() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv4_multicast_cidr_wider",
+            "description": "224.0.0.0/3 is not multicast (wider than 224.0.0.0/4)",
+            "policy": "permit (principal, action, resource) when { ip(\"224.0.0.0/3\").isMulticast() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv6_multicast_true",
+            "description": "ff00::1 is multicast",
+            "policy": "permit (principal, action, resource) when { ip(\"ff00::1\").isMulticast() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv6_multicast_false",
+            "description": "2001:db8::1 is not multicast",
+            "policy": "permit (principal, action, resource) when { ip(\"2001:db8::1\").isMulticast() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv6_multicast_cidr_in_range",
+            "description": "ff00::/16 is multicast (within ff00::/8)",
+            "policy": "permit (principal, action, resource) when { ip(\"ff00::/16\").isMulticast() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "is_ipv4_non_ip_receiver",
+            "description": "isIpv4 on non-IP receiver is evaluation error (deny)",
+            "policy": "permit (principal, action, resource) when { context.name.isIpv4() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"name": "alice"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "is_loopback_non_ip_receiver",
+            "description": "isLoopback on non-IP receiver is evaluation error (deny)",
+            "policy": "permit (principal, action, resource) when { context.name.isLoopback() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"name": "alice"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "context_ip_loopback_permit",
+            "description": "use case 8: permit when source ip is loopback",
+            "policy": "permit (principal, action, resource) when { context.source_ip.isLoopback() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"source_ip": {"__extn": {"fn": "ip", "arg": "127.0.0.1"}}}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "context_ip_loopback_deny",
+            "description": "use case 8: deny when source ip is not loopback",
+            "policy": "permit (principal, action, resource) when { context.source_ip.isLoopback() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"source_ip": {"__extn": {"fn": "ip", "arg": "10.0.0.1"}}}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "negated_is_multicast",
+            "description": "forbid multicast sources via logical negation",
+            "policy": "forbid (principal, action, resource) when { context.source_ip.isMulticast() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"source_ip": {"__extn": {"fn": "ip", "arg": "224.0.0.1"}}}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "combined_ipv4_and_loopback",
+            "description": "isIpv4 combined with isLoopback via &&",
+            "policy": "permit (principal, action, resource) when { context.source_ip.isIpv4() && context.source_ip.isLoopback() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"source_ip": {"__extn": {"fn": "ip", "arg": "127.0.0.1"}}}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ipv6_loopback_cidr_wider",
+            "description": "::1/127 is not loopback (wider than ::1/128)",
+            "policy": "permit (principal, action, resource) when { ip(\"::1/127\").isLoopback() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ipv6_multicast_cidr_wider",
+            "description": "ff00::/7 is not multicast (wider than ff00::/8)",
+            "policy": "permit (principal, action, resource) when { ip(\"ff00::/7\").isMulticast() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "is_ipv6_non_ip_receiver",
+            "description": "isIpv6 on non-IP receiver is evaluation error (deny)",
+            "policy": "permit (principal, action, resource) when { context.name.isIpv6() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"name": "alice"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "is_multicast_non_ip_receiver",
+            "description": "isMulticast on non-IP receiver is evaluation error (deny)",
+            "policy": "permit (principal, action, resource) when { context.name.isMulticast() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"name": "alice"}
+            },
+            "expected": "deny"
+        }
+    ]
+}
