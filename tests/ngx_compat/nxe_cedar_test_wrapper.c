@@ -14,6 +14,7 @@
 
 #include <jansson.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -83,7 +84,7 @@ parse_entity(json_t *obj, ngx_str_t *type_out, ngx_str_t *id_out)
 typedef ngx_int_t (*add_str_attr_pt)(nxe_cedar_eval_ctx_t *,
     ngx_str_t *, ngx_str_t *);
 typedef ngx_int_t (*add_long_attr_pt)(nxe_cedar_eval_ctx_t *,
-    ngx_str_t *, ngx_int_t);
+    ngx_str_t *, int64_t);
 typedef ngx_int_t (*add_bool_attr_pt)(nxe_cedar_eval_ctx_t *,
     ngx_str_t *, ngx_flag_t);
 typedef ngx_int_t (*add_ip_attr_pt)(nxe_cedar_eval_ctx_t *,
@@ -131,7 +132,7 @@ add_attrs_via_api(nxe_cedar_eval_ctx_t *ctx, json_t *obj,
 
         } else if (json_is_integer(value)) {
             if (add_long(ctx, &name,
-                         (ngx_int_t) json_integer_value(value)) != NGX_OK)
+                         (int64_t) json_integer_value(value)) != NGX_OK)
             {
                 set_error("failed to add attribute: %s", key);
                 return -1;
