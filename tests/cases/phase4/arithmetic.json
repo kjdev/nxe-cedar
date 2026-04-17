@@ -1,0 +1,295 @@
+{
+    "description": "arithmetic operators: +, -, * on Long values",
+    "phase": 4,
+    "tests": [
+        {
+            "name": "add_positive",
+            "description": "simple addition of two positive integers",
+            "policy": "permit (principal, action, resource) when { context.x + context.y == 10 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"x": 3, "y": 7}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "add_mismatch",
+            "description": "addition result not matching condition",
+            "policy": "permit (principal, action, resource) when { context.x + context.y == 11 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"x": 3, "y": 7}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "sub_positive",
+            "description": "subtraction yields expected value",
+            "policy": "permit (principal, action, resource) when { context.x - context.y == 5 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"x": 12, "y": 7}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "sub_negative_result",
+            "description": "subtraction producing negative value",
+            "policy": "permit (principal, action, resource) when { context.x - context.y == -4 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"x": 3, "y": 7}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "mul_positive",
+            "description": "simple multiplication",
+            "policy": "permit (principal, action, resource) when { context.x * context.y == 42 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"x": 6, "y": 7}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "mul_by_literal",
+            "description": "multiplication of attribute by integer literal",
+            "policy": "permit (principal, action, resource) when { principal.quota * 1024 == 4096 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"quota": 4}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "precedence_mul_over_add",
+            "description": "* binds tighter than +: 2 + 3 * 4 == 14",
+            "policy": "permit (principal, action, resource) when { 2 + 3 * 4 == 14 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "precedence_parens",
+            "description": "parentheses override precedence: (2 + 3) * 4 == 20",
+            "policy": "permit (principal, action, resource) when { (2 + 3) * 4 == 20 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "left_associative_sub",
+            "description": "- is left-associative: 10 - 3 - 2 == 5",
+            "policy": "permit (principal, action, resource) when { 10 - 3 - 2 == 5 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "unary_minus_with_add",
+            "description": "unary minus combines with binary addition: -2 + 5 == 3",
+            "policy": "permit (principal, action, resource) when { -2 + 5 == 3 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "unary_minus_variable_with_mul",
+            "description": "unary minus on variable combined with multiplication: -context.x * context.y == -42",
+            "policy": "permit (principal, action, resource) when { -context.x * context.y == -42 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"x": 6, "y": 7}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "size_limit_usecase",
+            "description": "size limit via multiplication (spec usecase 11)",
+            "policy": "forbid (principal, action == Action::\"PUT\", resource) when { context.content_length > principal.upload_limit * 1024 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "PUT"},
+                "resource": {"type": "Endpoint", "id": "/upload"},
+                "context": {"content_length": 5000},
+                "principal_attrs": {"upload_limit": 4}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "size_limit_within",
+            "description": "content length within computed upload limit: permit depends on correct multiplication",
+            "policy": "permit (principal, action == Action::\"PUT\", resource) when { context.content_length < principal.upload_limit * 1024 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "PUT"},
+                "resource": {"type": "Endpoint", "id": "/upload"},
+                "context": {"content_length": 3000},
+                "principal_attrs": {"upload_limit": 4}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "type_mismatch_string_plus_long",
+            "description": "string + long is a type error, policy does not apply",
+            "policy": "permit (principal, action, resource) when { principal.role + 1 == 2 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "admin"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "zero_multiplication",
+            "description": "anything times zero is zero",
+            "policy": "permit (principal, action, resource) when { context.x * 0 == 0 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"x": 1234567}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "overflow_add_max",
+            "description": "addition overflow yields evaluation error: policy not applicable",
+            "policy": "permit (principal, action, resource) when { 9223372036854775807 + 1 == 0 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "overflow_sub_min",
+            "description": "subtraction underflow yields evaluation error: policy not applicable",
+            "policy": "permit (principal, action, resource) when { -9223372036854775807 - 2 == 0 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "overflow_mul_max",
+            "description": "multiplication overflow yields evaluation error: policy not applicable",
+            "policy": "permit (principal, action, resource) when { 9223372036854775806 * 2 == 0 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "mul_long_min_boundary",
+            "description": "result equal to LONG_MIN is valid (matches i64::checked_mul)",
+            "policy": "permit (principal, action, resource) when { -2 * 4611686018427387904 == -9223372036854775808 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "relation_rhs_arithmetic",
+            "description": "arithmetic expression on the RHS of a comparison (add_expr feeds relation RHS)",
+            "policy": "permit (principal, action, resource) when { 5 < 2 + 4 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "is_in_parenthesized_entity",
+            "description": "is T in (Entity) — is-in RHS now parses through add_expr",
+            "policy": "permit (principal, action, resource) when { principal is User in (User::\"alice\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "mixed_mul_sub",
+            "description": "precedence between * and -: 10 - 2 * 3 == 4",
+            "policy": "permit (principal, action, resource) when { 10 - 2 * 3 == 4 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "chain_long_arithmetic",
+            "description": "long chain of additions: 1+2+3+4+5+6+7+8+9+10 == 55",
+            "policy": "permit (principal, action, resource) when { 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10 == 55 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "bool_plus_bool_type_error",
+            "description": "bool + bool is a type error, policy does not apply",
+            "policy": "permit (principal, action, resource) when { (1 == 1) + (2 == 2) == 2 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "nested_overflow_propagation",
+            "description": "overflow inside a nested subexpression propagates through mult_expr",
+            "policy": "permit (principal, action, resource) when { (context.x + 1) * 2 == 0 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"x": 9223372036854775807}
+            },
+            "expected": "deny"
+        }
+    ]
+}
