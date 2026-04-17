@@ -746,14 +746,107 @@ nxe_cedar_parse_member_expr(nxe_cedar_parser_ctx_t *ctx)
 }
 
 
-/* parse relation expression: unary { (== | != | in | has | like) ... } */
+/* parse mult expression: unary { * unary } */
+static nxe_cedar_node_t *
+nxe_cedar_parse_mult_expr(nxe_cedar_parser_ctx_t *ctx)
+{
+    nxe_cedar_node_t *left, *right, *binop;
+    ngx_uint_t chain;
+
+    left = nxe_cedar_parse_unary_expr(ctx);
+    if (ctx->error) {
+        return NULL;
+    }
+
+    chain = 0;
+
+    while (ctx->current.type == NXE_CEDAR_TOKEN_STAR) {
+        if (++chain > NXE_CEDAR_MAX_BINOP_CHAIN) {
+            ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                          "nxe_cedar_parse: too many chained * operators");
+            ctx->error = 1;
+            return NULL;
+        }
+
+        nxe_cedar_parser_advance(ctx);
+
+        right = nxe_cedar_parse_unary_expr(ctx);
+        if (ctx->error) {
+            return NULL;
+        }
+
+        binop = nxe_cedar_parser_alloc_node(ctx, NXE_CEDAR_NODE_BINOP);
+        if (binop == NULL) {
+            return NULL;
+        }
+
+        binop->u.binop.op = NXE_CEDAR_OP_MUL;
+        binop->u.binop.left = left;
+        binop->u.binop.right = right;
+        left = binop;
+    }
+
+    return left;
+}
+
+
+/* parse add expression: mult { (+ | -) mult } */
+static nxe_cedar_node_t *
+nxe_cedar_parse_add_expr(nxe_cedar_parser_ctx_t *ctx)
+{
+    nxe_cedar_node_t *left, *right, *binop;
+    ngx_uint_t op, chain;
+
+    left = nxe_cedar_parse_mult_expr(ctx);
+    if (ctx->error) {
+        return NULL;
+    }
+
+    chain = 0;
+
+    while (ctx->current.type == NXE_CEDAR_TOKEN_PLUS
+           || ctx->current.type == NXE_CEDAR_TOKEN_MINUS)
+    {
+        if (++chain > NXE_CEDAR_MAX_BINOP_CHAIN) {
+            ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                          "nxe_cedar_parse: "
+                          "too many chained + or - operators");
+            ctx->error = 1;
+            return NULL;
+        }
+
+        op = (ctx->current.type == NXE_CEDAR_TOKEN_PLUS)
+             ? NXE_CEDAR_OP_PLUS : NXE_CEDAR_OP_MINUS;
+        nxe_cedar_parser_advance(ctx);
+
+        right = nxe_cedar_parse_mult_expr(ctx);
+        if (ctx->error) {
+            return NULL;
+        }
+
+        binop = nxe_cedar_parser_alloc_node(ctx, NXE_CEDAR_NODE_BINOP);
+        if (binop == NULL) {
+            return NULL;
+        }
+
+        binop->u.binop.op = op;
+        binop->u.binop.left = left;
+        binop->u.binop.right = right;
+        left = binop;
+    }
+
+    return left;
+}
+
+
+/* parse relation expression: add [ relop add | has | like | is ] */
 static nxe_cedar_node_t *
 nxe_cedar_parse_relation_expr(nxe_cedar_parser_ctx_t *ctx)
 {
     nxe_cedar_node_t *left, *right, *binop, *has_node;
     ngx_uint_t op;
 
-    left = nxe_cedar_parse_unary_expr(ctx);
+    left = nxe_cedar_parse_add_expr(ctx);
     if (ctx->error) {
         return NULL;
     }
@@ -819,7 +912,7 @@ nxe_cedar_parse_relation_expr(nxe_cedar_parser_ctx_t *ctx)
             nxe_cedar_parser_advance(ctx);
 
             is_node->u.is_check.in_entity =
-                nxe_cedar_parse_unary_expr(ctx);
+                nxe_cedar_parse_add_expr(ctx);
             if (ctx->error) {
                 return NULL;
             }
@@ -886,7 +979,7 @@ nxe_cedar_parse_relation_expr(nxe_cedar_parser_ctx_t *ctx)
 
     nxe_cedar_parser_advance(ctx);
 
-    right = nxe_cedar_parse_unary_expr(ctx);
+    right = nxe_cedar_parse_add_expr(ctx);
     if (ctx->error) {
         return NULL;
     }
@@ -910,7 +1003,7 @@ nxe_cedar_parse_unary_expr(nxe_cedar_parser_ctx_t *ctx)
 {
     nxe_cedar_node_t *node, *operand;
 
-    if (ctx->current.type == NXE_CEDAR_TOKEN_NEGATE) {
+    if (ctx->current.type == NXE_CEDAR_TOKEN_MINUS) {
         nxe_cedar_parser_advance(ctx);
 
         /* fold -literal into single negative LONG_LIT */

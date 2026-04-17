@@ -374,6 +374,26 @@ nxe_cedar_make_ip(ngx_str_t *s)
 }
 
 
+/* overflow-checked Long arithmetic (Cedar i64::checked_{add,sub,mul}).
+ * Accepts any result representable in ngx_int_t (including LONG_MIN);
+ * rejects true overflow. */
+static ngx_int_t
+nxe_cedar_long_arith(nxe_cedar_op_t op, ngx_int_t a, ngx_int_t b,
+    ngx_int_t *out)
+{
+    switch (op) {
+    case NXE_CEDAR_OP_PLUS:
+        return __builtin_add_overflow(a, b, out) ? NGX_ERROR : NGX_OK;
+    case NXE_CEDAR_OP_MINUS:
+        return __builtin_sub_overflow(a, b, out) ? NGX_ERROR : NGX_OK;
+    case NXE_CEDAR_OP_MUL:
+        return __builtin_mul_overflow(a, b, out) ? NGX_ERROR : NGX_OK;
+    default:
+        return NGX_ERROR;
+    }
+}
+
+
 /* value equality (same-type comparison) */
 static ngx_int_t
 nxe_cedar_value_equals(nxe_cedar_value_t *a, nxe_cedar_value_t *b)
@@ -1174,6 +1194,35 @@ nxe_cedar_expr_eval(nxe_cedar_node_t *node,
             default:
                 return nxe_cedar_make_error();
             }
+
+        case NXE_CEDAR_OP_PLUS:
+        case NXE_CEDAR_OP_MINUS:
+        case NXE_CEDAR_OP_MUL: {
+            ngx_int_t result;
+
+            left = nxe_cedar_expr_eval(node->u.binop.left, ctx,
+                                       pool, log);
+            if (left.type == NXE_CEDAR_RVAL_ERROR) {
+                return left;
+            }
+            right = nxe_cedar_expr_eval(node->u.binop.right, ctx,
+                                        pool, log);
+            if (right.type == NXE_CEDAR_RVAL_ERROR) {
+                return right;
+            }
+            if (left.type != NXE_CEDAR_RVAL_LONG
+                || right.type != NXE_CEDAR_RVAL_LONG)
+            {
+                return nxe_cedar_make_error();
+            }
+            if (nxe_cedar_long_arith(node->u.binop.op,
+                                     left.v.long_val, right.v.long_val,
+                                     &result) != NGX_OK)
+            {
+                return nxe_cedar_make_error();
+            }
+            return nxe_cedar_make_long(result);
+        }
 
         default:
             return nxe_cedar_make_error();

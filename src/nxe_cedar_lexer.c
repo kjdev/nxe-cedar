@@ -590,7 +590,13 @@ nxe_cedar_lexer_next(nxe_cedar_lexer_t *lexer)
         token.type = NXE_CEDAR_TOKEN_NOT;
         return token;
     case '-':
-        token.type = NXE_CEDAR_TOKEN_NEGATE;
+        token.type = NXE_CEDAR_TOKEN_MINUS;
+        return token;
+    case '+':
+        token.type = NXE_CEDAR_TOKEN_PLUS;
+        return token;
+    case '*':
+        token.type = NXE_CEDAR_TOKEN_STAR;
         return token;
     case '.':
         token.type = NXE_CEDAR_TOKEN_DOT;
