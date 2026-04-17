@@ -1,5 +1,15 @@
 # Changelog
 
+## [bb73d72](../../commit/bb73d72) - 2026-04-17
+
+### Changed
+
+- Pin Cedar Long values to `int64_t` for i64 integrity across platforms
+  - `long_val` fields (AST node, runtime value, attribute) use `int64_t`
+  - Overflow-checked helpers, unary-minus boundary, and literal parsing use `INT64_MAX` / `INT64_MIN`
+  - Public API `nxe_cedar_eval_ctx_add_{principal,action,resource,context}_attr_long()` now takes `int64_t` (was `ngx_int_t`); on 32-bit builds this is a breaking signature change
+  - Motivation: `ngx_int_t` is `intptr_t`, which collapses to 32 bits on 32-bit platforms and would diverge from the Cedar i64 reference semantics
+
 ## [a1fa4f9](../../commit/a1fa4f9) - 2026-04-17
 
 ### Added
