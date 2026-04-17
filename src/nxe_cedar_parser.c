@@ -209,22 +209,22 @@ nxe_cedar_parser_compile_pattern(nxe_cedar_parser_ctx_t *ctx,
 
 
 /*
- * parse integer from ngx_str_t
+ * parse integer from ngx_str_t (Cedar i64 domain)
  * returns NGX_ERROR on overflow (sets *result to 0)
  */
 static ngx_int_t
-nxe_cedar_parse_long(ngx_str_t *s, ngx_int_t *result)
+nxe_cedar_parse_long(ngx_str_t *s, int64_t *result)
 {
-    ngx_int_t val, digit;
-    size_t i;
+    int64_t val, digit;
+    size_t  i;
 
     val = 0;
 
     for (i = 0; i < s->len; i++) {
         digit = s->data[i] - '0';
 
-        /* overflow check: val * 10 + digit > NGX_MAX_INT_T_VALUE */
-        if (val > (NGX_MAX_INT_T_VALUE - digit) / 10) {
+        /* overflow check: val * 10 + digit > INT64_MAX */
+        if (val > (INT64_MAX - digit) / 10) {
             *result = 0;
             return NGX_ERROR;
         }
@@ -238,25 +238,23 @@ nxe_cedar_parse_long(ngx_str_t *s, ngx_int_t *result)
 
 
 /*
- * parse negative integer from ngx_str_t
- * accumulates in negative domain to handle MIN_INT correctly
+ * parse negative integer from ngx_str_t (Cedar i64 domain)
+ * accumulates in negative domain to handle INT64_MIN correctly
  * returns NGX_ERROR on underflow (sets *result to 0)
  */
 static ngx_int_t
-nxe_cedar_parse_neg_long(ngx_str_t *s, ngx_int_t *result)
+nxe_cedar_parse_neg_long(ngx_str_t *s, int64_t *result)
 {
-    ngx_int_t val, digit;
-    ngx_int_t min_val;
-    size_t i;
+    int64_t val, digit;
+    size_t  i;
 
-    min_val = -NGX_MAX_INT_T_VALUE - 1;
     val = 0;
 
     for (i = 0; i < s->len; i++) {
         digit = s->data[i] - '0';
 
-        /* underflow check: val * 10 - digit < min_val */
-        if (val < (min_val + digit) / 10) {
+        /* underflow check: val * 10 - digit < INT64_MIN */
+        if (val < (INT64_MIN + digit) / 10) {
             *result = 0;
             return NGX_ERROR;
         }

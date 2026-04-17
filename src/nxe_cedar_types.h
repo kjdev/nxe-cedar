@@ -13,6 +13,7 @@
 
 #include <ngx_config.h>
 #include <ngx_core.h>
+#include <stdint.h>
 
 
 /* --- decision result --- */
@@ -166,7 +167,7 @@ struct nxe_cedar_node_s {
     union {
         ngx_flag_t  bool_val;                   /* BOOL_LIT */
         ngx_str_t   string_val;                 /* STRING_LIT, LIKE pattern */
-        ngx_int_t   long_val;                   /* LONG_LIT */
+        int64_t     long_val;                   /* LONG_LIT (Cedar i64) */
 
         struct {                                /* ENTITY_REF */
             ngx_str_t  entity_type;
@@ -302,7 +303,7 @@ typedef struct {
     ngx_uint_t  value_type;                 /* NXE_CEDAR_VALUE_* */
     union {
         ngx_str_t   str_val;
-        ngx_int_t   long_val;
+        int64_t     long_val;              /* Cedar i64 attribute value */
         ngx_flag_t  bool_val;
         ngx_str_t   ip_str;                /* IP address string for NXE_CEDAR_VALUE_IP */
     } value;

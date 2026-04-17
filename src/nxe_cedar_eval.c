@@ -142,7 +142,7 @@ nxe_cedar_eval_ctx_add_str_attr(ngx_array_t *attrs,
 
 static ngx_int_t
 nxe_cedar_eval_ctx_add_long_attr(ngx_array_t *attrs,
-    ngx_str_t *name, ngx_int_t value)
+    ngx_str_t *name, int64_t value)
 {
     nxe_cedar_attr_t *attr;
 
@@ -254,7 +254,7 @@ nxe_cedar_eval_ctx_add_principal_attr(nxe_cedar_eval_ctx_t *ctx,
 
 ngx_int_t
 nxe_cedar_eval_ctx_add_principal_attr_long(nxe_cedar_eval_ctx_t *ctx,
-    ngx_str_t *name, ngx_int_t value)
+    ngx_str_t *name, int64_t value)
 {
     return nxe_cedar_eval_ctx_add_long_attr(ctx->principal_attrs,
                                             name, value);
@@ -299,7 +299,7 @@ nxe_cedar_eval_ctx_add_action_attr(nxe_cedar_eval_ctx_t *ctx,
 
 ngx_int_t
 nxe_cedar_eval_ctx_add_action_attr_long(nxe_cedar_eval_ctx_t *ctx,
-    ngx_str_t *name, ngx_int_t value)
+    ngx_str_t *name, int64_t value)
 {
     return nxe_cedar_eval_ctx_add_long_attr(ctx->action_attrs,
                                             name, value);
@@ -344,7 +344,7 @@ nxe_cedar_eval_ctx_add_resource_attr(nxe_cedar_eval_ctx_t *ctx,
 
 ngx_int_t
 nxe_cedar_eval_ctx_add_resource_attr_long(nxe_cedar_eval_ctx_t *ctx,
-    ngx_str_t *name, ngx_int_t value)
+    ngx_str_t *name, int64_t value)
 {
     return nxe_cedar_eval_ctx_add_long_attr(ctx->resource_attrs,
                                             name, value);
@@ -380,7 +380,7 @@ nxe_cedar_eval_ctx_add_context_attr(nxe_cedar_eval_ctx_t *ctx,
 
 ngx_int_t
 nxe_cedar_eval_ctx_add_context_attr_long(nxe_cedar_eval_ctx_t *ctx,
-    ngx_str_t *name, ngx_int_t value)
+    ngx_str_t *name, int64_t value)
 {
     return nxe_cedar_eval_ctx_add_long_attr(ctx->context_attrs,
                                             name, value);

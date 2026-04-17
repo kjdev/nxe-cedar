@@ -24,7 +24,7 @@ void nxe_cedar_eval_ctx_set_principal(nxe_cedar_eval_ctx_t *ctx,
 ngx_int_t nxe_cedar_eval_ctx_add_principal_attr(nxe_cedar_eval_ctx_t *ctx,
     ngx_str_t *name, ngx_str_t *value);
 ngx_int_t nxe_cedar_eval_ctx_add_principal_attr_long(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_int_t value);
+    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, int64_t value);
 ngx_int_t nxe_cedar_eval_ctx_add_principal_attr_bool(
     nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_flag_t value);
 ngx_int_t nxe_cedar_eval_ctx_add_principal_attr_ip(
@@ -35,7 +35,7 @@ void nxe_cedar_eval_ctx_set_action(nxe_cedar_eval_ctx_t *ctx,
 ngx_int_t nxe_cedar_eval_ctx_add_action_attr(nxe_cedar_eval_ctx_t *ctx,
     ngx_str_t *name, ngx_str_t *value);
 ngx_int_t nxe_cedar_eval_ctx_add_action_attr_long(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_int_t value);
+    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, int64_t value);
 ngx_int_t nxe_cedar_eval_ctx_add_action_attr_bool(
     nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_flag_t value);
 ngx_int_t nxe_cedar_eval_ctx_add_action_attr_ip(
@@ -46,7 +46,7 @@ void nxe_cedar_eval_ctx_set_resource(nxe_cedar_eval_ctx_t *ctx,
 ngx_int_t nxe_cedar_eval_ctx_add_resource_attr(nxe_cedar_eval_ctx_t *ctx,
     ngx_str_t *name, ngx_str_t *value);
 ngx_int_t nxe_cedar_eval_ctx_add_resource_attr_long(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_int_t value);
+    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, int64_t value);
 ngx_int_t nxe_cedar_eval_ctx_add_resource_attr_bool(
     nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_flag_t value);
 ngx_int_t nxe_cedar_eval_ctx_add_resource_attr_ip(
@@ -55,7 +55,7 @@ ngx_int_t nxe_cedar_eval_ctx_add_resource_attr_ip(
 ngx_int_t nxe_cedar_eval_ctx_add_context_attr(nxe_cedar_eval_ctx_t *ctx,
     ngx_str_t *name, ngx_str_t *value);
 ngx_int_t nxe_cedar_eval_ctx_add_context_attr_long(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_int_t value);
+    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, int64_t value);
 ngx_int_t nxe_cedar_eval_ctx_add_context_attr_bool(
     nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_flag_t value);
 ngx_int_t nxe_cedar_eval_ctx_add_context_attr_ip(

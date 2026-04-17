@@ -50,7 +50,7 @@ nxe_cedar_make_string(ngx_str_t s)
 
 
 static nxe_cedar_value_t
-nxe_cedar_make_long(ngx_int_t n)
+nxe_cedar_make_long(int64_t n)
 {
     nxe_cedar_value_t val;
 
@@ -375,11 +375,10 @@ nxe_cedar_make_ip(ngx_str_t *s)
 
 
 /* overflow-checked Long arithmetic (Cedar i64::checked_{add,sub,mul}).
- * Accepts any result representable in ngx_int_t (including LONG_MIN);
+ * Accepts any result representable in int64_t (including INT64_MIN);
  * rejects true overflow. */
 static ngx_int_t
-nxe_cedar_long_arith(nxe_cedar_op_t op, ngx_int_t a, ngx_int_t b,
-    ngx_int_t *out)
+nxe_cedar_long_arith(nxe_cedar_op_t op, int64_t a, int64_t b, int64_t *out)
 {
     switch (op) {
     case NXE_CEDAR_OP_PLUS:
@@ -1198,7 +1197,7 @@ nxe_cedar_expr_eval(nxe_cedar_node_t *node,
         case NXE_CEDAR_OP_PLUS:
         case NXE_CEDAR_OP_MINUS:
         case NXE_CEDAR_OP_MUL: {
-            ngx_int_t result;
+            int64_t result;
 
             left = nxe_cedar_expr_eval(node->u.binop.left, ctx,
                                        pool, log);
@@ -1248,8 +1247,8 @@ nxe_cedar_expr_eval(nxe_cedar_node_t *node,
         if (left.type != NXE_CEDAR_RVAL_LONG) {
             return nxe_cedar_make_error();
         }
-        /* -MIN_INT is undefined; reject it */
-        if (left.v.long_val == (-NGX_MAX_INT_T_VALUE - 1)) {
+        /* -INT64_MIN is undefined; reject it */
+        if (left.v.long_val == INT64_MIN) {
             return nxe_cedar_make_error();
         }
         return nxe_cedar_make_long(-left.v.long_val);

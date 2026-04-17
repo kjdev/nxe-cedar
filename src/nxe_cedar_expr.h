@@ -28,7 +28,7 @@ typedef struct {
     ngx_uint_t  type;       /* NXE_CEDAR_RVAL_* */
     union {
         ngx_str_t    str_val;
-        ngx_int_t    long_val;
+        int64_t      long_val;   /* Cedar i64 runtime value */
         ngx_flag_t   bool_val;
         struct {
             ngx_str_t  type;
