@@ -1,5 +1,19 @@
 # Changelog
 
+## [e402a6f](../../commit/e402a6f) - 2026-04-20
+
+### Added
+
+- Add bracket access `expr["key"]` for attribute references (Phase 4)
+  - Syntax: `expr["key"]` in `when` / `unless` conditions; semantically equivalent to `expr.key`
+  - Supports attribute names that are not valid identifiers (e.g. `context["X-Request-Id"]`)
+  - Supports attribute names that collide with Cedar keywords (e.g. `context["ip"]`, `principal["is"]`)
+  - Grammar: `member = primary { "." IDENT [ "(" [ expr_list ] ")" ] | "[" STRING "]" }`
+  - Only string literals are accepted inside brackets; non-string tokens and `\*`-escaped strings are parse errors
+  - Bracket and dot access can be mixed on the same chain (`principal.role && principal["email"]`)
+  - Both forms produce `NXE_CEDAR_NODE_ATTR_ACCESS`; evaluator, `has` operator, and runtime semantics are unchanged
+  - Bracket steps participate in the existing `NXE_CEDAR_MAX_MEMBER_CHAIN` depth limit
+
 ## [bb73d72](../../commit/bb73d72) - 2026-04-17
 
 ### Changed
