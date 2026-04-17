@@ -1,5 +1,20 @@
 # Changelog
 
+## [a1fa4f9](../../commit/a1fa4f9) - 2026-04-17
+
+### Added
+
+- Add arithmetic operators `+`, `-`, `*` on Long values (Phase 4)
+  - Syntax: `expr + expr`, `expr - expr`, `expr * expr` in `when` / `unless` conditions
+  - Both operands must be Long; other types (string, entity, etc.) return evaluation error
+  - Operator precedence: `*` > `+`, `-` > comparison operators (left-associative within each level)
+  - Overflow / underflow yields an evaluation error and the policy is not applicable
+  - `NXE_CEDAR_TOKEN_PLUS` and `NXE_CEDAR_TOKEN_STAR` tokens added; `NXE_CEDAR_TOKEN_NEGATE` renamed to `NXE_CEDAR_TOKEN_MINUS` (shared by unary and binary minus per Cedar spec)
+  - `NXE_CEDAR_OP_PLUS`, `NXE_CEDAR_OP_MINUS`, `NXE_CEDAR_OP_MUL` operators added to `nxe_cedar_op_t`
+  - Grammar: `relation -> add -> mult -> unary` with `add = mult { (+|-) mult }` and `mult = unary { * unary }`
+  - `is-in` RHS and relational operator RHS now parse `add` expressions so arithmetic composes with entity hierarchy and comparison
+  - Unified overflow-checked helper `nxe_cedar_long_arith()` (dispatching on `nxe_cedar_op_t`) wraps `__builtin_{add,sub,mul}_overflow` and handles the `INT64_MIN` boundary (e.g. `MIN * -1` rejected, `MIN` as a multiplication result accepted)
+
 ## [51d92d4](../../commit/51d92d4) - 2026-04-17
 
 ### Added
