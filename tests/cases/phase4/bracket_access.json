@@ -1,0 +1,254 @@
+{
+    "description": "bracket access expr[\"key\"] for attribute names not representable as identifiers",
+    "phase": 4,
+    "tests": [
+        {
+            "name": "bracket_context_simple_key",
+            "description": "bracket access on context with a simple identifier-compatible key equals dot access",
+            "policy": "permit (principal, action, resource) when { context[\"role\"] == \"admin\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"role": "admin"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "bracket_context_hyphenated_key_match",
+            "description": "bracket access supports hyphenated keys that are not valid identifiers",
+            "policy": "permit (principal, action, resource) when { context[\"X-Request-Id\"] == \"abc-123\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "POST"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"X-Request-Id": "abc-123"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "bracket_context_hyphenated_key_mismatch",
+            "description": "bracket access on hyphenated key returns value that fails equality check",
+            "policy": "permit (principal, action, resource) when { context[\"X-Request-Id\"] == \"abc-123\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "POST"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"X-Request-Id": "other"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "bracket_context_missing_key",
+            "description": "bracket access on missing context key is an evaluation error; forbid does not apply, permit denies by default",
+            "policy": "permit (principal, action, resource) when { context[\"X-Missing\"] == \"any\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"X-Request-Id": "abc"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "bracket_principal_attr",
+            "description": "bracket access on principal entity attribute",
+            "policy": "permit (principal, action, resource) when { principal[\"role\"] == \"admin\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "admin"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "bracket_resource_attr",
+            "description": "bracket access on resource entity attribute",
+            "policy": "permit (principal, action, resource) when { resource[\"tenant\"] == \"acme\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "resource_attrs": {"tenant": "acme"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "bracket_keyword_key_context",
+            "description": "bracket access accepts keyword-like key (e.g. \"ip\") that is also reserved as a keyword",
+            "policy": "permit (principal, action, resource) when { context[\"ip\"] == \"127.0.0.1\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"ip": "127.0.0.1"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "bracket_mixed_with_dot",
+            "description": "dot access and bracket access can be mixed on the same entity for different attributes",
+            "policy": "permit (principal, action, resource) when { principal.role == \"admin\" && principal[\"email\"] == \"alice@example.com\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "admin", "email": "alice@example.com"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "bracket_in_forbid_matches",
+            "description": "bracket access inside forbid when-clause: forbid matches and denies even if permit also matches",
+            "policy": "permit (principal, action, resource);\nforbid (principal, action, resource) when { context[\"X-Request-Id\"] == \"blocked\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"X-Request-Id": "blocked"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "bracket_in_forbid_no_match",
+            "description": "bracket access inside forbid when-clause does not match; permit applies and allows",
+            "policy": "permit (principal, action, resource);\nforbid (principal, action, resource) when { context[\"X-Request-Id\"] == \"blocked\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"X-Request-Id": "ok"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "bracket_in_if_then_else",
+            "description": "bracket access used in if-then-else condition",
+            "policy": "permit (principal, action, resource) when { (if principal[\"role\"] == \"admin\" then \"yes\" else \"no\") == \"yes\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "admin"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "has_bracket_key_true",
+            "description": "has with quoted string key matches bracket-access semantics and returns true when attribute exists",
+            "policy": "permit (principal, action, resource) when { context has \"X-Request-Id\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"X-Request-Id": "abc"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "has_bracket_key_false",
+            "description": "has with quoted string key returns false when attribute is missing; permit does not apply, default deny",
+            "policy": "permit (principal, action, resource) when { context has \"X-Missing\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"X-Request-Id": "abc"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "bracket_has_guard_then_access",
+            "description": "guard with has on a bracket-style key, then bracket access inside the same condition",
+            "policy": "permit (principal, action, resource) when { context has \"X-Request-Id\" && context[\"X-Request-Id\"] == \"abc\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "POST"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"X-Request-Id": "abc"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "bracket_non_string_key_parse_error",
+            "description": "non-string token inside brackets must be a parse error",
+            "policy": "permit (principal, action, resource) when { context[123] == 1 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "bracket_empty_brackets_parse_error",
+            "description": "empty brackets [] after a member expression must be a parse error",
+            "policy": "permit (principal, action, resource) when { context[] == 1 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "bracket_missing_rbracket_parse_error",
+            "description": "bracket access without closing ']' must be a parse error",
+            "policy": "permit (principal, action, resource) when { context[\"key\" == 1 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "bracket_star_escape_parse_error",
+            "description": "backslash-star escape is only valid in like patterns and must be rejected in bracket keys",
+            "policy": "permit (principal, action, resource) when { context[\"foo\\*bar\"] == 1 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "bracket_empty_string_key",
+            "description": "bracket access with an empty string key parses and matches an attribute registered under the empty name",
+            "policy": "permit (principal, action, resource) when { context[\"\"] == \"x\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"": "x"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "bracket_chained_missing_intermediate",
+            "description": "chained bracket access parses successfully; missing intermediate attribute yields evaluation error and default deny",
+            "policy": "permit (principal, action, resource) when { context[\"outer\"][\"inner\"] == \"x\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"other": "value"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "bracket_chain_depth_exceeds_limit_parse_error",
+            "description": "bracket steps participate in the member-chain depth limit; exceeding NXE_CEDAR_MAX_MEMBER_CHAIN is a parse error",
+            "policy": "permit (principal, action, resource) when { context[\"a\"][\"b\"][\"c\"][\"d\"][\"e\"][\"f\"][\"g\"][\"h\"][\"i\"][\"j\"][\"k\"][\"l\"][\"m\"][\"n\"][\"o\"][\"p\"][\"q\"] == \"x\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error",
+            "c_limit": true
+        }
+    ]
+}
