@@ -658,7 +658,15 @@ nxe_cedar_parse_primary(nxe_cedar_parser_ctx_t *ctx)
 }
 
 
-/* parse member expression: primary { .ident | .ident(expr) } */
+/*
+ * parse member expression:
+ *   primary { .ident | .ident(args) | [ STRING ] }
+ *
+ * Bracket access `expr["key"]` is semantically equivalent to `expr.key`;
+ * both produce an NXE_CEDAR_NODE_ATTR_ACCESS node. Bracket access
+ * supports attribute names that are not valid identifiers
+ * (e.g. hyphenated "X-Request-Id") or that collide with keywords.
+ */
 static nxe_cedar_node_t *
 nxe_cedar_parse_member_expr(nxe_cedar_parser_ctx_t *ctx)
 {
@@ -673,13 +681,58 @@ nxe_cedar_parse_member_expr(nxe_cedar_parser_ctx_t *ctx)
 
     chain = 0;
 
-    while (ctx->current.type == NXE_CEDAR_TOKEN_DOT) {
+    while (ctx->current.type == NXE_CEDAR_TOKEN_DOT
+           || ctx->current.type == NXE_CEDAR_TOKEN_LBRACKET)
+    {
         if (++chain > NXE_CEDAR_MAX_MEMBER_CHAIN) {
             ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
                           "nxe_cedar_parse: too many member access levels");
             ctx->error = 1;
             return NULL;
         }
+
+        if (ctx->current.type == NXE_CEDAR_TOKEN_LBRACKET) {
+            nxe_cedar_parser_advance(ctx);
+
+            if (ctx->current.type != NXE_CEDAR_TOKEN_STRING) {
+                ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                              "nxe_cedar_parse: "
+                              "expected string literal after '['");
+                ctx->error = 1;
+                return NULL;
+            }
+
+            if (ctx->current.has_star_escape) {
+                ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                              "nxe_cedar_parse: "
+                              "\\* escape is not allowed in bracket "
+                              "attribute key");
+                ctx->error = 1;
+                return NULL;
+            }
+
+            ident = ctx->current.value;
+            nxe_cedar_parser_advance(ctx);
+
+            if (nxe_cedar_parser_expect(ctx, NXE_CEDAR_TOKEN_RBRACKET)
+                != NGX_OK)
+            {
+                return NULL;
+            }
+
+            access = nxe_cedar_parser_alloc_node(ctx,
+                                                 NXE_CEDAR_NODE_ATTR_ACCESS);
+            if (access == NULL) {
+                return NULL;
+            }
+
+            access->u.attr_access.object = node;
+            access->u.attr_access.attr = ident;
+
+            node = access;
+            continue;
+        }
+
         nxe_cedar_parser_advance(ctx);
 
         if (!nxe_cedar_token_is_ident(ctx->current.type)) {
