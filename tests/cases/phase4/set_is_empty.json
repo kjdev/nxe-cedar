@@ -1,0 +1,185 @@
+{
+    "description": "Set isEmpty method",
+    "phase": 4,
+    "tests": [
+        {
+            "name": "empty_set_is_empty_true",
+            "description": "empty set literal returns true from isEmpty",
+            "policy": "permit (principal, action, resource) when { [].isEmpty() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "single_element_set_is_empty_false",
+            "description": "set with one element is not empty",
+            "policy": "permit (principal, action, resource) when { [1].isEmpty() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "multi_element_set_is_empty_false",
+            "description": "set with multiple elements is not empty",
+            "policy": "permit (principal, action, resource) when { [Action::\"GET\", Action::\"POST\"].isEmpty() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "string_set_is_empty_false",
+            "description": "non-empty string set returns false",
+            "policy": "permit (principal, action, resource) when { [\"read\", \"write\"].isEmpty() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "negated_is_empty_on_nonempty",
+            "description": "!isEmpty on non-empty set is true",
+            "policy": "permit (principal, action, resource) when { ![Action::\"GET\"].isEmpty() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "negated_is_empty_on_empty",
+            "description": "!isEmpty on empty set is false",
+            "policy": "permit (principal, action, resource) when { ![].isEmpty() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "is_empty_in_unless_clause",
+            "description": "unless empty set: permit when set is non-empty",
+            "policy": "permit (principal, action, resource) unless { [].isEmpty() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "is_empty_in_forbid",
+            "description": "forbid fires when set is empty, overriding permit",
+            "policy": "permit (principal, action, resource);\nforbid (principal, action, resource) when { [].isEmpty() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "is_empty_combined_with_and",
+            "description": "isEmpty combined with another boolean via &&",
+            "policy": "permit (principal, action, resource) when { [].isEmpty() && principal == User::\"alice\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "is_empty_combined_with_or",
+            "description": "isEmpty false on nonempty, other disjunct true",
+            "policy": "permit (principal, action, resource) when { [1].isEmpty() || principal == User::\"alice\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "is_empty_non_set_string_receiver",
+            "description": "isEmpty on string receiver is evaluation error (deny)",
+            "policy": "permit (principal, action, resource) when { context.name.isEmpty() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"name": "alice"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "is_empty_non_set_integer_receiver",
+            "description": "isEmpty on integer receiver is evaluation error (deny)",
+            "policy": "permit (principal, action, resource) when { context.count.isEmpty() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"count": 3}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "is_empty_non_set_bool_receiver",
+            "description": "isEmpty on boolean receiver is evaluation error (deny)",
+            "policy": "permit (principal, action, resource) when { context.flag.isEmpty() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"flag": true}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "is_empty_non_set_entity_receiver",
+            "description": "isEmpty on entity receiver is evaluation error (deny)",
+            "policy": "permit (principal, action, resource) when { principal.isEmpty() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "is_empty_non_set_ip_receiver_is_error_not_false",
+            "description": "isEmpty on IP receiver is evaluation error, not boolean false",
+            "policy": "permit (principal, action, resource) when { !ip(\"127.0.0.1\").isEmpty() };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "is_empty_integer_set_zero_members",
+            "description": "integer set with no members is empty",
+            "policy": "permit (principal, action, resource) when { [].isEmpty() && 1 == 1 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        }
+    ]
+}
