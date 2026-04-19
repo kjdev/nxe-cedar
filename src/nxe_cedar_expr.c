@@ -719,8 +719,24 @@ nxe_cedar_eval_method_call(nxe_cedar_node_t *node,
 
     method = &node->u.method_call.method;
 
-    /* zero-argument IP inspection methods */
+    /* zero-argument methods */
     if (node->u.method_call.arg == NULL) {
+        /* isEmpty: receiver must be a Set */
+        if (method->len == 7
+            && ngx_memcmp(method->data, "isEmpty", 7) == 0)
+        {
+            if (obj.type != NXE_CEDAR_RVAL_SET) {
+                return nxe_cedar_make_error();
+            }
+
+            if (obj.v.set_elts == NULL) {
+                return nxe_cedar_make_error();
+            }
+
+            return nxe_cedar_make_bool(obj.v.set_elts->nelts == 0);
+        }
+
+        /* IP inspection methods: receiver must be IP */
         if (obj.type != NXE_CEDAR_RVAL_IP) {
             return nxe_cedar_make_error();
         }
