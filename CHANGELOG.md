@@ -1,5 +1,15 @@
 # Changelog
 
+## [9e85471](../../commit/9e85471) - 2026-04-20
+
+### Added
+
+- Add `isEmpty` method for set emptiness check (Phase 4)
+  - Syntax: `expr.isEmpty()` in `when` / `unless` conditions
+  - Receiver must be set-typed; non-set receiver (string, integer, boolean, entity, IP) returns evaluation error
+  - Returns `true` when the set has zero elements, `false` otherwise
+  - Dispatch reorganized in `nxe_cedar_eval_method_call()` zero-arg branch so `isEmpty` checks Set-receiver before the existing IP inspection methods check IP-receiver
+
 ## [e402a6f](../../commit/e402a6f) - 2026-04-20
 
 ### Added
