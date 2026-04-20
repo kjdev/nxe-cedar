@@ -215,8 +215,8 @@
             "expected": "error"
         },
         {
-            "name": "bracket_empty_string_key",
-            "description": "bracket access with an empty string key parses and matches an attribute registered under the empty name",
+            "name": "bracket_empty_string_key_parse_error",
+            "description": "bracket access with an empty string key is rejected at parse time (nxe-cedar specific: Cedar allows it)",
             "policy": "permit (principal, action, resource) when { context[\"\"] == \"x\" };",
             "request": {
                 "principal": {"type": "User", "id": "alice"},
@@ -224,7 +224,8 @@
                 "resource": {"type": "Endpoint", "id": "/api/data"},
                 "context": {"": "x"}
             },
-            "expected": "allow"
+            "expected": "error",
+            "c_limit": true
         },
         {
             "name": "bracket_chained_missing_intermediate",
