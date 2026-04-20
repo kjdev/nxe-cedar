@@ -55,9 +55,21 @@ struct FfiRequest {
     resource_attrs: HashMap<String, serde_json::Value>,
 }
 
-/// Convert serde_json::Value to Cedar RestrictedExpression
+/// Nesting limit mirrored from the C implementation
+/// (`NXE_CEDAR_MAX_RECORD_DEPTH`). Kept in sync so oracle comparisons
+/// see the same depth ceiling for record attributes.
+const MAX_RECORD_DEPTH: usize = 16;
+
+/// Convert serde_json::Value to Cedar RestrictedExpression.
+///
+/// Plain (non-`__extn`) objects are interpreted as records and
+/// recursed into. `depth` is 0 for the top-level attribute value and
+/// increments by one for each nested record level; once it reaches
+/// `MAX_RECORD_DEPTH` further nested records are rejected to match
+/// the C API.
 fn json_value_to_restricted_expr(
     value: &serde_json::Value,
+    depth: usize,
 ) -> Result<RestrictedExpression, String> {
     match value {
         serde_json::Value::String(s) => Ok(RestrictedExpression::new_string(s.clone())),
@@ -83,11 +95,61 @@ fn json_value_to_restricted_expr(
                 RestrictedExpression::from_str(&expr_str)
                     .map_err(|e| format!("extension parse error: {e}"))
             } else {
-                Err(format!("unsupported JSON object: {value}"))
+                if depth >= MAX_RECORD_DEPTH {
+                    return Err(format!(
+                        "record nesting exceeds oracle limit {MAX_RECORD_DEPTH}"
+                    ));
+                }
+                let mut fields = Vec::with_capacity(obj.len());
+                for (k, v) in obj {
+                    let child = json_value_to_restricted_expr(v, depth + 1)?;
+                    fields.push((k.clone(), child));
+                }
+                RestrictedExpression::new_record(fields)
+                    .map_err(|e| format!("record construction error: {e}"))
             }
         }
         _ => Err(format!("unsupported JSON value type: {value}")),
     }
+}
+
+/// Check that a JSON record tree does not nest deeper than
+/// `MAX_RECORD_DEPTH`. `__extn` objects (extension calls) are treated
+/// as opaque scalars and not recursed into. Used for context JSON,
+/// which is handed directly to `Context::from_json_value()` and would
+/// otherwise bypass the depth ceiling enforced by
+/// `json_value_to_restricted_expr` for entity attributes.
+fn validate_json_record_depth(
+    value: &serde_json::Value,
+    depth: usize,
+) -> Result<(), String> {
+    match value {
+        serde_json::Value::Object(obj) => {
+            if obj.get("__extn").is_some() {
+                return Ok(());
+            }
+            if depth >= MAX_RECORD_DEPTH {
+                return Err(format!(
+                    "record nesting exceeds oracle limit {MAX_RECORD_DEPTH}"
+                ));
+            }
+            for v in obj.values() {
+                validate_json_record_depth(v, depth + 1)?;
+            }
+            Ok(())
+        }
+        _ => Ok(()),
+    }
+}
+
+/// Validate each top-level context field as its own depth-0 record.
+fn validate_context_record_depth(context: &serde_json::Value) -> Result<(), String> {
+    if let Some(obj) = context.as_object() {
+        for value in obj.values() {
+            validate_json_record_depth(value, 0)?;
+        }
+    }
+    Ok(())
 }
 
 /// Create EntityUid from entity reference
@@ -107,7 +169,7 @@ fn build_entity(
 
     let mut attr_map = HashMap::new();
     for (key, value) in attrs {
-        let expr = json_value_to_restricted_expr(value)?;
+        let expr = json_value_to_restricted_expr(value, 0)?;
         attr_map.insert(key.clone(), expr);
     }
 
@@ -144,6 +206,7 @@ fn authorize_inner(
     let context = if request.context.is_null() || request.context.is_object() && request.context.as_object().map_or(true, |m| m.is_empty()) {
         Context::empty()
     } else {
+        validate_context_record_depth(&request.context)?;
         Context::from_json_value(request.context.clone(), None)
             .map_err(|e| e.to_string())?
     };
