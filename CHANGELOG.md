@@ -1,5 +1,23 @@
 # Changelog
 
+## [a029a0d](../../commit/a029a0d) - 2026-04-20
+
+### Fixed
+
+- Reject empty-string key `[""]` in bracket access at parse time (Phase 4)
+  - `expr[""]` now returns a parse error; previously it was accepted and surfaced only as an attribute-lookup failure at evaluation
+  - Failure is reported at the parse site rather than as a missing-attribute error at runtime
+  - nxe-cedar specific restriction: Cedar's reference implementation accepts empty-string keys at parse time (matching test case marked `c_limit: true` to skip FFI oracle comparison)
+
+## [8aed9e1](../../commit/8aed9e1) - 2026-04-20
+
+### Fixed
+
+- Clarify `\*` escape error message in string-literal (STR) contexts
+  - Unified wording at the five STR-context sites (entity id, string literal, `ip()` argument, bracket / `has` via shared helper, annotation value): `invalid escape sequence \*: only valid in like patterns`
+  - Prior phrasing "\\* escape is only valid in like patterns" implied a context-dependent rule; `\*` is simply undefined as an escape inside a regular string literal
+  - The pattern-context (PAT) message is unchanged
+
 ## [9e85471](../../commit/9e85471) - 2026-04-20
 
 ### Added
