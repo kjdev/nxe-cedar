@@ -712,6 +712,19 @@ nxe_cedar_parse_bracket_step(nxe_cedar_parser_ctx_t *ctx,
         return NULL;
     }
 
+    /*
+     * Reject empty-string keys at parse time so the failure location
+     * is reported by the parser rather than deferred to attribute
+     * lookup during evaluation.
+     */
+    if (attr.len == 0) {
+        ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                      "nxe_cedar_parse: "
+                      "bracket access key must be non-empty");
+        ctx->error = 1;
+        return NULL;
+    }
+
     if (nxe_cedar_parser_expect(ctx, NXE_CEDAR_TOKEN_RBRACKET) != NGX_OK) {
         return NULL;
     }
