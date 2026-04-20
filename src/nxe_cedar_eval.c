@@ -197,6 +197,75 @@ nxe_cedar_eval_ctx_add_ip_attr(ngx_array_t *attrs,
 }
 
 
+/*
+ * Record handle.
+ *
+ * - attrs: array of nxe_cedar_attr_t (shared with the attribute value
+ *   stored in the owning entity / parent record).
+ * - pool: owns all record / attribute allocations; freed with the
+ *   evaluation context.
+ * - depth: current nesting depth (1 = direct child of an entity /
+ *   context, increments by 1 for each nxe_cedar_record_add_record).
+ */
+struct nxe_cedar_record_s {
+    ngx_array_t *attrs;
+    ngx_pool_t  *pool;
+    ngx_uint_t   depth;
+};
+
+
+static nxe_cedar_record_t *
+nxe_cedar_record_create(ngx_pool_t *pool, ngx_uint_t depth)
+{
+    nxe_cedar_record_t *rec;
+
+    rec = ngx_pcalloc(pool, sizeof(nxe_cedar_record_t));
+    if (rec == NULL) {
+        return NULL;
+    }
+
+    rec->attrs = ngx_array_create(pool, 4, sizeof(nxe_cedar_attr_t));
+    if (rec->attrs == NULL) {
+        return NULL;
+    }
+
+    rec->pool = pool;
+    rec->depth = depth;
+
+    return rec;
+}
+
+
+/*
+ * Reserve a new record-valued attribute on the given attr array and
+ * return a populated handle. Shared helper for the four
+ * nxe_cedar_eval_ctx_add_*_attr_record entry points.
+ */
+static nxe_cedar_record_t *
+nxe_cedar_eval_ctx_add_record_attr(ngx_array_t *attrs, ngx_pool_t *pool,
+    ngx_str_t *name)
+{
+    nxe_cedar_attr_t *attr;
+    nxe_cedar_record_t *rec;
+
+    rec = nxe_cedar_record_create(pool, 1);
+    if (rec == NULL) {
+        return NULL;
+    }
+
+    attr = ngx_array_push(attrs);
+    if (attr == NULL) {
+        return NULL;
+    }
+
+    attr->name = *name;
+    attr->value_type = NXE_CEDAR_VALUE_RECORD;
+    attr->value.record_val = rec->attrs;
+
+    return rec;
+}
+
+
 nxe_cedar_eval_ctx_t *
 nxe_cedar_eval_ctx_create(ngx_pool_t *pool)
 {
@@ -402,6 +471,122 @@ nxe_cedar_eval_ctx_add_context_attr_ip(nxe_cedar_eval_ctx_t *ctx,
 {
     return nxe_cedar_eval_ctx_add_ip_attr(ctx->context_attrs,
                                           name, value);
+}
+
+
+nxe_cedar_record_t *
+nxe_cedar_eval_ctx_add_principal_attr_record(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *name)
+{
+    return nxe_cedar_eval_ctx_add_record_attr(ctx->principal_attrs,
+                                              ctx->pool, name);
+}
+
+
+nxe_cedar_record_t *
+nxe_cedar_eval_ctx_add_action_attr_record(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *name)
+{
+    return nxe_cedar_eval_ctx_add_record_attr(ctx->action_attrs,
+                                              ctx->pool, name);
+}
+
+
+nxe_cedar_record_t *
+nxe_cedar_eval_ctx_add_resource_attr_record(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *name)
+{
+    return nxe_cedar_eval_ctx_add_record_attr(ctx->resource_attrs,
+                                              ctx->pool, name);
+}
+
+
+nxe_cedar_record_t *
+nxe_cedar_eval_ctx_add_context_attr_record(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *name)
+{
+    return nxe_cedar_eval_ctx_add_record_attr(ctx->context_attrs,
+                                              ctx->pool, name);
+}
+
+
+ngx_int_t
+nxe_cedar_record_add_str(nxe_cedar_record_t *rec, ngx_str_t *name,
+    ngx_str_t *value)
+{
+    if (rec == NULL) {
+        return NGX_ERROR;
+    }
+    return nxe_cedar_eval_ctx_add_str_attr(rec->attrs, name, value);
+}
+
+
+ngx_int_t
+nxe_cedar_record_add_long(nxe_cedar_record_t *rec, ngx_str_t *name,
+    int64_t value)
+{
+    if (rec == NULL) {
+        return NGX_ERROR;
+    }
+    return nxe_cedar_eval_ctx_add_long_attr(rec->attrs, name, value);
+}
+
+
+ngx_int_t
+nxe_cedar_record_add_bool(nxe_cedar_record_t *rec, ngx_str_t *name,
+    ngx_flag_t value)
+{
+    if (rec == NULL) {
+        return NGX_ERROR;
+    }
+    return nxe_cedar_eval_ctx_add_bool_attr(rec->attrs, name, value);
+}
+
+
+ngx_int_t
+nxe_cedar_record_add_ip(nxe_cedar_record_t *rec, ngx_str_t *name,
+    ngx_str_t *value)
+{
+    if (rec == NULL) {
+        return NGX_ERROR;
+    }
+    return nxe_cedar_eval_ctx_add_ip_attr(rec->attrs, name, value);
+}
+
+
+nxe_cedar_record_t *
+nxe_cedar_record_add_record(nxe_cedar_record_t *rec, ngx_str_t *name)
+{
+    nxe_cedar_attr_t *attr;
+    nxe_cedar_record_t *child;
+
+    if (rec == NULL) {
+        return NULL;
+    }
+
+    if (rec->depth >= NXE_CEDAR_MAX_RECORD_DEPTH) {
+        ngx_log_error(NGX_LOG_ERR, rec->pool->log, 0,
+                      "nxe_cedar_record_add_record: "
+                      "record nesting exceeds NXE_CEDAR_MAX_RECORD_DEPTH "
+                      "(%ui)", (ngx_uint_t) NXE_CEDAR_MAX_RECORD_DEPTH);
+        return NULL;
+    }
+
+    child = nxe_cedar_record_create(rec->pool, rec->depth + 1);
+    if (child == NULL) {
+        return NULL;
+    }
+
+    attr = ngx_array_push(rec->attrs);
+    if (attr == NULL) {
+        return NULL;
+    }
+
+    attr->name = *name;
+    attr->value_type = NXE_CEDAR_VALUE_RECORD;
+    attr->value.record_val = child->attrs;
+
+    return child;
 }
 
 
