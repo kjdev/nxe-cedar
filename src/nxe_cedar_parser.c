@@ -103,6 +103,37 @@ nxe_cedar_parser_alloc_node(nxe_cedar_parser_ctx_t *ctx,
 
 
 /*
+ * Consume a STRING token used as an attribute name (bracket access key,
+ * `has` operator string branch, etc.). Rejects non-STRING tokens and
+ * strings containing the `\*` escape (which is only valid in `like`
+ * patterns). On success, copies the string value to *out and advances.
+ */
+static ngx_int_t
+nxe_cedar_parser_consume_attr_name_string(nxe_cedar_parser_ctx_t *ctx,
+    ngx_str_t *out)
+{
+    if (ctx->current.type != NXE_CEDAR_TOKEN_STRING) {
+        ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                      "nxe_cedar_parse: expected string literal");
+        ctx->error = 1;
+        return NGX_ERROR;
+    }
+
+    if (ctx->current.has_star_escape) {
+        ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                      "nxe_cedar_parse: "
+                      "\\* escape is only valid in like patterns");
+        ctx->error = 1;
+        return NGX_ERROR;
+    }
+
+    *out = ctx->current.value;
+    nxe_cedar_parser_advance(ctx);
+    return NGX_OK;
+}
+
+
+/*
  * Compile a like pattern from raw source bytes (between quotes).
  * Unescaped '*' becomes 0xFF (wildcard marker).
  * '\*' is the only escape that produces a literal '*'.
@@ -694,25 +725,11 @@ nxe_cedar_parse_member_expr(nxe_cedar_parser_ctx_t *ctx)
         if (ctx->current.type == NXE_CEDAR_TOKEN_LBRACKET) {
             nxe_cedar_parser_advance(ctx);
 
-            if (ctx->current.type != NXE_CEDAR_TOKEN_STRING) {
-                ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
-                              "nxe_cedar_parse: "
-                              "expected string literal after '['");
-                ctx->error = 1;
+            if (nxe_cedar_parser_consume_attr_name_string(ctx, &ident)
+                != NGX_OK)
+            {
                 return NULL;
             }
-
-            if (ctx->current.has_star_escape) {
-                ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
-                              "nxe_cedar_parse: "
-                              "\\* escape is not allowed in bracket "
-                              "attribute key");
-                ctx->error = 1;
-                return NULL;
-            }
-
-            ident = ctx->current.value;
-            nxe_cedar_parser_advance(ctx);
 
             if (nxe_cedar_parser_expect(ctx, NXE_CEDAR_TOKEN_RBRACKET)
                 != NGX_OK)
@@ -904,24 +921,25 @@ nxe_cedar_parse_relation_expr(nxe_cedar_parser_ctx_t *ctx)
 
     /* has operator: expr has (IDENT | STRING) */
     if (ctx->current.type == NXE_CEDAR_TOKEN_HAS) {
+        ngx_str_t attr;
+
         nxe_cedar_parser_advance(ctx);
 
-        if (!nxe_cedar_token_is_ident(ctx->current.type)
-            && ctx->current.type != NXE_CEDAR_TOKEN_STRING)
-        {
+        if (ctx->current.type == NXE_CEDAR_TOKEN_STRING) {
+            if (nxe_cedar_parser_consume_attr_name_string(ctx, &attr)
+                != NGX_OK)
+            {
+                return NULL;
+            }
+
+        } else if (nxe_cedar_token_is_ident(ctx->current.type)) {
+            attr = ctx->current.value;
+            nxe_cedar_parser_advance(ctx);
+
+        } else {
             ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
                           "nxe_cedar_parse: "
                           "expected identifier or string after 'has'");
-            ctx->error = 1;
-            return NULL;
-        }
-
-        if (ctx->current.type == NXE_CEDAR_TOKEN_STRING
-            && ctx->current.has_star_escape)
-        {
-            ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
-                          "nxe_cedar_parse: "
-                          "\\* escape is only valid in like patterns");
             ctx->error = 1;
             return NULL;
         }
@@ -932,8 +950,7 @@ nxe_cedar_parse_relation_expr(nxe_cedar_parser_ctx_t *ctx)
         }
 
         has_node->u.has.object = left;
-        has_node->u.has.attr = ctx->current.value;
-        nxe_cedar_parser_advance(ctx);
+        has_node->u.has.attr = attr;
 
         return has_node;
     }
