@@ -690,6 +690,41 @@ nxe_cedar_parse_primary(nxe_cedar_parser_ctx_t *ctx)
 
 
 /*
+ * Parse one bracket-access step: `[ STRING ]`.
+ * Called with `[` as the current token; returns a new
+ * NXE_CEDAR_NODE_ATTR_ACCESS node wrapping `object` on success,
+ * or NULL with ctx->error set on failure.
+ */
+static nxe_cedar_node_t *
+nxe_cedar_parse_bracket_step(nxe_cedar_parser_ctx_t *ctx,
+    nxe_cedar_node_t *object)
+{
+    nxe_cedar_node_t *access;
+    ngx_str_t attr;
+
+    nxe_cedar_parser_advance(ctx);  /* consume '[' */
+
+    if (nxe_cedar_parser_consume_attr_name_string(ctx, &attr) != NGX_OK) {
+        return NULL;
+    }
+
+    if (nxe_cedar_parser_expect(ctx, NXE_CEDAR_TOKEN_RBRACKET) != NGX_OK) {
+        return NULL;
+    }
+
+    access = nxe_cedar_parser_alloc_node(ctx, NXE_CEDAR_NODE_ATTR_ACCESS);
+    if (access == NULL) {
+        return NULL;
+    }
+
+    access->u.attr_access.object = object;
+    access->u.attr_access.attr = attr;
+
+    return access;
+}
+
+
+/*
  * parse member expression:
  *   primary { .ident | .ident(args) | [ STRING ] }
  *
@@ -723,30 +758,10 @@ nxe_cedar_parse_member_expr(nxe_cedar_parser_ctx_t *ctx)
         }
 
         if (ctx->current.type == NXE_CEDAR_TOKEN_LBRACKET) {
-            nxe_cedar_parser_advance(ctx);
-
-            if (nxe_cedar_parser_consume_attr_name_string(ctx, &ident)
-                != NGX_OK)
-            {
+            node = nxe_cedar_parse_bracket_step(ctx, node);
+            if (node == NULL) {
                 return NULL;
             }
-
-            if (nxe_cedar_parser_expect(ctx, NXE_CEDAR_TOKEN_RBRACKET)
-                != NGX_OK)
-            {
-                return NULL;
-            }
-
-            access = nxe_cedar_parser_alloc_node(ctx,
-                                                 NXE_CEDAR_NODE_ATTR_ACCESS);
-            if (access == NULL) {
-                return NULL;
-            }
-
-            access->u.attr_access.object = node;
-            access->u.attr_access.attr = ident;
-
-            node = access;
             continue;
         }
 
