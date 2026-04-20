@@ -1,5 +1,29 @@
 # Changelog
 
+## [a151b88](../../commit/a151b88) - 2026-04-21
+
+### Added
+
+- Add public record attribute API for populating nested records from callers (Phase 4)
+  - Opaque handle `nxe_cedar_record_t` exposed from `nxe_cedar_eval.h`
+  - Per-target entry points `nxe_cedar_eval_ctx_add_{principal,action,resource,context}_attr_record(ctx, name)` return a record handle on the corresponding entity / context
+  - Scalar fields populated via `nxe_cedar_record_add_{str,long,bool,ip}(rec, name, value)`, reusing the existing scalar add helpers internally
+  - Nested records created via `nxe_cedar_record_add_record(rec, name)`; returns `NULL` when the resulting depth would exceed `NXE_CEDAR_MAX_RECORD_DEPTH` (= 16, matching `NXE_CEDAR_MAX_MEMBER_CHAIN`) so every writable field stays reachable from policy text
+  - Existing 16 scalar attribute entry points are unchanged (no format or ABI change)
+  - JSON decoding remains the caller's responsibility; nxe-cedar keeps its "nginx core only" dependency policy
+
+## [f743358](../../commit/f743358) - 2026-04-21
+
+### Added
+
+- Add nested attribute access `expr.a.b` via record-valued attributes (Phase 4)
+  - Syntax: any chain of `.ident` or `["key"]` steps on record-typed attributes in `when` / `unless` conditions
+  - Record literals in policy text (`{foo: 1}.foo`) are out of scope; records must be injected through the eval-context API (added in a follow-up commit)
+  - New runtime value `NXE_CEDAR_RVAL_RECORD` and attribute variant `NXE_CEDAR_VALUE_RECORD` holding an `ngx_array_t *` of `nxe_cedar_attr_t`
+  - `NXE_CEDAR_MAX_RECORD_DEPTH` = 16, aligned with `NXE_CEDAR_MAX_MEMBER_CHAIN`
+  - Generalized `nxe_cedar_eval_attr_access()` and `nxe_cedar_eval_has()` so the VAR fast path is unchanged and non-VAR objects are evaluated recursively; records are descended into, other types return error
+  - Order-independent record equality added to `nxe_cedar_value_equals()`
+
 ## [a029a0d](../../commit/a029a0d) - 2026-04-20
 
 ### Fixed
