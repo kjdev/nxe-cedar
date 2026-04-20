@@ -122,7 +122,8 @@ nxe_cedar_parser_consume_attr_name_string(nxe_cedar_parser_ctx_t *ctx,
     if (ctx->current.has_star_escape) {
         ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
                       "nxe_cedar_parse: "
-                      "\\* escape is only valid in like patterns");
+                      "invalid escape sequence \\*: "
+                      "only valid in like patterns");
         ctx->error = 1;
         return NGX_ERROR;
     }
@@ -411,7 +412,8 @@ nxe_cedar_parse_entity_ref_with_ident(nxe_cedar_parser_ctx_t *ctx,
             if (ctx->current.has_star_escape) {
                 ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
                               "nxe_cedar_parse: "
-                              "\\* escape is only valid in like patterns");
+                              "invalid escape sequence \\*: "
+                              "only valid in like patterns");
                 ctx->error = 1;
                 return NULL;
             }
@@ -574,7 +576,8 @@ nxe_cedar_parse_primary(nxe_cedar_parser_ctx_t *ctx)
         if (ctx->current.has_star_escape) {
             ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
                           "nxe_cedar_parse: "
-                          "\\* escape is only valid in like patterns");
+                          "invalid escape sequence \\*: "
+                          "only valid in like patterns");
             ctx->error = 1;
             return NULL;
         }
@@ -640,7 +643,8 @@ nxe_cedar_parse_primary(nxe_cedar_parser_ctx_t *ctx)
         if (ctx->current.has_star_escape) {
             ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
                           "nxe_cedar_parse: "
-                          "\\* escape is only valid in like patterns");
+                          "invalid escape sequence \\*: "
+                          "only valid in like patterns");
             ctx->error = 1;
             return NULL;
         }
@@ -1602,7 +1606,8 @@ nxe_cedar_parse_annotations(nxe_cedar_parser_ctx_t *ctx,
             if (ctx->current.has_star_escape) {
                 ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
                               "nxe_cedar_parse: "
-                              "\\* escape is only valid in like patterns");
+                              "invalid escape sequence \\*: "
+                              "only valid in like patterns");
                 ctx->error = 1;
                 return NGX_ERROR;
             }
