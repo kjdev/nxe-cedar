@@ -567,8 +567,8 @@ nxe_cedar_record_add_record(nxe_cedar_record_t *rec, ngx_str_t *name)
     if (rec->depth >= NXE_CEDAR_MAX_RECORD_DEPTH) {
         ngx_log_error(NGX_LOG_ERR, rec->pool->log, 0,
                       "nxe_cedar_record_add_record: "
-                      "record nesting exceeds NXE_CEDAR_MAX_RECORD_DEPTH "
-                      "(%ui)", (ngx_uint_t) NXE_CEDAR_MAX_RECORD_DEPTH);
+                      "record nesting exceeds max depth (%d)",
+                      NXE_CEDAR_MAX_RECORD_DEPTH);
         return NULL;
     }
 
