@@ -250,6 +250,54 @@
             },
             "expected": "error",
             "c_limit": true
+        },
+        {
+            "name": "bracket_access_in_unless_allow",
+            "description": "bracket access evaluates inside an unless clause; the condition is false so permit stands",
+            "policy": "permit (principal, action, resource) unless { principal[\"role\"] == \"banned\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "admin"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "bracket_access_in_unless_deny",
+            "description": "bracket access inside an unless clause returns true so permit is suppressed",
+            "policy": "permit (principal, action, resource) unless { principal[\"role\"] == \"banned\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"role": "banned"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "bracket_key_with_newline_escape",
+            "description": "escape sequences in bracket keys decode in the lexer; the decoded bytes are used as the attribute name",
+            "policy": "permit (principal, action, resource) when { context[\"a\\nb\"] == \"x\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"a\nb": "x"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "bracket_key_with_quote_escape",
+            "description": "escaped double quote in bracket key decodes to a literal quote used as the attribute name",
+            "policy": "permit (principal, action, resource) when { context[\"\\\"\"] == \"x\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"\"": "x"}
+            },
+            "expected": "allow"
         }
     ]
 }
