@@ -22,6 +22,7 @@
 #define NXE_CEDAR_RVAL_SET      4
 #define NXE_CEDAR_RVAL_ERROR    5
 #define NXE_CEDAR_RVAL_IP       6
+#define NXE_CEDAR_RVAL_RECORD   7
 
 
 typedef struct {
@@ -34,7 +35,8 @@ typedef struct {
             ngx_str_t  type;
             ngx_str_t  id;
         } entity;
-        ngx_array_t *set_elts;  /* array of nxe_cedar_value_t */
+        ngx_array_t *set_elts;     /* array of nxe_cedar_value_t */
+        ngx_array_t *record_attrs; /* array of nxe_cedar_attr_t */
         struct {
             u_char      addr[16];    /* network byte order */
             ngx_uint_t  prefix_len;  /* /prefix; single=32(v4)/128(v6) */

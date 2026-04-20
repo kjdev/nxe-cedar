@@ -72,6 +72,17 @@ nxe_cedar_make_entity(ngx_str_t type, ngx_str_t id)
 }
 
 
+static nxe_cedar_value_t
+nxe_cedar_make_record(ngx_array_t *attrs)
+{
+    nxe_cedar_value_t val;
+
+    val.type = NXE_CEDAR_RVAL_RECORD;
+    val.v.record_attrs = attrs;
+    return val;
+}
+
+
 /* parse bounded decimal: overflow-safe with leading-zero rejection */
 static ngx_int_t
 nxe_cedar_parse_bounded_dec(u_char **pp, u_char *end, ngx_uint_t max,
@@ -393,10 +404,48 @@ nxe_cedar_long_arith(nxe_cedar_op_t op, int64_t a, int64_t b, int64_t *out)
 }
 
 
-/* value equality (same-type comparison) */
+/* convert nxe_cedar_attr_t to runtime value */
+static nxe_cedar_value_t
+nxe_cedar_attr_to_value(nxe_cedar_attr_t *attr)
+{
+    switch (attr->value_type) {
+
+    case NXE_CEDAR_VALUE_STRING:
+        return nxe_cedar_make_string(attr->value.str_val);
+
+    case NXE_CEDAR_VALUE_LONG:
+        return nxe_cedar_make_long(attr->value.long_val);
+
+    case NXE_CEDAR_VALUE_BOOL:
+        return nxe_cedar_make_bool(attr->value.bool_val);
+
+    case NXE_CEDAR_VALUE_IP:
+        return nxe_cedar_make_ip(&attr->value.ip_str);
+
+    case NXE_CEDAR_VALUE_RECORD:
+        return nxe_cedar_make_record(attr->value.record_val);
+
+    default:
+        return nxe_cedar_make_error();
+    }
+}
+
+
+/*
+ * Tri-state value equality: returns 1 (equal), 0 (not equal), or
+ * NGX_ERROR when a nested conversion (e.g. invalid IP string inside a
+ * record field) fails. Callers must check for NGX_ERROR and propagate
+ * it as nxe_cedar_make_error() instead of treating it as "not equal".
+ */
 static ngx_int_t
 nxe_cedar_value_equals(nxe_cedar_value_t *a, nxe_cedar_value_t *b)
 {
+    if (a->type == NXE_CEDAR_RVAL_ERROR
+        || b->type == NXE_CEDAR_RVAL_ERROR)
+    {
+        return NGX_ERROR;
+    }
+
     if (a->type != b->type) {
         return 0;
     }
@@ -437,9 +486,54 @@ nxe_cedar_value_equals(nxe_cedar_value_t *a, nxe_cedar_value_t *b)
             for (i = 0; i < a->v.set_elts->nelts; i++) {
                 ngx_flag_t found = 0;
                 for (j = 0; j < b->v.set_elts->nelts; j++) {
-                    if (nxe_cedar_value_equals(&a_elts[i], &b_elts[j])) {
+                    ngx_int_t r = nxe_cedar_value_equals(&a_elts[i],
+                                                         &b_elts[j]);
+                    if (r == NGX_ERROR) {
+                        return NGX_ERROR;
+                    }
+                    if (r) {
                         found = 1;
                         break;
+                    }
+                }
+                if (!found) {
+                    return 0;
+                }
+            }
+            return 1;
+        }
+
+    case NXE_CEDAR_RVAL_RECORD:
+        if (a->v.record_attrs == NULL || b->v.record_attrs == NULL) {
+            return 0;
+        }
+        if (a->v.record_attrs->nelts != b->v.record_attrs->nelts) {
+            return 0;
+        }
+        {
+            nxe_cedar_attr_t *a_attrs = a->v.record_attrs->elts;
+            nxe_cedar_attr_t *b_attrs = b->v.record_attrs->elts;
+            ngx_uint_t i, j;
+
+            for (i = 0; i < a->v.record_attrs->nelts; i++) {
+                ngx_flag_t found = 0;
+                for (j = 0; j < b->v.record_attrs->nelts; j++) {
+                    if (nxe_cedar_str_eq(&a_attrs[i].name,
+                                         &b_attrs[j].name))
+                    {
+                        nxe_cedar_value_t av, bv;
+                        ngx_int_t r;
+
+                        av = nxe_cedar_attr_to_value(&a_attrs[i]);
+                        bv = nxe_cedar_attr_to_value(&b_attrs[j]);
+                        r = nxe_cedar_value_equals(&av, &bv);
+                        if (r == NGX_ERROR) {
+                            return NGX_ERROR;
+                        }
+                        if (r) {
+                            found = 1;
+                            break;
+                        }
                     }
                 }
                 if (!found) {
@@ -478,30 +572,6 @@ nxe_cedar_find_attr(ngx_array_t *attrs, ngx_str_t *name)
 }
 
 
-/* convert nxe_cedar_attr_t to runtime value */
-static nxe_cedar_value_t
-nxe_cedar_attr_to_value(nxe_cedar_attr_t *attr)
-{
-    switch (attr->value_type) {
-
-    case NXE_CEDAR_VALUE_STRING:
-        return nxe_cedar_make_string(attr->value.str_val);
-
-    case NXE_CEDAR_VALUE_LONG:
-        return nxe_cedar_make_long(attr->value.long_val);
-
-    case NXE_CEDAR_VALUE_BOOL:
-        return nxe_cedar_make_bool(attr->value.bool_val);
-
-    case NXE_CEDAR_VALUE_IP:
-        return nxe_cedar_make_ip(&attr->value.ip_str);
-
-    default:
-        return nxe_cedar_make_error();
-    }
-}
-
-
 /* resolve variable type to its attribute array */
 static ngx_array_t *
 nxe_cedar_resolve_var_attrs(nxe_cedar_var_type_t var_type,
@@ -527,14 +597,24 @@ nxe_cedar_resolve_var_attrs(nxe_cedar_var_type_t var_type,
 }
 
 
-/* evaluate attribute access on a variable node */
+/*
+ * Evaluate attribute access expr.attr.
+ *
+ * Fast path: object is a VAR (principal/action/resource/context) — look
+ * up the attribute directly from the corresponding eval_ctx array.
+ *
+ * Slow path: object is any other expression (nested ATTR_ACCESS, etc.) —
+ * evaluate it recursively. If the result is a record, look up the
+ * attribute from the record's attr array; otherwise return error.
+ */
 static nxe_cedar_value_t
 nxe_cedar_eval_attr_access(nxe_cedar_node_t *node,
-    nxe_cedar_eval_ctx_t *ctx)
+    nxe_cedar_eval_ctx_t *ctx, ngx_pool_t *pool, ngx_log_t *log)
 {
     nxe_cedar_node_t *object;
     ngx_array_t *attrs;
     nxe_cedar_attr_t *attr;
+    nxe_cedar_value_t obj_val;
 
     object = node->u.attr_access.object;
 
@@ -553,18 +633,42 @@ nxe_cedar_eval_attr_access(nxe_cedar_node_t *node,
         return nxe_cedar_attr_to_value(attr);
     }
 
-    /* nested access not supported in Phase 1 */
-    return nxe_cedar_make_error();
+    /* slow path: evaluate object and descend into record */
+    obj_val = nxe_cedar_expr_eval(object, ctx, pool, log);
+    if (obj_val.type == NXE_CEDAR_RVAL_ERROR) {
+        return obj_val;
+    }
+    if (obj_val.type != NXE_CEDAR_RVAL_RECORD) {
+        return nxe_cedar_make_error();
+    }
+
+    attr = nxe_cedar_find_attr(obj_val.v.record_attrs,
+                               &node->u.attr_access.attr);
+    if (attr == NULL) {
+        return nxe_cedar_make_error();
+    }
+
+    return nxe_cedar_attr_to_value(attr);
 }
 
 
-/* evaluate has expression: check if attribute exists */
+/*
+ * Evaluate has expression.
+ *
+ * Fast path: object is a VAR — check the corresponding eval_ctx array.
+ *
+ * Slow path: object is any other expression — evaluate it. If the
+ * result is a record, return whether the attribute exists. If the
+ * object evaluation fails or produces a non-record, `has` is an error
+ * per Cedar semantics (the expression is not applicable to the object).
+ */
 static nxe_cedar_value_t
 nxe_cedar_eval_has(nxe_cedar_node_t *node,
-    nxe_cedar_eval_ctx_t *ctx)
+    nxe_cedar_eval_ctx_t *ctx, ngx_pool_t *pool, ngx_log_t *log)
 {
     nxe_cedar_node_t *object;
     ngx_array_t *attrs;
+    nxe_cedar_value_t obj_val;
 
     object = node->u.has.object;
 
@@ -578,8 +682,17 @@ nxe_cedar_eval_has(nxe_cedar_node_t *node,
             nxe_cedar_find_attr(attrs, &node->u.has.attr) != NULL);
     }
 
-    /* nested access (e.g. record has field) not yet supported */
-    return nxe_cedar_make_error();
+    obj_val = nxe_cedar_expr_eval(object, ctx, pool, log);
+    if (obj_val.type == NXE_CEDAR_RVAL_ERROR) {
+        return obj_val;
+    }
+    if (obj_val.type != NXE_CEDAR_RVAL_RECORD) {
+        return nxe_cedar_make_error();
+    }
+
+    return nxe_cedar_make_bool(
+        nxe_cedar_find_attr(obj_val.v.record_attrs,
+                            &node->u.has.attr) != NULL);
 }
 
 
@@ -831,9 +944,12 @@ nxe_cedar_eval_method_call(nxe_cedar_node_t *node,
             ngx_flag_t found = 0;
 
             for (j = 0; j < obj.v.set_elts->nelts; j++) {
-                if (nxe_cedar_value_equals(&arg_elts[i],
-                                           &obj_elts[j]))
-                {
+                ngx_int_t r = nxe_cedar_value_equals(&arg_elts[i],
+                                                     &obj_elts[j]);
+                if (r == NGX_ERROR) {
+                    return nxe_cedar_make_error();
+                }
+                if (r) {
                     found = 1;
                     break;
                 }
@@ -867,9 +983,12 @@ nxe_cedar_eval_method_call(nxe_cedar_node_t *node,
         /* at least one element in arg must exist in obj */
         for (i = 0; i < arg.v.set_elts->nelts; i++) {
             for (j = 0; j < obj.v.set_elts->nelts; j++) {
-                if (nxe_cedar_value_equals(&arg_elts[i],
-                                           &obj_elts[j]))
-                {
+                ngx_int_t r = nxe_cedar_value_equals(&arg_elts[i],
+                                                     &obj_elts[j]);
+                if (r == NGX_ERROR) {
+                    return nxe_cedar_make_error();
+                }
+                if (r) {
                     return nxe_cedar_make_bool(1);
                 }
             }
@@ -893,7 +1012,11 @@ nxe_cedar_eval_method_call(nxe_cedar_node_t *node,
         obj_elts = obj.v.set_elts->elts;
 
         for (i = 0; i < obj.v.set_elts->nelts; i++) {
-            if (nxe_cedar_value_equals(&obj_elts[i], &arg)) {
+            ngx_int_t r = nxe_cedar_value_equals(&obj_elts[i], &arg);
+            if (r == NGX_ERROR) {
+                return nxe_cedar_make_error();
+            }
+            if (r) {
                 return nxe_cedar_make_bool(1);
             }
         }
@@ -933,8 +1056,11 @@ nxe_cedar_eval_in(nxe_cedar_value_t *left, nxe_cedar_value_t *right)
 
     /* entity in entity: no hierarchy, degrades to == */
     if (right->type == NXE_CEDAR_RVAL_ENTITY) {
-        return nxe_cedar_make_bool(
-            nxe_cedar_value_equals(left, right));
+        ngx_int_t r = nxe_cedar_value_equals(left, right);
+        if (r == NGX_ERROR) {
+            return nxe_cedar_make_error();
+        }
+        return nxe_cedar_make_bool(r);
     }
 
     /* entity in set: check if any element matches */
@@ -946,7 +1072,11 @@ nxe_cedar_eval_in(nxe_cedar_value_t *left, nxe_cedar_value_t *right)
         elts = right->v.set_elts->elts;
 
         for (i = 0; i < right->v.set_elts->nelts; i++) {
-            if (nxe_cedar_value_equals(left, &elts[i])) {
+            ngx_int_t r = nxe_cedar_value_equals(left, &elts[i]);
+            if (r == NGX_ERROR) {
+                return nxe_cedar_make_error();
+            }
+            if (r) {
                 return nxe_cedar_make_bool(1);
             }
         }
@@ -1045,7 +1175,7 @@ nxe_cedar_expr_eval(nxe_cedar_node_t *node,
         }
 
     case NXE_CEDAR_NODE_ATTR_ACCESS:
-        return nxe_cedar_eval_attr_access(node, ctx);
+        return nxe_cedar_eval_attr_access(node, ctx, pool, log);
 
     case NXE_CEDAR_NODE_SET:
         if (node->u.set_elts == NULL) {
@@ -1140,8 +1270,13 @@ nxe_cedar_expr_eval(nxe_cedar_node_t *node,
             if (left.type != right.type) {
                 return nxe_cedar_make_error();
             }
-            return nxe_cedar_make_bool(
-                nxe_cedar_value_equals(&left, &right));
+            {
+                ngx_int_t r = nxe_cedar_value_equals(&left, &right);
+                if (r == NGX_ERROR) {
+                    return nxe_cedar_make_error();
+                }
+                return nxe_cedar_make_bool(r);
+            }
 
         case NXE_CEDAR_OP_NE:
             left = nxe_cedar_expr_eval(node->u.binop.left, ctx,
@@ -1157,8 +1292,13 @@ nxe_cedar_expr_eval(nxe_cedar_node_t *node,
             if (left.type != right.type) {
                 return nxe_cedar_make_error();
             }
-            return nxe_cedar_make_bool(
-                !nxe_cedar_value_equals(&left, &right));
+            {
+                ngx_int_t r = nxe_cedar_value_equals(&left, &right);
+                if (r == NGX_ERROR) {
+                    return nxe_cedar_make_error();
+                }
+                return nxe_cedar_make_bool(!r);
+            }
 
         case NXE_CEDAR_OP_IN:
             left = nxe_cedar_expr_eval(node->u.binop.left, ctx,
@@ -1271,7 +1411,7 @@ nxe_cedar_expr_eval(nxe_cedar_node_t *node,
 
     /* Phase 2 */
     case NXE_CEDAR_NODE_HAS:
-        return nxe_cedar_eval_has(node, ctx);
+        return nxe_cedar_eval_has(node, ctx, pool, log);
 
     case NXE_CEDAR_NODE_LIKE:
         left = nxe_cedar_expr_eval(node->u.like.object, ctx,

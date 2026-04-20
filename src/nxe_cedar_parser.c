@@ -19,7 +19,8 @@
 #define NXE_CEDAR_MAX_SET_ELEMENTS 256
 #define NXE_CEDAR_MAX_ANNOTATIONS   16
 #define NXE_CEDAR_MAX_TYPE_PARTS    16
-#define NXE_CEDAR_MAX_MEMBER_CHAIN  16
+/* NXE_CEDAR_MAX_MEMBER_CHAIN is defined in nxe_cedar_types.h so it can
+ * be shared with NXE_CEDAR_MAX_RECORD_DEPTH. */
 #define NXE_CEDAR_MAX_BINOP_CHAIN  256
 
 

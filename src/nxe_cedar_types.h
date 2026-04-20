@@ -296,16 +296,38 @@ typedef struct {
 #define NXE_CEDAR_VALUE_LONG        1
 #define NXE_CEDAR_VALUE_BOOL        2
 #define NXE_CEDAR_VALUE_IP          3
+#define NXE_CEDAR_VALUE_RECORD      4
+
+/*
+ * Parser member-chain limit. Caps `expr.a.b.c...` to this many `.ident`
+ * or `["key"]` steps. Shared with the record-value nesting limit below
+ * so the parser's reachable depth and the writable record depth stay
+ * in sync (bumping one automatically bumps the other).
+ */
+#define NXE_CEDAR_MAX_MEMBER_CHAIN 16
+
+/*
+ * Record-value nesting limit. Defined as NXE_CEDAR_MAX_MEMBER_CHAIN so
+ * no record value can be created at a depth that policy text cannot
+ * reference: a depth-N record is the value returned by an N-step member
+ * chain, and the parser caps that chain at NXE_CEDAR_MAX_MEMBER_CHAIN.
+ * Note that reading a scalar (or sub-record) inside a depth-N record
+ * takes N+1 steps, so scalar fields placed directly inside a
+ * depth-NXE_CEDAR_MAX_RECORD_DEPTH record are writable but unreachable
+ * from any policy. Keep deep scalars one level above the limit.
+ */
+#define NXE_CEDAR_MAX_RECORD_DEPTH NXE_CEDAR_MAX_MEMBER_CHAIN
 
 /* attribute key-value pair */
 typedef struct {
     ngx_str_t   name;
     ngx_uint_t  value_type;                 /* NXE_CEDAR_VALUE_* */
     union {
-        ngx_str_t   str_val;
-        int64_t     long_val;              /* Cedar i64 attribute value */
-        ngx_flag_t  bool_val;
-        ngx_str_t   ip_str;                /* IP address string for NXE_CEDAR_VALUE_IP */
+        ngx_str_t    str_val;
+        int64_t      long_val;             /* Cedar i64 attribute value */
+        ngx_flag_t   bool_val;
+        ngx_str_t    ip_str;               /* IP address string for NXE_CEDAR_VALUE_IP */
+        ngx_array_t *record_val;           /* array of nxe_cedar_attr_t (RECORD) */
     } value;
 } nxe_cedar_attr_t;
 
