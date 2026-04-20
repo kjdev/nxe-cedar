@@ -1,0 +1,326 @@
+{
+    "description": "nested attribute access (expr.a.b) via record-valued attributes injected through the public eval_ctx record API",
+    "phase": 4,
+    "tests": [
+        {
+            "name": "principal_two_level_record_match",
+            "description": "principal.address.city accesses a scalar one level inside a record attribute",
+            "policy": "permit (principal, action, resource) when { principal.address.city == \"Tokyo\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "address": {"city": "Tokyo", "zip": "100-0001"}
+                }
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "principal_two_level_record_mismatch",
+            "description": "nested attribute access that does not satisfy the guard denies",
+            "policy": "permit (principal, action, resource) when { principal.address.city == \"Tokyo\" };",
+            "request": {
+                "principal": {"type": "User", "id": "bob"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "address": {"city": "Kyoto", "zip": "600-0001"}
+                }
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "principal_three_level_record_match",
+            "description": "principal.profile.address.country traverses two nested records",
+            "policy": "permit (principal, action, resource) when { principal.profile.address.country == \"JP\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "profile": {
+                        "address": {"country": "JP", "city": "Tokyo"}
+                    }
+                }
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "nested_bool_true_allows",
+            "description": "boolean scalar inside a record is used as the guard",
+            "policy": "permit (principal, action, resource) when { principal.profile.active };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "profile": {"active": true, "role": "admin"}
+                }
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "nested_bool_false_denies",
+            "description": "boolean scalar inside a record evaluates to false and denies",
+            "policy": "permit (principal, action, resource) when { principal.profile.active };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "profile": {"active": false, "role": "admin"}
+                }
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "nested_long_arithmetic",
+            "description": "long scalar inside a record participates in arithmetic comparison",
+            "policy": "permit (principal, action, resource) when { principal.quota.limit > 10 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "quota": {"limit": 42, "used": 3}
+                }
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "nested_ip_in_range",
+            "description": "ip scalar inside a record works with isInRange",
+            "policy": "permit (principal, action, resource) when { context.session.client_ip.isInRange(ip(\"10.0.0.0/8\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {
+                    "session": {
+                        "client_ip": {"__extn": {"fn": "ip", "arg": "10.1.2.3"}}
+                    }
+                }
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "has_top_record_true",
+            "description": "has matches a record attribute directly on the entity",
+            "policy": "permit (principal, action, resource) when { principal has address };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "address": {"city": "Tokyo"}
+                }
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "has_nested_field_true",
+            "description": "has on a record subexpression succeeds when the field is present",
+            "policy": "permit (principal, action, resource) when { principal.address has city };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "address": {"city": "Tokyo"}
+                }
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "has_nested_field_false",
+            "description": "has on a record subexpression is false when the field is absent",
+            "policy": "permit (principal, action, resource) when { principal.address has city };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "address": {"zip": "100-0001"}
+                }
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "nested_access_on_scalar_errors",
+            "description": "chained attribute access through a string-valued attribute fails at evaluation time; permit does not apply, default deny",
+            "policy": "permit (principal, action, resource) when { principal.name.first == \"Alice\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "name": "Alice"
+                }
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "nested_access_missing_intermediate_errors",
+            "description": "missing intermediate attribute in a chain produces an error that denies",
+            "policy": "permit (principal, action, resource) when { principal.profile.role == \"admin\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "has_guards_missing_nested_field",
+            "description": "has guards against missing attributes so the policy can fall through safely",
+            "policy": "permit (principal, action, resource) when { principal has profile && principal.profile has role && principal.profile.role == \"admin\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "profile": {"other": "value"}
+                }
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "record_equality_match",
+            "description": "two records with the same fields (order independent) compare equal",
+            "policy": "permit (principal, action, resource) when { principal.address == resource.origin };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "address": {"city": "Tokyo", "zip": "100"}
+                },
+                "resource_attrs": {
+                    "origin": {"zip": "100", "city": "Tokyo"}
+                }
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "record_equality_field_mismatch",
+            "description": "two records differing in a scalar field compare unequal",
+            "policy": "permit (principal, action, resource) when { principal.address == resource.origin };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "address": {"city": "Tokyo", "zip": "100"}
+                },
+                "resource_attrs": {
+                    "origin": {"city": "Kyoto", "zip": "600"}
+                }
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "record_context_nested_access",
+            "description": "nested access works through context as well, not only through entities",
+            "policy": "permit (principal, action, resource) when { context.request.method == \"GET\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {
+                    "request": {"method": "GET", "path": "/api/data"}
+                }
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "record_empty_equality",
+            "description": "two empty records compare equal",
+            "policy": "permit (principal, action, resource) when { principal.meta == resource.meta };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "meta": {}
+                },
+                "resource_attrs": {
+                    "meta": {}
+                }
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "record_not_equal",
+            "description": "record != record is true when records differ, so the guard permits",
+            "policy": "permit (principal, action, resource) when { principal.address != resource.origin };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "address": {"city": "Tokyo"}
+                },
+                "resource_attrs": {
+                    "origin": {"city": "Kyoto"}
+                }
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "has_on_scalar_errors",
+            "description": "has on a non-record subexpression (string attribute) errors; policy falls through to default deny",
+            "policy": "permit (principal, action, resource) when { principal.name has first };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "name": "Alice"
+                }
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "has_on_missing_intermediate_errors",
+            "description": "has slow path propagates eval error when the intermediate attribute is absent",
+            "policy": "permit (principal, action, resource) when { principal.profile has role };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "record_max_chain_scalar_readable",
+            "description": "a scalar placed inside a depth-15 record chain is reachable via a 16-step member chain (member-chain limit = 16)",
+            "policy": "permit (principal, action, resource) when { principal.l1.l2.l3.l4.l5.l6.l7.l8.l9.l10.l11.l12.l13.l14.l15.scalar == \"deep\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "l1": {"l2": {"l3": {"l4": {"l5": {"l6": {"l7": {"l8": {"l9": {"l10": {"l11": {"l12": {"l13": {"l14": {"l15": {"scalar": "deep"}}}}}}}}}}}}}}}
+                }
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "record_depth_exceeds_limit",
+            "description": "building a record deeper than NXE_CEDAR_MAX_RECORD_DEPTH (=16) is rejected at ctx setup and surfaces as an error",
+            "policy": "permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "l1": {"l2": {"l3": {"l4": {"l5": {"l6": {"l7": {"l8": {"l9": {"l10": {"l11": {"l12": {"l13": {"l14": {"l15": {"l16": {"l17": {}}}}}}}}}}}}}}}}}
+                }
+            },
+            "expected": "error"
+        }
+    ]
+}
