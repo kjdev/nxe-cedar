@@ -1,0 +1,265 @@
+{
+    "description": "record literal `{key: expr, ...}` inside policy expressions (Phase 4)",
+    "phase": 4,
+    "tests": [
+        {
+            "name": "single_long_field_access",
+            "description": "access a long-valued field from a record literal via dot",
+            "policy": "permit (principal, action, resource) when { {x: 1}.x == 1 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "single_string_field_access",
+            "description": "access a string-valued field from a record literal",
+            "policy": "permit (principal, action, resource) when { {name: \"alice\"}.name == \"alice\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "single_bool_field_as_guard",
+            "description": "a boolean-valued field used directly as the when guard",
+            "policy": "permit (principal, action, resource) when { {ok: true}.ok };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "multi_field_access",
+            "description": "access a specific field from a multi-field record literal",
+            "policy": "permit (principal, action, resource) when { {a: 1, b: 2, c: 3}.b == 2 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "nested_record_access",
+            "description": "access a scalar nested inside a record literal through two dots",
+            "policy": "permit (principal, action, resource) when { {outer: {inner: 42}}.outer.inner == 42 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "empty_record_has_false",
+            "description": "`has` on an empty record literal returns false so permit does not apply",
+            "policy": "permit (principal, action, resource) when { {} has foo };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "has_on_literal_true",
+            "description": "`has` on a record literal is true when the field is present",
+            "policy": "permit (principal, action, resource) when { {foo: 1} has foo };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "has_on_literal_false",
+            "description": "`has` on a record literal is false when the field is absent",
+            "policy": "permit (principal, action, resource) when { {foo: 1} has bar };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "order_independent_equality",
+            "description": "two record literals with the same fields in different orders compare equal",
+            "policy": "permit (principal, action, resource) when { {a: 1, b: 2} == {b: 2, a: 1} };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "equality_field_mismatch",
+            "description": "record literals differing in a value compare unequal",
+            "policy": "permit (principal, action, resource) when { {a: 1} == {a: 2} };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "equality_size_mismatch",
+            "description": "record literals of different sizes compare unequal",
+            "policy": "permit (principal, action, resource) when { {a: 1, b: 2} == {a: 1} };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "string_key_bracket_access",
+            "description": "string-quoted key on a literal and bracket access with the same key",
+            "policy": "permit (principal, action, resource) when { {\"x-key\": 1}[\"x-key\"] == 1 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "literal_matches_injected_record_attr",
+            "description": "record literal compares equal to a record attribute injected via the eval-context API",
+            "policy": "permit (principal, action, resource) when { principal.address == {city: \"Tokyo\", zip: \"100\"} };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "address": {"city": "Tokyo", "zip": "100"}
+                }
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "literal_mixed_types",
+            "description": "record literal mixing string, long and bool fields",
+            "policy": "permit (principal, action, resource) when { {s: \"a\", n: 1, b: true}.n + 1 == 2 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "duplicate_key_parse_error",
+            "description": "repeating a key in a record literal is rejected at parse time; policy fails to load so request denies by default",
+            "policy": "permit (principal, action, resource) when { {a: 1, a: 2}.a == 1 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "trailing_comma_accepted",
+            "description": "trailing comma after the last entry is accepted (matches Cedar reference)",
+            "policy": "permit (principal, action, resource) when { {a: 1,}.a == 1 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "set_value_in_literal_evaluation_error",
+            "description": "Phase B MVP: set-valued field in a record literal is an evaluation error (Phase C will lift this)",
+            "policy": "permit (principal, action, resource) when { {xs: [1, 2]}.xs == [1, 2] };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "c_limit": true,
+            "expected": "deny"
+        },
+        {
+            "name": "missing_colon_parse_error",
+            "description": "record entry without `:` between key and value is a parse error",
+            "policy": "permit (principal, action, resource) when { {a 1}.a == 1 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "missing_key_parse_error",
+            "description": "record entry without a key is a parse error",
+            "policy": "permit (principal, action, resource) when { {: 1}.a == 1 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "like_star_escape_in_key_parse_error",
+            "description": "string key containing \\* (only valid in like patterns) is rejected at parse time",
+            "policy": "permit (principal, action, resource) when { {\"a\\*b\": 1}[\"a*b\"] == 1 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "too_many_entries_parse_error",
+            "description": "exceeding NXE_CEDAR_MAX_RECORD_ENTRIES (64 unique keys) is a C-implementation-specific parse error; Cedar reference has no such limit, so FFI oracle comparison is skipped",
+            "policy": "permit (principal, action, resource) when { {k0: 0, k1: 1, k2: 2, k3: 3, k4: 4, k5: 5, k6: 6, k7: 7, k8: 8, k9: 9, k10: 10, k11: 11, k12: 12, k13: 13, k14: 14, k15: 15, k16: 16, k17: 17, k18: 18, k19: 19, k20: 20, k21: 21, k22: 22, k23: 23, k24: 24, k25: 25, k26: 26, k27: 27, k28: 28, k29: 29, k30: 30, k31: 31, k32: 32, k33: 33, k34: 34, k35: 35, k36: 36, k37: 37, k38: 38, k39: 39, k40: 40, k41: 41, k42: 42, k43: 43, k44: 44, k45: 45, k46: 46, k47: 47, k48: 48, k49: 49, k50: 50, k51: 51, k52: 52, k53: 53, k54: 54, k55: 55, k56: 56, k57: 57, k58: 58, k59: 59, k60: 60, k61: 61, k62: 62, k63: 63, k64: 64}.k0 == 0 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "c_limit": true,
+            "expected": "error"
+        },
+        {
+            "name": "nesting_depth_at_limit",
+            "description": "record literal nested to exactly NXE_CEDAR_MAX_RECORD_DEPTH (16) is accepted by the parser",
+            "policy": "permit (principal, action, resource) when { {a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:1}}}}}}}}}}}}}}}} has a };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "nesting_depth_exceeded_parse_error",
+            "description": "record literal nested deeper than NXE_CEDAR_MAX_RECORD_DEPTH (16) is a C-implementation-specific parse error; Cedar reference has no such limit, so FFI oracle comparison is skipped",
+            "policy": "permit (principal, action, resource) when { {a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:1}}}}}}}}}}}}}}}}} has a };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "c_limit": true,
+            "expected": "error"
+        }
+    ]
+}
