@@ -1,5 +1,20 @@
 # Changelog
 
+## [75f7ef8](../../commit/75f7ef8) - 2026-04-22
+
+### Added
+
+- Add record literal `{key: expr, ...}` syntax in policy expressions (Phase 4)
+  - Syntax: `{IDENT | STRING : expr (, ...)? [,]}` inside `when` / `unless` conditions
+  - Empty record `{}` is allowed; trailing comma after the last entry is accepted to match the Cedar reference parser
+  - Keys may be identifiers or quoted strings; duplicate keys are rejected at parse time
+  - Entry count capped at `NXE_CEDAR_MAX_RECORD_ENTRIES` (64)
+  - Disambiguation from policy-body `when { ... }` is automatic: the outer `{` after `when` / `unless` is consumed by `nxe_cedar_parse_condition` before the expression parser runs, so any `{` reaching `parse_primary` is a record literal
+  - New token `NXE_CEDAR_TOKEN_COLON` for single `:`; the existing `::` path still takes precedence when two colons are adjacent
+  - New AST node `NXE_CEDAR_NODE_RECORD` and parse-time entry type `nxe_cedar_record_entry_t { key, value }`
+  - Phase B MVP scope: scalar (string, long, bool) and nested record values are supported inside record literals; set / entity / IP values produce an evaluation error and are deferred to a later phase (test case marked `c_limit: true` to skip FFI oracle comparison)
+  - Record literals compose naturally with existing features: dot access, bracket access, `has`, order-independent equality, and comparison against attribute-injected records
+
 ## [a151b88](../../commit/a151b88) - 2026-04-21
 
 ### Added
