@@ -11,6 +11,7 @@
 #include <ngx_core.h>
 #include "nxe_cedar_lexer.h"
 #include "nxe_cedar_parser.h"
+#include "nxe_cedar_expr.h"     /* nxe_cedar_str_eq */
 
 
 #define NXE_CEDAR_MAX_PARSE_DEPTH   64
@@ -19,6 +20,7 @@
 #define NXE_CEDAR_MAX_SET_ELEMENTS 256
 #define NXE_CEDAR_MAX_ANNOTATIONS   16
 #define NXE_CEDAR_MAX_TYPE_PARTS    16
+#define NXE_CEDAR_MAX_RECORD_ENTRIES 64
 /* NXE_CEDAR_MAX_MEMBER_CHAIN is defined in nxe_cedar_types.h so it can
  * be shared with NXE_CEDAR_MAX_RECORD_DEPTH. */
 #define NXE_CEDAR_MAX_BINOP_CHAIN  256
@@ -31,6 +33,7 @@ typedef struct {
     ngx_pool_t        *pool;
     ngx_log_t         *log;
     ngx_uint_t         depth;
+    ngx_uint_t         record_depth;
     unsigned           error:1;
 } nxe_cedar_parser_ctx_t;
 
@@ -249,7 +252,7 @@ static ngx_int_t
 nxe_cedar_parse_long(ngx_str_t *s, int64_t *result)
 {
     int64_t val, digit;
-    size_t  i;
+    size_t i;
 
     val = 0;
 
@@ -279,7 +282,7 @@ static ngx_int_t
 nxe_cedar_parse_neg_long(ngx_str_t *s, int64_t *result)
 {
     int64_t val, digit;
-    size_t  i;
+    size_t i;
 
     val = 0;
 
@@ -527,6 +530,162 @@ nxe_cedar_parse_set_literal(nxe_cedar_parser_ctx_t *ctx)
 }
 
 
+/*
+ * Parse a record literal: "{" [ entry { "," entry } ] "}"
+ *   entry := (IDENT | STRING) ":" expr
+ *
+ * - Empty record `{}` is allowed.
+ * - Trailing comma after the last entry IS allowed (matches the Cedar
+ *   reference parser for record literals).
+ * - Duplicate keys are rejected at parse time.
+ * - IDENT and STRING keys are stored as-is; equality uses byte match.
+ *
+ * Disambiguation from policy-body `when { ... }`: the outer `{` after
+ * `when` / `unless` is consumed directly by nxe_cedar_parse_condition
+ * before the expression parser runs, so any `{` reaching
+ * nxe_cedar_parse_primary is a record literal.
+ */
+static nxe_cedar_node_t *
+nxe_cedar_parse_record_literal(nxe_cedar_parser_ctx_t *ctx)
+{
+    nxe_cedar_node_t *node = NULL;
+    nxe_cedar_record_entry_t *entry, *existing;
+    ngx_str_t key;
+    ngx_uint_t count, i;
+
+    /*
+     * Cap record-literal nesting at NXE_CEDAR_MAX_RECORD_DEPTH so the
+     * parser cannot construct values deeper than the attribute-injection
+     * API allows. Matches the member-chain reachability invariant in
+     * nxe_cedar_types.h (writable depth == readable depth).
+     */
+    if (++ctx->record_depth > NXE_CEDAR_MAX_RECORD_DEPTH) {
+        ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                      "nxe_cedar_parse: "
+                      "record literal too deeply nested (max %d)",
+                      NXE_CEDAR_MAX_RECORD_DEPTH);
+        ctx->error = 1;
+        goto out;
+    }
+
+    nxe_cedar_parser_advance(ctx);  /* skip { */
+
+    node = nxe_cedar_parser_alloc_node(ctx, NXE_CEDAR_NODE_RECORD);
+    if (node == NULL) {
+        goto out;
+    }
+
+    node->u.record_entries = ngx_array_create(ctx->pool, 4,
+                                              sizeof(nxe_cedar_record_entry_t));
+    if (node->u.record_entries == NULL) {
+        ctx->error = 1;
+        node = NULL;
+        goto out;
+    }
+
+    /* empty record `{}` */
+    if (ctx->current.type == NXE_CEDAR_TOKEN_RBRACE) {
+        nxe_cedar_parser_advance(ctx);
+        goto out;
+    }
+
+    count = 0;
+
+    for ( ;; ) {
+        if (++count > NXE_CEDAR_MAX_RECORD_ENTRIES) {
+            ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                          "nxe_cedar_parse: too many record entries");
+            ctx->error = 1;
+            node = NULL;
+            goto out;
+        }
+
+        /* key: IDENT (incl. context-keyword idents) or STRING */
+        if (nxe_cedar_token_is_ident(ctx->current.type)) {
+            key = ctx->current.value;
+            nxe_cedar_parser_advance(ctx);
+
+        } else if (ctx->current.type == NXE_CEDAR_TOKEN_STRING) {
+            if (ctx->current.has_star_escape) {
+                ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                              "nxe_cedar_parse: "
+                              "invalid escape sequence \\*: "
+                              "only valid in like patterns");
+                ctx->error = 1;
+                node = NULL;
+                goto out;
+            }
+            key = ctx->current.value;
+            nxe_cedar_parser_advance(ctx);
+
+        } else {
+            ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                          "nxe_cedar_parse: "
+                          "expected identifier or string as record key");
+            ctx->error = 1;
+            node = NULL;
+            goto out;
+        }
+
+        /* reject duplicate keys at parse time */
+        existing = node->u.record_entries->elts;
+        for (i = 0; i < node->u.record_entries->nelts; i++) {
+            if (nxe_cedar_str_eq(&existing[i].key, &key)) {
+                ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                              "nxe_cedar_parse: "
+                              "duplicate record key");
+                ctx->error = 1;
+                node = NULL;
+                goto out;
+            }
+        }
+
+        if (nxe_cedar_parser_expect(ctx, NXE_CEDAR_TOKEN_COLON)
+            != NGX_OK)
+        {
+            node = NULL;
+            goto out;
+        }
+
+        entry = ngx_array_push(node->u.record_entries);
+        if (entry == NULL) {
+            ctx->error = 1;
+            node = NULL;
+            goto out;
+        }
+
+        entry->key = key;
+        entry->value = nxe_cedar_parse_expr(ctx);
+        if (ctx->error) {
+            node = NULL;
+            goto out;
+        }
+
+        if (ctx->current.type == NXE_CEDAR_TOKEN_COMMA) {
+            nxe_cedar_parser_advance(ctx);
+            /* trailing comma: stop if next token is `}` */
+            if (ctx->current.type == NXE_CEDAR_TOKEN_RBRACE) {
+                break;
+            }
+            continue;
+        }
+
+        break;
+    }
+
+    if (nxe_cedar_parser_expect(ctx, NXE_CEDAR_TOKEN_RBRACE)
+        != NGX_OK)
+    {
+        node = NULL;
+        goto out;
+    }
+
+out:
+    ctx->record_depth--;
+    return node;
+}
+
+
 /* parse primary expression */
 static nxe_cedar_node_t *
 nxe_cedar_parse_primary(nxe_cedar_parser_ctx_t *ctx)
@@ -683,6 +842,9 @@ nxe_cedar_parse_primary(nxe_cedar_parser_ctx_t *ctx)
 
     case NXE_CEDAR_TOKEN_LBRACKET:
         return nxe_cedar_parse_set_literal(ctx);
+
+    case NXE_CEDAR_TOKEN_LBRACE:
+        return nxe_cedar_parse_record_literal(ctx);
 
     default:
         ngx_log_error(NGX_LOG_ERR, ctx->log, 0,

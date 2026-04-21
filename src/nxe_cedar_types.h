@@ -72,6 +72,7 @@ typedef enum {
     NXE_CEDAR_TOKEN_LBRACKET,       /* [ */
     NXE_CEDAR_TOKEN_RBRACKET,       /* ] */
     NXE_CEDAR_TOKEN_COLONCOLON,     /* :: */
+    NXE_CEDAR_TOKEN_COLON,          /* :  (Phase 4 record literal) */
     NXE_CEDAR_TOKEN_AT,             /* @  (Phase 4) */
 
     /* literals */
@@ -154,13 +155,20 @@ typedef enum {
     NXE_CEDAR_NODE_IP_LITERAL,      /* ip("addr") */
 
     /* Phase 4 */
-    NXE_CEDAR_NODE_IS               /* expr is type_name [in expr] */
+    NXE_CEDAR_NODE_IS,              /* expr is type_name [in expr] */
+    NXE_CEDAR_NODE_RECORD           /* { key: expr, ... } */
 } nxe_cedar_node_type_t;
 
 
 /* --- AST node --- */
 
 typedef struct nxe_cedar_node_s nxe_cedar_node_t;
+
+/* parse-time record literal entry (key and value expression) */
+typedef struct {
+    ngx_str_t         key;
+    nxe_cedar_node_t *value;
+} nxe_cedar_record_entry_t;
 
 struct nxe_cedar_node_s {
     nxe_cedar_node_type_t  type;
@@ -234,6 +242,9 @@ struct nxe_cedar_node_s {
             nxe_cedar_node_t *in_entity;        /* "is T in expr" expr,
                                                    NULL if plain "is T" */
         } is_check;
+
+        ngx_array_t *record_entries;            /* RECORD: array of
+                                                        nxe_cedar_record_entry_t */
     } u;
 };
 

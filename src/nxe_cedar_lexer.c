@@ -560,6 +560,14 @@ nxe_cedar_lexer_next(nxe_cedar_lexer_t *lexer)
         return token;
     }
 
+    if (ch == ':') {
+        token.type = NXE_CEDAR_TOKEN_COLON;
+        token.value.data = &lexer->input.data[lexer->pos];
+        token.value.len = 1;
+        lexer->pos += 1;
+        return token;
+    }
+
     if (ch == '<' && lexer->pos + 1 < lexer->input.len
         && lexer->input.data[lexer->pos + 1] == '=')
     {

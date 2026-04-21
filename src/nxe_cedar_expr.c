@@ -1207,6 +1207,69 @@ nxe_cedar_expr_eval(nxe_cedar_node_t *node,
 
         return val;
 
+    case NXE_CEDAR_NODE_RECORD: {
+        nxe_cedar_record_entry_t *entries;
+        nxe_cedar_attr_t *attr_slot;
+        ngx_array_t *attrs;
+
+        if (node->u.record_entries == NULL) {
+            return nxe_cedar_make_error();
+        }
+
+        /* avoid ngx_palloc(pool, 0) for empty record `{}` */
+        attrs = ngx_array_create(pool,
+                                 node->u.record_entries->nelts > 0
+                                 ? node->u.record_entries->nelts : 1,
+                                 sizeof(nxe_cedar_attr_t));
+        if (attrs == NULL) {
+            return nxe_cedar_make_error();
+        }
+
+        entries = node->u.record_entries->elts;
+
+        for (i = 0; i < node->u.record_entries->nelts; i++) {
+            left = nxe_cedar_expr_eval(entries[i].value, ctx, pool, log);
+            if (left.type == NXE_CEDAR_RVAL_ERROR) {
+                return nxe_cedar_make_error();
+            }
+
+            attr_slot = ngx_array_push(attrs);
+            if (attr_slot == NULL) {
+                return nxe_cedar_make_error();
+            }
+
+            attr_slot->name = entries[i].key;
+
+            /*
+             * Phase B MVP: only scalar + nested record values are
+             * storable in the attr_t union. Set / entity / IP values
+             * in record literals are deferred to Phase C.
+             */
+            switch (left.type) {
+            case NXE_CEDAR_RVAL_STRING:
+                attr_slot->value_type = NXE_CEDAR_VALUE_STRING;
+                attr_slot->value.str_val = left.v.str_val;
+                break;
+            case NXE_CEDAR_RVAL_LONG:
+                attr_slot->value_type = NXE_CEDAR_VALUE_LONG;
+                attr_slot->value.long_val = left.v.long_val;
+                break;
+            case NXE_CEDAR_RVAL_BOOL:
+                attr_slot->value_type = NXE_CEDAR_VALUE_BOOL;
+                attr_slot->value.bool_val = left.v.bool_val;
+                break;
+            case NXE_CEDAR_RVAL_RECORD:
+                attr_slot->value_type = NXE_CEDAR_VALUE_RECORD;
+                attr_slot->value.record_val = left.v.record_attrs;
+                break;
+            default:
+                return nxe_cedar_make_error();
+            }
+        }
+
+        return nxe_cedar_make_record(attrs);
+    }
+
     case NXE_CEDAR_NODE_BINOP:
         switch (node->u.binop.op) {
 
