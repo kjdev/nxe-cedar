@@ -339,7 +339,7 @@ done_groups:
 
 
 /* parse IP string to binary runtime value */
-static nxe_cedar_value_t
+nxe_cedar_value_t
 nxe_cedar_make_ip(ngx_str_t *s)
 {
     nxe_cedar_value_t val;
@@ -404,38 +404,13 @@ nxe_cedar_long_arith(nxe_cedar_op_t op, int64_t a, int64_t b, int64_t *out)
 }
 
 
-/* convert nxe_cedar_attr_t to runtime value */
-static nxe_cedar_value_t
-nxe_cedar_attr_to_value(nxe_cedar_attr_t *attr)
-{
-    switch (attr->value_type) {
-
-    case NXE_CEDAR_VALUE_STRING:
-        return nxe_cedar_make_string(attr->value.str_val);
-
-    case NXE_CEDAR_VALUE_LONG:
-        return nxe_cedar_make_long(attr->value.long_val);
-
-    case NXE_CEDAR_VALUE_BOOL:
-        return nxe_cedar_make_bool(attr->value.bool_val);
-
-    case NXE_CEDAR_VALUE_IP:
-        return nxe_cedar_make_ip(&attr->value.ip_str);
-
-    case NXE_CEDAR_VALUE_RECORD:
-        return nxe_cedar_make_record(attr->value.record_val);
-
-    default:
-        return nxe_cedar_make_error();
-    }
-}
-
-
 /*
  * Tri-state value equality: returns 1 (equal), 0 (not equal), or
- * NGX_ERROR when a nested conversion (e.g. invalid IP string inside a
- * record field) fails. Callers must check for NGX_ERROR and propagate
- * it as nxe_cedar_make_error() instead of treating it as "not equal".
+ * NGX_ERROR when either operand is RVAL_ERROR. Defense in depth: the
+ * normal evaluation paths reject RVAL_ERROR before storing it in
+ * record_attrs / set_elts, so NGX_ERROR is not expected in practice;
+ * callers must still propagate it as nxe_cedar_make_error() instead of
+ * treating it as "not equal".
  */
 static ngx_int_t
 nxe_cedar_value_equals(nxe_cedar_value_t *a, nxe_cedar_value_t *b)
@@ -521,12 +496,8 @@ nxe_cedar_value_equals(nxe_cedar_value_t *a, nxe_cedar_value_t *b)
                     if (nxe_cedar_str_eq(&a_attrs[i].name,
                                          &b_attrs[j].name))
                     {
-                        nxe_cedar_value_t av, bv;
-                        ngx_int_t r;
-
-                        av = nxe_cedar_attr_to_value(&a_attrs[i]);
-                        bv = nxe_cedar_attr_to_value(&b_attrs[j]);
-                        r = nxe_cedar_value_equals(&av, &bv);
+                        ngx_int_t r = nxe_cedar_value_equals(
+                            &a_attrs[i].value, &b_attrs[j].value);
                         if (r == NGX_ERROR) {
                             return NGX_ERROR;
                         }
@@ -630,7 +601,7 @@ nxe_cedar_eval_attr_access(nxe_cedar_node_t *node,
             return nxe_cedar_make_error();
         }
 
-        return nxe_cedar_attr_to_value(attr);
+        return attr->value;
     }
 
     /* slow path: evaluate object and descend into record */
@@ -648,7 +619,7 @@ nxe_cedar_eval_attr_access(nxe_cedar_node_t *node,
         return nxe_cedar_make_error();
     }
 
-    return nxe_cedar_attr_to_value(attr);
+    return attr->value;
 }
 
 
@@ -1242,25 +1213,17 @@ nxe_cedar_expr_eval(nxe_cedar_node_t *node,
 
             /*
              * Phase B MVP: only scalar + nested record values are
-             * storable in the attr_t union. Set / entity / IP values
-             * in record literals are deferred to Phase C.
+             * storable; set / entity / IP literal fields are deferred
+             * to Phase C. The restriction is enforced on the value
+             * type rather than the storage layout now that attr_t
+             * holds a full nxe_cedar_value_t.
              */
             switch (left.type) {
             case NXE_CEDAR_RVAL_STRING:
-                attr_slot->value_type = NXE_CEDAR_VALUE_STRING;
-                attr_slot->value.str_val = left.v.str_val;
-                break;
             case NXE_CEDAR_RVAL_LONG:
-                attr_slot->value_type = NXE_CEDAR_VALUE_LONG;
-                attr_slot->value.long_val = left.v.long_val;
-                break;
             case NXE_CEDAR_RVAL_BOOL:
-                attr_slot->value_type = NXE_CEDAR_VALUE_BOOL;
-                attr_slot->value.bool_val = left.v.bool_val;
-                break;
             case NXE_CEDAR_RVAL_RECORD:
-                attr_slot->value_type = NXE_CEDAR_VALUE_RECORD;
-                attr_slot->value.record_val = left.v.record_attrs;
+                attr_slot->value = left;
                 break;
             default:
                 return nxe_cedar_make_error();

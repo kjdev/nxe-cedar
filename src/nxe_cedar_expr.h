@@ -14,38 +14,6 @@
 #include "nxe_cedar_types.h"
 
 
-/* runtime value types */
-#define NXE_CEDAR_RVAL_STRING   0
-#define NXE_CEDAR_RVAL_LONG     1
-#define NXE_CEDAR_RVAL_BOOL     2
-#define NXE_CEDAR_RVAL_ENTITY   3
-#define NXE_CEDAR_RVAL_SET      4
-#define NXE_CEDAR_RVAL_ERROR    5
-#define NXE_CEDAR_RVAL_IP       6
-#define NXE_CEDAR_RVAL_RECORD   7
-
-
-typedef struct {
-    ngx_uint_t  type;       /* NXE_CEDAR_RVAL_* */
-    union {
-        ngx_str_t    str_val;
-        int64_t      long_val;   /* Cedar i64 runtime value */
-        ngx_flag_t   bool_val;
-        struct {
-            ngx_str_t  type;
-            ngx_str_t  id;
-        } entity;
-        ngx_array_t *set_elts;     /* array of nxe_cedar_value_t */
-        ngx_array_t *record_attrs; /* array of nxe_cedar_attr_t */
-        struct {
-            u_char      addr[16];    /* network byte order */
-            ngx_uint_t  prefix_len;  /* /prefix; single=32(v4)/128(v6) */
-            unsigned    is_ipv6:1;
-        } ip_addr;
-    } v;
-} nxe_cedar_value_t;
-
-
 /* string equality (shared by expr.c and eval.c) */
 static inline ngx_int_t
 nxe_cedar_str_eq(ngx_str_t *a, ngx_str_t *b)
@@ -59,6 +27,15 @@ nxe_cedar_str_eq(ngx_str_t *a, ngx_str_t *b)
 nxe_cedar_value_t nxe_cedar_expr_eval(nxe_cedar_node_t *node,
     nxe_cedar_eval_ctx_t *ctx, ngx_pool_t *pool,
     ngx_log_t *log);
+
+
+/*
+ * Parse an IP literal string (v4 / v6, with optional CIDR) into a
+ * runtime value. Returns an RVAL_ERROR value on invalid input.
+ * Shared with eval.c so the injection API can eagerly materialize
+ * IP attribute values at insertion time.
+ */
+nxe_cedar_value_t nxe_cedar_make_ip(ngx_str_t *s);
 
 
 #endif /* NXE_CEDAR_EXPR_H */

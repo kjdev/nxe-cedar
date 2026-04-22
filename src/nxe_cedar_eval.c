@@ -133,8 +133,8 @@ nxe_cedar_eval_ctx_add_str_attr(ngx_array_t *attrs,
     }
 
     attr->name = *name;
-    attr->value_type = NXE_CEDAR_VALUE_STRING;
-    attr->value.str_val = *value;
+    attr->value.type = NXE_CEDAR_RVAL_STRING;
+    attr->value.v.str_val = *value;
 
     return NGX_OK;
 }
@@ -152,8 +152,8 @@ nxe_cedar_eval_ctx_add_long_attr(ngx_array_t *attrs,
     }
 
     attr->name = *name;
-    attr->value_type = NXE_CEDAR_VALUE_LONG;
-    attr->value.long_val = value;
+    attr->value.type = NXE_CEDAR_RVAL_LONG;
+    attr->value.v.long_val = value;
 
     return NGX_OK;
 }
@@ -171,18 +171,30 @@ nxe_cedar_eval_ctx_add_bool_attr(ngx_array_t *attrs,
     }
 
     attr->name = *name;
-    attr->value_type = NXE_CEDAR_VALUE_BOOL;
-    attr->value.bool_val = value;
+    attr->value.type = NXE_CEDAR_RVAL_BOOL;
+    attr->value.v.bool_val = value;
 
     return NGX_OK;
 }
 
 
+/*
+ * IP attributes are eagerly parsed at injection time so readers can
+ * see the binary representation directly. Invalid IP strings are
+ * rejected here with NGX_ERROR instead of surfacing as a silent
+ * evaluation error on first access.
+ */
 static ngx_int_t
 nxe_cedar_eval_ctx_add_ip_attr(ngx_array_t *attrs,
     ngx_str_t *name, ngx_str_t *value)
 {
     nxe_cedar_attr_t *attr;
+    nxe_cedar_value_t ip_val;
+
+    ip_val = nxe_cedar_make_ip(value);
+    if (ip_val.type == NXE_CEDAR_RVAL_ERROR) {
+        return NGX_ERROR;
+    }
 
     attr = ngx_array_push(attrs);
     if (attr == NULL) {
@@ -190,8 +202,7 @@ nxe_cedar_eval_ctx_add_ip_attr(ngx_array_t *attrs,
     }
 
     attr->name = *name;
-    attr->value_type = NXE_CEDAR_VALUE_IP;
-    attr->value.ip_str = *value;
+    attr->value = ip_val;
 
     return NGX_OK;
 }
@@ -259,8 +270,8 @@ nxe_cedar_eval_ctx_add_record_attr(ngx_array_t *attrs, ngx_pool_t *pool,
     }
 
     attr->name = *name;
-    attr->value_type = NXE_CEDAR_VALUE_RECORD;
-    attr->value.record_val = rec->attrs;
+    attr->value.type = NXE_CEDAR_RVAL_RECORD;
+    attr->value.v.record_attrs = rec->attrs;
 
     return rec;
 }
@@ -583,8 +594,8 @@ nxe_cedar_record_add_record(nxe_cedar_record_t *rec, ngx_str_t *name)
     }
 
     attr->name = *name;
-    attr->value_type = NXE_CEDAR_VALUE_RECORD;
-    attr->value.record_val = child->attrs;
+    attr->value.type = NXE_CEDAR_RVAL_RECORD;
+    attr->value.v.record_attrs = child->attrs;
 
     return child;
 }

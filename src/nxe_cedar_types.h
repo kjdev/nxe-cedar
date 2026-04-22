@@ -302,13 +302,6 @@ typedef struct {
 
 /* --- evaluation context --- */
 
-/* attribute value type identifiers */
-#define NXE_CEDAR_VALUE_STRING      0
-#define NXE_CEDAR_VALUE_LONG        1
-#define NXE_CEDAR_VALUE_BOOL        2
-#define NXE_CEDAR_VALUE_IP          3
-#define NXE_CEDAR_VALUE_RECORD      4
-
 /*
  * Parser member-chain limit. Caps `expr.a.b.c...` to this many `.ident`
  * or `["key"]` steps. Shared with the record-value nesting limit below
@@ -329,17 +322,48 @@ typedef struct {
  */
 #define NXE_CEDAR_MAX_RECORD_DEPTH NXE_CEDAR_MAX_MEMBER_CHAIN
 
-/* attribute key-value pair */
+
+/* --- runtime values --- */
+
+/* runtime value types */
+#define NXE_CEDAR_RVAL_STRING   0
+#define NXE_CEDAR_RVAL_LONG     1
+#define NXE_CEDAR_RVAL_BOOL     2
+#define NXE_CEDAR_RVAL_ENTITY   3
+#define NXE_CEDAR_RVAL_SET      4
+#define NXE_CEDAR_RVAL_ERROR    5
+#define NXE_CEDAR_RVAL_IP       6
+#define NXE_CEDAR_RVAL_RECORD   7
+
+
 typedef struct {
-    ngx_str_t   name;
-    ngx_uint_t  value_type;                 /* NXE_CEDAR_VALUE_* */
+    ngx_uint_t  type;       /* NXE_CEDAR_RVAL_* */
     union {
         ngx_str_t    str_val;
-        int64_t      long_val;             /* Cedar i64 attribute value */
+        int64_t      long_val;   /* Cedar i64 runtime value */
         ngx_flag_t   bool_val;
-        ngx_str_t    ip_str;               /* IP address string for NXE_CEDAR_VALUE_IP */
-        ngx_array_t *record_val;           /* array of nxe_cedar_attr_t (RECORD) */
-    } value;
+        struct {
+            ngx_str_t  type;
+            ngx_str_t  id;
+        } entity;
+        ngx_array_t *set_elts;     /* array of nxe_cedar_value_t */
+        ngx_array_t *record_attrs; /* array of nxe_cedar_attr_t */
+        struct {
+            u_char      addr[16];    /* network byte order */
+            ngx_uint_t  prefix_len;  /* /prefix; single=32(v4)/128(v6) */
+            unsigned    is_ipv6   :1;
+        } ip_addr;
+    } v;
+} nxe_cedar_value_t;
+
+
+/*
+ * Named runtime value used both as an entity attribute (principal /
+ * action / resource / context) and as a record entry.
+ */
+typedef struct {
+    ngx_str_t          name;
+    nxe_cedar_value_t  value;
 } nxe_cedar_attr_t;
 
 /* evaluation context (built per-request) */
