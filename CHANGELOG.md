@@ -1,5 +1,24 @@
 # Changelog
 
+## [3b52edf](../../commit/3b52edf) - 2026-04-22
+
+### Changed
+
+- Lift record literal value type restriction (Phase 4)
+  - Record literal fields may now hold any Cedar runtime value — string, long, bool, set, entity, IP, or nested record — bringing behavior in line with the Cedar reference parser
+  - Replaces the Phase B MVP restriction that errored on set / entity / IP fields; the FFI oracle now agrees on `{xs: [1,2]}.xs == [1,2]` and similar shapes
+  - Record equality and `has` continue to work through the existing order-independent comparison via `nxe_cedar_value_equals`
+
+## [1f0866e](../../commit/1f0866e) - 2026-04-22
+
+### Refactor
+
+- Unify `nxe_cedar_attr_t` to `{name; nxe_cedar_value_t}` (internal only)
+  - Entity attributes and record entries now share a single storage format instead of a parallel `NXE_CEDAR_VALUE_*` union + tag
+  - `nxe_cedar_value_t` and `NXE_CEDAR_RVAL_*` constants move from `nxe_cedar_expr.h` to `nxe_cedar_types.h` so attr_t can embed value_t without a circular include
+  - `nxe_cedar_make_ip()` is exposed via `nxe_cedar_expr.h` so the injection API can parse IP strings eagerly; invalid IP strings now fail at `add_*_attr_ip()` with `NGX_ERROR` instead of surfacing as a silent evaluation error on first access
+  - Public API signatures are unchanged; `nginx-auth-cedar` does not reference `attr_t` directly and is unaffected
+
 ## [75f7ef8](../../commit/75f7ef8) - 2026-04-22
 
 ### Added
