@@ -259,6 +259,105 @@
             },
             "c_limit": true,
             "expected": "error"
+        },
+        {
+            "name": "set_value_contains_method",
+            "description": "set-valued field in a record literal supports the .contains() method",
+            "policy": "permit (principal, action, resource) when { {xs: [1, 2, 3]}.xs.contains(2) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "set_value_equality_order_independent",
+            "description": "record equality with set-valued fields is order-independent at the set level",
+            "policy": "permit (principal, action, resource) when { {xs: [1, 2]} == {xs: [2, 1]} };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "set_value_size_mismatch",
+            "description": "records with set-valued fields of different sizes compare unequal",
+            "policy": "permit (principal, action, resource) when { {xs: [1, 2]} == {xs: [1, 2, 3]} };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "entity_value_field_access",
+            "description": "entity-valued field in a record literal is accessible via dot and comparable with ==",
+            "policy": "permit (principal, action, resource) when { {owner: User::\"alice\"}.owner == User::\"alice\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "entity_value_mismatch",
+            "description": "entity-valued field comparison fails when the ids differ",
+            "policy": "permit (principal, action, resource) when { {owner: User::\"alice\"}.owner == User::\"bob\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "ip_value_field_in_range",
+            "description": "ip-valued field in a record literal supports isInRange",
+            "policy": "permit (principal, action, resource) when { {addr: ip(\"10.0.0.1\")}.addr.isInRange(ip(\"10.0.0.0/8\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ip_value_field_equality",
+            "description": "ip-valued field equality compares parsed address / prefix",
+            "policy": "permit (principal, action, resource) when { {addr: ip(\"192.168.1.1\")}.addr == ip(\"192.168.1.1\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "nested_record_with_set_value",
+            "description": "set-valued field inside a nested record is reachable via chained dot access",
+            "policy": "permit (principal, action, resource) when { {outer: {xs: [1, 2]}}.outer.xs == [2, 1] };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "mixed_full_value_domain",
+            "description": "record literal mixing string, long, bool, set, entity, IP, and nested record",
+            "policy": "permit (principal, action, resource) when { {s: \"hi\", n: 7, b: true, xs: [1, 2], who: User::\"alice\", addr: ip(\"10.0.0.1\"), inner: {k: 1}}.who == User::\"alice\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
         }
     ]
 }
