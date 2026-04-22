@@ -1210,24 +1210,7 @@ nxe_cedar_expr_eval(nxe_cedar_node_t *node,
             }
 
             attr_slot->name = entries[i].key;
-
-            /*
-             * Phase B MVP: only scalar + nested record values are
-             * storable; set / entity / IP literal fields are deferred
-             * to Phase C. The restriction is enforced on the value
-             * type rather than the storage layout now that attr_t
-             * holds a full nxe_cedar_value_t.
-             */
-            switch (left.type) {
-            case NXE_CEDAR_RVAL_STRING:
-            case NXE_CEDAR_RVAL_LONG:
-            case NXE_CEDAR_RVAL_BOOL:
-            case NXE_CEDAR_RVAL_RECORD:
-                attr_slot->value = left;
-                break;
-            default:
-                return nxe_cedar_make_error();
-            }
+            attr_slot->value = left;
         }
 
         return nxe_cedar_make_record(attrs);

@@ -182,16 +182,15 @@
             "expected": "allow"
         },
         {
-            "name": "set_value_in_literal_evaluation_error",
-            "description": "Phase B MVP: set-valued field in a record literal is an evaluation error (Phase C will lift this)",
+            "name": "set_value_in_literal_accepted",
+            "description": "record literal with a set-valued field is evaluated and compared to a set literal",
             "policy": "permit (principal, action, resource) when { {xs: [1, 2]}.xs == [1, 2] };",
             "request": {
                 "principal": {"type": "User", "id": "alice"},
                 "action": {"type": "Action", "id": "GET"},
                 "resource": {"type": "Endpoint", "id": "/api/data"}
             },
-            "c_limit": true,
-            "expected": "deny"
+            "expected": "allow"
         },
         {
             "name": "missing_colon_parse_error",
