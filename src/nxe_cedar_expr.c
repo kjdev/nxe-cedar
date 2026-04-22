@@ -344,16 +344,16 @@ nxe_cedar_make_ip(ngx_str_t *s)
 {
     nxe_cedar_value_t val;
 
-    /*
-     * zero the entire value including addr[4..15] so IPv4
-     * (which only writes addr[0..3]) leaves no uninitialised bytes
-     */
     /* max valid: "xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx/128" = 43 chars;
      * use 45 as a conservative upper bound */
     if (s->len == 0 || s->len > 45) {
         return nxe_cedar_make_error();
     }
 
+    /*
+     * zero the entire value including addr[4..15] so IPv4
+     * (which only writes addr[0..3]) leaves no uninitialised bytes
+     */
     ngx_memzero(&val, sizeof(nxe_cedar_value_t));
     val.type = NXE_CEDAR_RVAL_IP;
 
