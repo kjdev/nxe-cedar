@@ -349,9 +349,13 @@ nxe_cedar_make_ip(ngx_str_t *s)
 {
     nxe_cedar_value_t val;
 
-    /* max valid: "xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx/128" = 43 chars;
-     * use 45 as a conservative upper bound */
-    if (s->len == 0 || s->len > 45) {
+    /*
+     * Fast-path reject for obviously-too-long input. The longest valid
+     * form is "xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx/128" (43 chars);
+     * actual OOB protection lives in parse_ipv4 / parse_ipv6 which
+     * clamp to data + len.
+     */
+    if (s->len == 0 || s->len > 43) {
         return nxe_cedar_make_error();
     }
 
