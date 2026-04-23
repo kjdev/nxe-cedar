@@ -1,5 +1,23 @@
 # Changelog
 
+## [9d6ae41](../../commit/9d6ae41) - 2026-04-23
+
+### Refactor
+
+- Tighten `nxe_cedar_make_ip` length guard to the Cedar IP literal spec maximum
+  - Fast-path reject changes from `> 45` to `> 43`, matching the longest valid form `xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx/128` (43 chars)
+  - No user-visible behavior change: 44- and 45-char inputs were already rejected downstream by `parse_ipv4` / `parse_ipv6`, both of which clamp at `data + len`
+  - Comment rewritten so the role of this check — fast-path only, real OOB protection lives in the parsers — is unambiguous
+
+## [e885b0c](../../commit/e885b0c) - 2026-04-23
+
+### Refactor
+
+- Zero-initialise all `nxe_cedar_value_t` constructors for symmetry
+  - `nxe_cedar_make_{bool,string,long,entity,record}` now prepend `ngx_memzero(&val, sizeof(nxe_cedar_value_t))`, matching the existing behavior of `nxe_cedar_make_{error,ip,ip_range}`
+  - No current read path observes the untouched union bytes (every consumer dispatches on `.type` before touching the union), but the asymmetry was a foot-gun for future changes — a value-level `memcmp` or serialization path would have surfaced uninitialised padding from the five remaining constructors
+  - Cost is negligible (`nxe_cedar_value_t` is ~40 bytes) and every constructor now returns a value whose inactive union fields are zero
+
 ## [3b52edf](../../commit/3b52edf) - 2026-04-22
 
 ### Changed
