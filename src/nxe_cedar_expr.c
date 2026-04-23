@@ -32,6 +32,7 @@ nxe_cedar_make_bool(ngx_flag_t b)
 {
     nxe_cedar_value_t val;
 
+    ngx_memzero(&val, sizeof(nxe_cedar_value_t));
     val.type = NXE_CEDAR_RVAL_BOOL;
     val.v.bool_val = b;
     return val;
@@ -43,6 +44,7 @@ nxe_cedar_make_string(ngx_str_t s)
 {
     nxe_cedar_value_t val;
 
+    ngx_memzero(&val, sizeof(nxe_cedar_value_t));
     val.type = NXE_CEDAR_RVAL_STRING;
     val.v.str_val = s;
     return val;
@@ -54,6 +56,7 @@ nxe_cedar_make_long(int64_t n)
 {
     nxe_cedar_value_t val;
 
+    ngx_memzero(&val, sizeof(nxe_cedar_value_t));
     val.type = NXE_CEDAR_RVAL_LONG;
     val.v.long_val = n;
     return val;
@@ -65,6 +68,7 @@ nxe_cedar_make_entity(ngx_str_t type, ngx_str_t id)
 {
     nxe_cedar_value_t val;
 
+    ngx_memzero(&val, sizeof(nxe_cedar_value_t));
     val.type = NXE_CEDAR_RVAL_ENTITY;
     val.v.entity.type = type;
     val.v.entity.id = id;
@@ -77,6 +81,7 @@ nxe_cedar_make_record(ngx_array_t *attrs)
 {
     nxe_cedar_value_t val;
 
+    ngx_memzero(&val, sizeof(nxe_cedar_value_t));
     val.type = NXE_CEDAR_RVAL_RECORD;
     val.v.record_attrs = attrs;
     return val;
