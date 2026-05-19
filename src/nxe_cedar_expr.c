@@ -12,6 +12,7 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 #include "nxe_cedar_expr.h"
+#include "nxe_cedar_eval.h"
 
 
 /* value constructors */
@@ -1023,45 +1024,59 @@ nxe_cedar_eval_method_call(nxe_cedar_node_t *node,
 }
 
 
-/* entity in entity-or-set check */
+/* entity in entity-or-set check, reflexive-transitive over parents */
 static nxe_cedar_value_t
-nxe_cedar_eval_in(nxe_cedar_value_t *left, nxe_cedar_value_t *right)
+nxe_cedar_eval_in(nxe_cedar_value_t *left, nxe_cedar_value_t *right,
+    nxe_cedar_eval_ctx_t *ctx)
 {
     nxe_cedar_value_t *elts;
+    ngx_array_t *parents;
     ngx_uint_t i;
 
     if (left->type != NXE_CEDAR_RVAL_ENTITY) {
         return nxe_cedar_make_error();
     }
 
-    /* entity in entity: no hierarchy, degrades to == */
+    parents = nxe_cedar_eval_ctx_lookup_parents(ctx,
+        &left->v.entity.type, &left->v.entity.id);
+
+    /* entity in entity */
     if (right->type == NXE_CEDAR_RVAL_ENTITY) {
-        ngx_int_t r = nxe_cedar_value_equals(left, right);
-        if (r == NGX_ERROR) {
-            return nxe_cedar_make_error();
-        }
-        return nxe_cedar_make_bool(r);
+        return nxe_cedar_make_bool(nxe_cedar_entity_in_target(
+            &left->v.entity.type, &left->v.entity.id, parents,
+            &right->v.entity.type, &right->v.entity.id));
     }
 
-    /* entity in set: check if any element matches */
+    /*
+     * entity in set: every element must be an entity (Cedar requires
+     * the right-hand side of `in` to be homogeneous), then any single
+     * entity matching reflexively or via parents wins. Scanning the
+     * full set before returning keeps the result order-independent —
+     * `[matching, 1]` and `[1, matching]` both surface the type error.
+     */
     if (right->type == NXE_CEDAR_RVAL_SET) {
+        ngx_flag_t found;
+
         if (right->v.set_elts == NULL) {
             return nxe_cedar_make_bool(0);
         }
 
         elts = right->v.set_elts->elts;
+        found = 0;
 
         for (i = 0; i < right->v.set_elts->nelts; i++) {
-            ngx_int_t r = nxe_cedar_value_equals(left, &elts[i]);
-            if (r == NGX_ERROR) {
+            if (elts[i].type != NXE_CEDAR_RVAL_ENTITY) {
                 return nxe_cedar_make_error();
             }
-            if (r) {
-                return nxe_cedar_make_bool(1);
+            if (nxe_cedar_entity_in_target(
+                    &left->v.entity.type, &left->v.entity.id, parents,
+                    &elts[i].v.entity.type, &elts[i].v.entity.id))
+            {
+                found = 1;
             }
         }
 
-        return nxe_cedar_make_bool(0);
+        return nxe_cedar_make_bool(found);
     }
 
     return nxe_cedar_make_error();
@@ -1100,7 +1115,7 @@ nxe_cedar_eval_is_check(nxe_cedar_node_t *node,
         return right;
     }
 
-    return nxe_cedar_eval_in(&left, &right);
+    return nxe_cedar_eval_in(&left, &right, ctx);
 }
 
 
@@ -1329,7 +1344,7 @@ nxe_cedar_expr_eval(nxe_cedar_node_t *node,
             if (right.type == NXE_CEDAR_RVAL_ERROR) {
                 return right;
             }
-            return nxe_cedar_eval_in(&left, &right);
+            return nxe_cedar_eval_in(&left, &right, ctx);
 
         case NXE_CEDAR_OP_LT:
         case NXE_CEDAR_OP_GT:

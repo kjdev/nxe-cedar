@@ -108,4 +108,38 @@ nxe_cedar_record_t *nxe_cedar_record_add_record(nxe_cedar_record_t *rec,
     ngx_str_t *name);
 
 
+/*
+ * Entity hierarchy registration.
+ *
+ * Each call records one ancestor of the given entity (principal,
+ * action, or resource) for `in` evaluation. The caller is responsible
+ * for supplying the transitive closure: if `User::"alice"` is a member
+ * of `Group::"developers"`, which is a member of `Group::"staff"`,
+ * register both `Group::"developers"` and `Group::"staff"` as
+ * principal parents. Reflexive membership (`X in X`) is handled by the
+ * evaluator and does not need to be registered.
+ *
+ * Returns NGX_OK on success, NGX_ERROR on allocation failure.
+ */
+ngx_int_t nxe_cedar_eval_ctx_add_principal_parent(
+    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *type, ngx_str_t *id);
+ngx_int_t nxe_cedar_eval_ctx_add_action_parent(
+    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *type, ngx_str_t *id);
+ngx_int_t nxe_cedar_eval_ctx_add_resource_parent(
+    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *type, ngx_str_t *id);
+
+
+/*
+ * Internal helpers shared with the expression evaluator. Resolve the
+ * ancestor list for an arbitrary entity (returns NULL when the entity
+ * is none of principal / action / resource) and perform the reflexive
+ * + ancestor membership check used by `in` operators.
+ */
+ngx_array_t *nxe_cedar_eval_ctx_lookup_parents(
+    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *entity_type, ngx_str_t *entity_id);
+ngx_int_t nxe_cedar_entity_in_target(
+    ngx_str_t *entity_type, ngx_str_t *entity_id, ngx_array_t *parents,
+    ngx_str_t *target_type, ngx_str_t *target_id);
+
+
 #endif /* NXE_CEDAR_EVAL_H */

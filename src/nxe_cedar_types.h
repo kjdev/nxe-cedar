@@ -366,6 +366,18 @@ typedef struct {
     nxe_cedar_value_t  value;
 } nxe_cedar_attr_t;
 
+
+/*
+ * Entity reference used to record ancestors / group memberships in the
+ * evaluation context. Callers supply the transitive closure (including
+ * indirect ancestors) as a flat list; `in` checks are reflexive.
+ */
+typedef struct {
+    ngx_str_t  type;
+    ngx_str_t  id;
+} nxe_cedar_entity_ref_t;
+
+
 /* evaluation context (built per-request) */
 typedef struct {
     ngx_pool_t  *pool;
@@ -374,16 +386,22 @@ typedef struct {
     ngx_str_t    principal_type;
     ngx_str_t    principal_id;
     ngx_array_t *principal_attrs;            /* array of nxe_cedar_attr_t */
+    ngx_array_t *principal_parents;          /* array of
+                                                nxe_cedar_entity_ref_t */
 
     /* action */
     ngx_str_t    action_type;
     ngx_str_t    action_id;
     ngx_array_t *action_attrs;              /* array of nxe_cedar_attr_t */
+    ngx_array_t *action_parents;            /* array of
+                                               nxe_cedar_entity_ref_t */
 
     /* resource */
     ngx_str_t    resource_type;
     ngx_str_t    resource_id;
     ngx_array_t *resource_attrs;             /* array of nxe_cedar_attr_t */
+    ngx_array_t *resource_parents;           /* array of
+                                                nxe_cedar_entity_ref_t */
 
     /* context */
     ngx_array_t *context_attrs;              /* array of nxe_cedar_attr_t */

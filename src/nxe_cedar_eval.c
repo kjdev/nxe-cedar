@@ -18,9 +18,83 @@
 
 /* --- scope matching --- */
 
+/*
+ * Reflexive-transitive entity membership check used by `in` scope
+ * constraints and the `in` expression operator. `parents` is the
+ * pre-computed transitive closure supplied through
+ * nxe_cedar_eval_ctx_add_*_parent(); the reflexive case (X in X) is
+ * handled inline without registration.
+ */
+ngx_int_t
+nxe_cedar_entity_in_target(ngx_str_t *entity_type, ngx_str_t *entity_id,
+    ngx_array_t *parents,
+    ngx_str_t *target_type, ngx_str_t *target_id)
+{
+    nxe_cedar_entity_ref_t *elts;
+    ngx_uint_t i;
+
+    if (nxe_cedar_str_eq(entity_type, target_type)
+        && nxe_cedar_str_eq(entity_id, target_id))
+    {
+        return 1;
+    }
+
+    if (parents == NULL) {
+        return 0;
+    }
+
+    elts = parents->elts;
+    for (i = 0; i < parents->nelts; i++) {
+        if (nxe_cedar_str_eq(&elts[i].type, target_type)
+            && nxe_cedar_str_eq(&elts[i].id, target_id))
+        {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+
+/*
+ * Locate the parents array for an arbitrary entity. Returns NULL when
+ * the entity matches none of principal / action / resource, in which
+ * case `in` evaluation falls back to reflexive comparison only.
+ */
+ngx_array_t *
+nxe_cedar_eval_ctx_lookup_parents(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *entity_type, ngx_str_t *entity_id)
+{
+    if (ctx == NULL) {
+        return NULL;
+    }
+
+    if (nxe_cedar_str_eq(entity_type, &ctx->principal_type)
+        && nxe_cedar_str_eq(entity_id, &ctx->principal_id))
+    {
+        return ctx->principal_parents;
+    }
+
+    if (nxe_cedar_str_eq(entity_type, &ctx->action_type)
+        && nxe_cedar_str_eq(entity_id, &ctx->action_id))
+    {
+        return ctx->action_parents;
+    }
+
+    if (nxe_cedar_str_eq(entity_type, &ctx->resource_type)
+        && nxe_cedar_str_eq(entity_id, &ctx->resource_id))
+    {
+        return ctx->resource_parents;
+    }
+
+    return NULL;
+}
+
+
 static ngx_int_t
 nxe_cedar_scope_matches(nxe_cedar_scope_t *scope,
-    ngx_str_t *entity_type, ngx_str_t *entity_id)
+    ngx_str_t *entity_type, ngx_str_t *entity_id,
+    ngx_array_t *parents)
 {
     nxe_cedar_node_t *target, **elts;
     ngx_uint_t i;
@@ -40,7 +114,7 @@ nxe_cedar_scope_matches(nxe_cedar_scope_t *scope,
             return 1;
         }
 
-        /* IS_IN: fall through to target entity_ref check */
+        /* IS_IN: reuse hierarchical match on the entity_ref target */
         target = scope->target;
 
         if (target == NULL
@@ -49,10 +123,9 @@ nxe_cedar_scope_matches(nxe_cedar_scope_t *scope,
             return 0;
         }
 
-        return (nxe_cedar_str_eq(entity_type,
-                                 &target->u.entity_ref.entity_type)
-                && nxe_cedar_str_eq(entity_id,
-                                    &target->u.entity_ref.entity_id));
+        return nxe_cedar_entity_in_target(entity_type, entity_id, parents,
+            &target->u.entity_ref.entity_type,
+            &target->u.entity_ref.entity_id);
     }
 
     target = scope->target;
@@ -60,14 +133,24 @@ nxe_cedar_scope_matches(nxe_cedar_scope_t *scope,
         return 0;
     }
 
-    if (target->type == NXE_CEDAR_NODE_ENTITY_REF) {
+    if (scope->constraint == NXE_CEDAR_SCOPE_EQ) {
+        if (target->type != NXE_CEDAR_NODE_ENTITY_REF) {
+            return 0;
+        }
         return (nxe_cedar_str_eq(entity_type,
                                  &target->u.entity_ref.entity_type)
                 && nxe_cedar_str_eq(entity_id,
                                     &target->u.entity_ref.entity_id));
     }
 
-    /* set target: check if entity matches any element */
+    /* SCOPE_IN */
+    if (target->type == NXE_CEDAR_NODE_ENTITY_REF) {
+        return nxe_cedar_entity_in_target(entity_type, entity_id, parents,
+            &target->u.entity_ref.entity_type,
+            &target->u.entity_ref.entity_id);
+    }
+
+    /* set target: entity in [Group::"a", Group::"b"] */
     if (target->type == NXE_CEDAR_NODE_SET) {
         if (target->u.set_elts == NULL) {
             return 0;
@@ -77,10 +160,10 @@ nxe_cedar_scope_matches(nxe_cedar_scope_t *scope,
 
         for (i = 0; i < target->u.set_elts->nelts; i++) {
             if (elts[i]->type == NXE_CEDAR_NODE_ENTITY_REF
-                && nxe_cedar_str_eq(entity_type,
-                                    &elts[i]->u.entity_ref.entity_type)
-                && nxe_cedar_str_eq(entity_id,
-                                    &elts[i]->u.entity_ref.entity_id))
+                && nxe_cedar_entity_in_target(entity_type, entity_id,
+                       parents,
+                       &elts[i]->u.entity_ref.entity_type,
+                       &elts[i]->u.entity_ref.entity_id))
             {
                 return 1;
             }
@@ -302,10 +385,20 @@ nxe_cedar_eval_ctx_create(ngx_pool_t *pool)
     ctx->context_attrs = ngx_array_create(pool, 4,
                                           sizeof(nxe_cedar_attr_t));
 
+    ctx->principal_parents = ngx_array_create(pool, 2,
+                                              sizeof(nxe_cedar_entity_ref_t));
+    ctx->action_parents = ngx_array_create(pool, 2,
+                                           sizeof(nxe_cedar_entity_ref_t));
+    ctx->resource_parents = ngx_array_create(pool, 2,
+                                             sizeof(nxe_cedar_entity_ref_t));
+
     if (ctx->principal_attrs == NULL
         || ctx->action_attrs == NULL
         || ctx->resource_attrs == NULL
-        || ctx->context_attrs == NULL)
+        || ctx->context_attrs == NULL
+        || ctx->principal_parents == NULL
+        || ctx->action_parents == NULL
+        || ctx->resource_parents == NULL)
     {
         return NULL;
     }
@@ -601,6 +694,63 @@ nxe_cedar_record_add_record(nxe_cedar_record_t *rec, ngx_str_t *name)
 }
 
 
+/* --- entity hierarchy --- */
+
+static ngx_int_t
+nxe_cedar_eval_ctx_add_parent(ngx_array_t *parents,
+    ngx_str_t *type, ngx_str_t *id)
+{
+    nxe_cedar_entity_ref_t *ref;
+
+    if (parents == NULL || type == NULL || id == NULL) {
+        return NGX_ERROR;
+    }
+
+    ref = ngx_array_push(parents);
+    if (ref == NULL) {
+        return NGX_ERROR;
+    }
+
+    ref->type = *type;
+    ref->id = *id;
+
+    return NGX_OK;
+}
+
+
+ngx_int_t
+nxe_cedar_eval_ctx_add_principal_parent(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *type, ngx_str_t *id)
+{
+    if (ctx == NULL) {
+        return NGX_ERROR;
+    }
+    return nxe_cedar_eval_ctx_add_parent(ctx->principal_parents, type, id);
+}
+
+
+ngx_int_t
+nxe_cedar_eval_ctx_add_action_parent(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *type, ngx_str_t *id)
+{
+    if (ctx == NULL) {
+        return NGX_ERROR;
+    }
+    return nxe_cedar_eval_ctx_add_parent(ctx->action_parents, type, id);
+}
+
+
+ngx_int_t
+nxe_cedar_eval_ctx_add_resource_parent(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *type, ngx_str_t *id)
+{
+    if (ctx == NULL) {
+        return NGX_ERROR;
+    }
+    return nxe_cedar_eval_ctx_add_parent(ctx->resource_parents, type, id);
+}
+
+
 /* --- main evaluation --- */
 
 nxe_cedar_decision_t
@@ -627,19 +777,22 @@ nxe_cedar_eval(nxe_cedar_policy_set_t *policy_set,
 
         /* scope matching */
         if (!nxe_cedar_scope_matches(&p->principal,
-                                     &ctx->principal_type, &ctx->principal_id))
+                                     &ctx->principal_type, &ctx->principal_id,
+                                     ctx->principal_parents))
         {
             continue;
         }
 
         if (!nxe_cedar_scope_matches(&p->action,
-                                     &ctx->action_type, &ctx->action_id))
+                                     &ctx->action_type, &ctx->action_id,
+                                     ctx->action_parents))
         {
             continue;
         }
 
         if (!nxe_cedar_scope_matches(&p->resource,
-                                     &ctx->resource_type, &ctx->resource_id))
+                                     &ctx->resource_type, &ctx->resource_id,
+                                     ctx->resource_parents))
         {
             continue;
         }
