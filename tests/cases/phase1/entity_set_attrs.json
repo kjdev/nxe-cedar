@@ -1,0 +1,171 @@
+{
+    "description": "set and entity valued attribute injection",
+    "phase": 1,
+    "tests": [
+        {
+            "name": "principal_scopes_contains",
+            "description": "principal.scopes (set of strings) contains target scope",
+            "policy": "permit (principal, action, resource) when { principal.scopes.contains(\"read\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"scopes": ["read", "write"]}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "principal_scopes_does_not_contain",
+            "description": "principal.scopes lacks target scope",
+            "policy": "permit (principal, action, resource) when { principal.scopes.contains(\"admin\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"scopes": ["read", "write"]}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "principal_manager_entity_eq",
+            "description": "principal.manager entity-valued attribute equality",
+            "policy": "permit (principal, action, resource) when { principal.manager == User::\"bob\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "manager": {"__entity": {"type": "User", "id": "bob"}}
+                }
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "resource_tags_set_equality",
+            "description": "resource.tags equals literal set (order independent)",
+            "policy": "permit (principal, action, resource) when { resource.tags == [\"red\", \"blue\"] };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "resource_attrs": {"tags": ["blue", "red"]}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "context_roles_set_membership",
+            "description": "context.roles contains target role",
+            "policy": "permit (principal, action, resource) when { context.roles.contains(\"admin\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"roles": ["admin", "auditor"]}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "principal_set_of_long",
+            "description": "principal.ports set of integers contains 80",
+            "policy": "permit (principal, action, resource) when { principal.ports.contains(80) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"ports": [22, 80, 443]}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "empty_set_attribute",
+            "description": "empty set attribute behaves as empty set",
+            "policy": "permit (principal, action, resource) when { principal.scopes == [] };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"scopes": []}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "principal_groups_set_of_entities",
+            "description": "principal.groups (set of entity refs) contains target group",
+            "policy": "permit (principal, action, resource) when { principal.groups.contains(Group::\"admins\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "groups": [
+                        {"__entity": {"type": "Group", "id": "admins"}},
+                        {"__entity": {"type": "Group", "id": "staff"}}
+                    ]
+                }
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "record_field_set",
+            "description": "set nested inside a record attribute",
+            "policy": "permit (principal, action, resource) when { principal.profile.tags.contains(\"vip\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "profile": {"tags": ["vip", "beta"]}
+                }
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "record_field_entity",
+            "description": "entity-valued record field equality",
+            "policy": "permit (principal, action, resource) when { principal.profile.lead == User::\"bob\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "profile": {"lead": {"__entity": {"type": "User", "id": "bob"}}}
+                }
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "in_set_mixed_types_match_first",
+            "description": "non-entity element after matching entity triggers ERROR regardless of position",
+            "policy": "permit (principal, action, resource) when { principal in principal.groups };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "groups": [
+                        {"__entity": {"type": "User", "id": "alice"}},
+                        1
+                    ]
+                }
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "in_set_mixed_types_match_last",
+            "description": "swapping the order yields the same ERROR-driven deny",
+            "policy": "permit (principal, action, resource) when { principal in principal.groups };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "groups": [
+                        1,
+                        {"__entity": {"type": "User", "id": "alice"}}
+                    ]
+                }
+            },
+            "expected": "deny"
+        }
+    ]
+}

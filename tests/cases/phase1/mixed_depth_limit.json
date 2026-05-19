@@ -1,0 +1,97 @@
+{
+    "description": "shared record/set depth ceiling across kind transitions",
+    "phase": 1,
+    "tests": [
+        {
+            "name": "alternating_record_set_at_limit",
+            "description": "16-level alternating record/set graph fits within the shared ceiling",
+            "policy": "permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "d1": [
+                        {"d3": [
+                            {"d5": [
+                                {"d7": [
+                                    {"d9": [
+                                        {"d11": [
+                                            {"d13": [
+                                                {"d15": [
+                                                    "ok"
+                                                ]}
+                                            ]}
+                                        ]}
+                                    ]}
+                                ]}
+                            ]}
+                        ]}
+                    ]
+                }
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "alternating_record_set_overflow",
+            "description": "one extra alternation pushes a record onto a depth-16 set and surfaces as a setup error",
+            "policy": "permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "d1": [
+                        {"d3": [
+                            {"d5": [
+                                {"d7": [
+                                    {"d9": [
+                                        {"d11": [
+                                            {"d13": [
+                                                {"d15": [
+                                                    {"d17": "overflow"}
+                                                ]}
+                                            ]}
+                                        ]}
+                                    ]}
+                                ]}
+                            ]}
+                        ]}
+                    ]
+                }
+            },
+            "expected": "allow",
+            "comment": "d17 is a scalar leaf inside record@16 — still within limit; see overflow case below"
+        },
+        {
+            "name": "set_into_record_at_depth_16_overflows",
+            "description": "adding a set onto a depth-16 record overflows the shared depth",
+            "policy": "permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "d1": [
+                        {"d3": [
+                            {"d5": [
+                                {"d7": [
+                                    {"d9": [
+                                        {"d11": [
+                                            {"d13": [
+                                                {"d15": [
+                                                    {"d17": ["overflow"]}
+                                                ]}
+                                            ]}
+                                        ]}
+                                    ]}
+                                ]}
+                            ]}
+                        ]}
+                    ]
+                }
+            },
+            "expected": "error"
+        }
+    ]
+}

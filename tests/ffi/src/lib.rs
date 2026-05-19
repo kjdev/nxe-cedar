@@ -68,11 +68,13 @@ const MAX_RECORD_DEPTH: usize = 16;
 
 /// Convert serde_json::Value to Cedar RestrictedExpression.
 ///
-/// Plain (non-`__extn`) objects are interpreted as records and
-/// recursed into. `depth` is 0 for the top-level attribute value and
-/// increments by one for each nested record level; once it reaches
-/// `MAX_RECORD_DEPTH` further nested records are rejected to match
-/// the C API.
+/// Plain (non-`__extn` / non-`__entity`) objects are interpreted as
+/// records and recursed into. JSON arrays become sets and recurse with
+/// the same `depth` ceiling (matching the C side, where
+/// `NXE_CEDAR_MAX_SET_DEPTH == NXE_CEDAR_MAX_RECORD_DEPTH`). `depth` is
+/// 0 for the top-level attribute value and increments by one for each
+/// nested record / set level; once it reaches `MAX_RECORD_DEPTH`
+/// further nesting is rejected to match the C API.
 fn json_value_to_restricted_expr(
     value: &serde_json::Value,
     depth: usize,
@@ -87,6 +89,18 @@ fn json_value_to_restricted_expr(
             }
         }
         serde_json::Value::Bool(b) => Ok(RestrictedExpression::new_bool(*b)),
+        serde_json::Value::Array(items) => {
+            if depth >= MAX_RECORD_DEPTH {
+                return Err(format!(
+                    "set nesting exceeds oracle limit {MAX_RECORD_DEPTH}"
+                ));
+            }
+            let mut elts = Vec::with_capacity(items.len());
+            for item in items {
+                elts.push(json_value_to_restricted_expr(item, depth + 1)?);
+            }
+            Ok(RestrictedExpression::new_set(elts))
+        }
         serde_json::Value::Object(obj) => {
             if let Some(extn) = obj.get("__extn") {
                 let fn_name = extn
@@ -98,40 +112,58 @@ fn json_value_to_restricted_expr(
                     .and_then(|v| v.as_str())
                     .ok_or_else(|| "missing __extn.arg".to_string())?;
                 let expr_str = format!("{fn_name}(\"{arg}\")");
-                RestrictedExpression::from_str(&expr_str)
-                    .map_err(|e| format!("extension parse error: {e}"))
-            } else {
-                if depth >= MAX_RECORD_DEPTH {
-                    return Err(format!(
-                        "record nesting exceeds oracle limit {MAX_RECORD_DEPTH}"
-                    ));
-                }
-                let mut fields = Vec::with_capacity(obj.len());
-                for (k, v) in obj {
-                    let child = json_value_to_restricted_expr(v, depth + 1)?;
-                    fields.push((k.clone(), child));
-                }
-                RestrictedExpression::new_record(fields)
-                    .map_err(|e| format!("record construction error: {e}"))
+                return RestrictedExpression::from_str(&expr_str)
+                    .map_err(|e| format!("extension parse error: {e}"));
             }
+            if let Some(entity) = obj.get("__entity") {
+                let entity_obj = entity
+                    .as_object()
+                    .ok_or_else(|| "__entity must be an object".to_string())?;
+                let entity_type = entity_obj
+                    .get("type")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| "missing __entity.type".to_string())?;
+                let entity_id = entity_obj
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| "missing __entity.id".to_string())?;
+                let type_name =
+                    EntityTypeName::from_str(entity_type).map_err(|e| e.to_string())?;
+                let id = EntityId::new(entity_id);
+                let uid = EntityUid::from_type_name_and_id(type_name, id);
+                return Ok(RestrictedExpression::new_entity_uid(uid));
+            }
+            if depth >= MAX_RECORD_DEPTH {
+                return Err(format!(
+                    "record nesting exceeds oracle limit {MAX_RECORD_DEPTH}"
+                ));
+            }
+            let mut fields = Vec::with_capacity(obj.len());
+            for (k, v) in obj {
+                let child = json_value_to_restricted_expr(v, depth + 1)?;
+                fields.push((k.clone(), child));
+            }
+            RestrictedExpression::new_record(fields)
+                .map_err(|e| format!("record construction error: {e}"))
         }
         _ => Err(format!("unsupported JSON value type: {value}")),
     }
 }
 
-/// Check that a JSON record tree does not nest deeper than
-/// `MAX_RECORD_DEPTH`. `__extn` objects (extension calls) are treated
-/// as opaque scalars and not recursed into. Used for context JSON,
-/// which is handed directly to `Context::from_json_value()` and would
-/// otherwise bypass the depth ceiling enforced by
-/// `json_value_to_restricted_expr` for entity attributes.
+/// Check that a JSON value tree does not nest deeper than
+/// `MAX_RECORD_DEPTH`. `__extn` and `__entity` objects are treated as
+/// opaque scalars (matching the attribute-build path, which converts
+/// them to extension calls / entity-UID literals at the current depth
+/// without recursing). Arrays count toward the same ceiling because
+/// they become Cedar sets, and the C side aliases
+/// `NXE_CEDAR_MAX_SET_DEPTH` to `NXE_CEDAR_MAX_RECORD_DEPTH`.
 fn validate_json_record_depth(
     value: &serde_json::Value,
     depth: usize,
 ) -> Result<(), String> {
     match value {
         serde_json::Value::Object(obj) => {
-            if obj.get("__extn").is_some() {
+            if obj.get("__extn").is_some() || obj.get("__entity").is_some() {
                 return Ok(());
             }
             if depth >= MAX_RECORD_DEPTH {
@@ -140,6 +172,17 @@ fn validate_json_record_depth(
                 ));
             }
             for v in obj.values() {
+                validate_json_record_depth(v, depth + 1)?;
+            }
+            Ok(())
+        }
+        serde_json::Value::Array(items) => {
+            if depth >= MAX_RECORD_DEPTH {
+                return Err(format!(
+                    "set nesting exceeds oracle limit {MAX_RECORD_DEPTH}"
+                ));
+            }
+            for v in items {
                 validate_json_record_depth(v, depth + 1)?;
             }
             Ok(())

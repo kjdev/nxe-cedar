@@ -91,8 +91,24 @@ typedef ngx_int_t (*add_ip_attr_pt)(nxe_cedar_eval_ctx_t *,
     ngx_str_t *, ngx_str_t *);
 typedef nxe_cedar_record_t *(*add_record_attr_pt)(nxe_cedar_eval_ctx_t *,
     ngx_str_t *);
+typedef nxe_cedar_set_t *(*add_set_attr_pt)(nxe_cedar_eval_ctx_t *,
+    ngx_str_t *);
+typedef ngx_int_t (*add_entity_attr_pt)(nxe_cedar_eval_ctx_t *,
+    ngx_str_t *, ngx_str_t *, ngx_str_t *);
 typedef ngx_int_t (*add_parent_pt)(nxe_cedar_eval_ctx_t *,
     ngx_str_t *, ngx_str_t *);
+
+
+/* bundle of attribute-adder function pointers per entity / context */
+typedef struct {
+    add_str_attr_pt     add_str;
+    add_long_attr_pt    add_long;
+    add_bool_attr_pt    add_bool;
+    add_ip_attr_pt      add_ip;
+    add_record_attr_pt  add_record;
+    add_set_attr_pt     add_set;
+    add_entity_attr_pt  add_entity;
+} attr_api_t;
 
 
 /*
@@ -149,6 +165,171 @@ parse_extn(const char *key, json_t *extn, const char **fn_out,
 
 
 static int add_record_entries(nxe_cedar_record_t *rec, json_t *obj);
+static int add_set_elements(nxe_cedar_set_t *set, json_t *arr);
+
+
+/*
+ * Tri-state parse of an `{"__entity": {"type", "id"}}` literal:
+ *   1 = valid entity, outputs populated
+ *   0 = no `__entity` key (caller should fall back to record handling)
+ *  -1 = `__entity` present but malformed (set_error already called)
+ *
+ * The previous boolean form collapsed "absent" and "malformed" into
+ * the same NULL, letting invalid entity literals silently fall back to
+ * record construction and drift away from the Rust oracle.
+ */
+static int
+parse_entity_literal(json_t *value, ngx_str_t *type_out, ngx_str_t *id_out)
+{
+    json_t *entity, *type_val, *id_val;
+
+    if (!json_is_object(value)) {
+        return 0;
+    }
+    entity = json_object_get(value, "__entity");
+    if (entity == NULL) {
+        return 0;
+    }
+    if (!json_is_object(entity)) {
+        set_error("__entity must be an object with type and id");
+        return -1;
+    }
+    type_val = json_object_get(entity, "type");
+    id_val = json_object_get(entity, "id");
+    if (type_val == NULL || !json_is_string(type_val)
+        || id_val == NULL || !json_is_string(id_val))
+    {
+        set_error("__entity requires string \"type\" and \"id\" fields");
+        return -1;
+    }
+
+    type_out->len = json_string_length(type_val);
+    type_out->data = (u_char *) json_string_value(type_val);
+    id_out->len = json_string_length(id_val);
+    id_out->data = (u_char *) json_string_value(id_val);
+    return 1;
+}
+
+
+/*
+ * Recursively append one JSON value to a nxe_cedar_set_t handle.
+ * JSON array -> nested set; JSON object with __extn / __entity -> the
+ * matching scalar; plain object -> nested record.
+ */
+static int
+add_set_element(nxe_cedar_set_t *set, json_t *value)
+{
+    ngx_str_t str_val;
+
+    if (json_is_string(value)) {
+        str_val.len = json_string_length(value);
+        str_val.data = (u_char *) json_string_value(value);
+        if (nxe_cedar_set_add_str(set, &str_val) != NGX_OK) {
+            set_error("failed to add string to set");
+            return -1;
+        }
+        return 0;
+    }
+
+    if (json_is_integer(value)) {
+        if (nxe_cedar_set_add_long(set,
+                                   (int64_t) json_integer_value(value))
+            != NGX_OK)
+        {
+            set_error("failed to add long to set");
+            return -1;
+        }
+        return 0;
+    }
+
+    if (json_is_boolean(value)) {
+        if (nxe_cedar_set_add_bool(set,
+                                   json_is_true(value) ? 1 : 0) != NGX_OK)
+        {
+            set_error("failed to add bool to set");
+            return -1;
+        }
+        return 0;
+    }
+
+    if (json_is_array(value)) {
+        nxe_cedar_set_t *child = nxe_cedar_set_add_set(set);
+        if (child == NULL) {
+            set_error("failed to create nested set");
+            return -1;
+        }
+        return add_set_elements(child, value);
+    }
+
+    if (json_is_object(value)) {
+        json_t *extn = extn_of(value);
+        if (extn != NULL) {
+            const char *fn;
+            json_t *arg;
+            if (parse_extn("(set element)", extn, &fn, &arg) != 0) {
+                return -1;
+            }
+            if (strcmp(fn, "ip") == 0) {
+                str_val.len = json_string_length(arg);
+                str_val.data = (u_char *) json_string_value(arg);
+                if (nxe_cedar_set_add_ip(set, &str_val) != NGX_OK) {
+                    set_error("failed to add IP to set");
+                    return -1;
+                }
+                return 0;
+            }
+            set_error("unsupported extension function in set: %s", fn);
+            return -1;
+        }
+
+        ngx_str_t type, id;
+        int entity_rc = parse_entity_literal(value, &type, &id);
+        if (entity_rc < 0) {
+            return -1;
+        }
+        if (entity_rc > 0) {
+            if (nxe_cedar_set_add_entity(set, &type, &id) != NGX_OK) {
+                set_error("failed to add entity to set");
+                return -1;
+            }
+            return 0;
+        }
+
+        nxe_cedar_record_t *child = nxe_cedar_set_add_record(set);
+        if (child == NULL) {
+            set_error("failed to create record in set");
+            return -1;
+        }
+        return add_record_entries(child, value);
+    }
+
+    set_error("unsupported value type in set element");
+    return -1;
+}
+
+
+static int
+add_set_elements(nxe_cedar_set_t *set, json_t *arr)
+{
+    size_t i, n;
+
+    if (set == NULL) {
+        set_error("set handle is NULL (depth limit reached?)");
+        return -1;
+    }
+    if (!json_is_array(arr)) {
+        set_error("set elements must be a JSON array");
+        return -1;
+    }
+
+    n = json_array_size(arr);
+    for (i = 0; i < n; i++) {
+        if (add_set_element(set, json_array_get(arr, i)) != 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
 
 
 /*
@@ -204,8 +385,22 @@ add_record_entries(nxe_cedar_record_t *rec, json_t *obj)
                 return -1;
             }
 
+        } else if (json_is_array(value)) {
+            nxe_cedar_set_t *child;
+
+            child = nxe_cedar_record_add_set(rec, &name);
+            if (child == NULL) {
+                set_error("failed to create set in record: %s", key);
+                return -1;
+            }
+            if (add_set_elements(child, value) != 0) {
+                return -1;
+            }
+
         } else if (json_is_object(value)) {
             json_t *extn = extn_of(value);
+            ngx_str_t type, id;
+            int entity_rc;
 
             if (extn != NULL) {
                 const char *fn;
@@ -226,6 +421,19 @@ add_record_entries(nxe_cedar_record_t *rec, json_t *obj)
                     }
                 } else {
                     set_error("unsupported extension function: %s", fn);
+                    return -1;
+                }
+
+            } else if ((entity_rc = parse_entity_literal(value, &type, &id))
+                       < 0)
+            {
+                return -1;
+
+            } else if (entity_rc > 0) {
+                if (nxe_cedar_record_add_entity(rec, &name, &type, &id)
+                    != NGX_OK)
+                {
+                    set_error("failed to add entity to record: %s", key);
                     return -1;
                 }
 
@@ -259,14 +467,15 @@ add_record_entries(nxe_cedar_record_t *rec, json_t *obj)
  *   - string  -> add_str
  *   - integer -> add_long
  *   - boolean -> add_bool
- *   - object with "__extn" -> extension type (ip -> add_ip)
- *   - plain object -> record (recursed via add_record + add_record_entries)
+ *   - array   -> set (recursed via add_set + add_set_elements)
+ *   - object with "__extn"   -> extension type (ip -> add_ip)
+ *   - object with "__entity" -> entity-valued attribute
+ *   - plain object           -> record (recursed via add_record +
+ *                                       add_record_entries)
  */
 static int
 add_attrs_via_api(nxe_cedar_eval_ctx_t *ctx, json_t *obj,
-    add_str_attr_pt add_str, add_long_attr_pt add_long,
-    add_bool_attr_pt add_bool, add_ip_attr_pt add_ip,
-    add_record_attr_pt add_record)
+    const attr_api_t *api)
 {
     const char *key;
     json_t *value;
@@ -289,29 +498,44 @@ add_attrs_via_api(nxe_cedar_eval_ctx_t *ctx, json_t *obj,
             str_val.len = json_string_length(value);
             str_val.data = (u_char *) json_string_value(value);
 
-            if (add_str(ctx, &name, &str_val) != NGX_OK) {
+            if (api->add_str(ctx, &name, &str_val) != NGX_OK) {
                 set_error("failed to add attribute: %s", key);
                 return -1;
             }
 
         } else if (json_is_integer(value)) {
-            if (add_long(ctx, &name,
-                         (int64_t) json_integer_value(value)) != NGX_OK)
+            if (api->add_long(ctx, &name,
+                              (int64_t) json_integer_value(value))
+                != NGX_OK)
             {
                 set_error("failed to add attribute: %s", key);
                 return -1;
             }
 
         } else if (json_is_boolean(value)) {
-            if (add_bool(ctx, &name,
-                         json_is_true(value) ? 1 : 0) != NGX_OK)
+            if (api->add_bool(ctx, &name,
+                              json_is_true(value) ? 1 : 0) != NGX_OK)
             {
                 set_error("failed to add attribute: %s", key);
                 return -1;
             }
 
+        } else if (json_is_array(value)) {
+            nxe_cedar_set_t *set;
+
+            set = api->add_set(ctx, &name);
+            if (set == NULL) {
+                set_error("failed to create set attribute: %s", key);
+                return -1;
+            }
+            if (add_set_elements(set, value) != 0) {
+                return -1;
+            }
+
         } else if (json_is_object(value)) {
             json_t *extn = extn_of(value);
+            ngx_str_t type, id;
+            int entity_rc;
 
             if (extn != NULL) {
                 const char *fn;
@@ -323,7 +547,7 @@ add_attrs_via_api(nxe_cedar_eval_ctx_t *ctx, json_t *obj,
                 if (strcmp(fn, "ip") == 0) {
                     str_val.len = json_string_length(arg);
                     str_val.data = (u_char *) json_string_value(arg);
-                    if (add_ip(ctx, &name, &str_val) != NGX_OK) {
+                    if (api->add_ip(ctx, &name, &str_val) != NGX_OK) {
                         set_error("failed to add IP attribute: %s", key);
                         return -1;
                     }
@@ -332,10 +556,21 @@ add_attrs_via_api(nxe_cedar_eval_ctx_t *ctx, json_t *obj,
                     return -1;
                 }
 
+            } else if ((entity_rc = parse_entity_literal(value, &type, &id))
+                       < 0)
+            {
+                return -1;
+
+            } else if (entity_rc > 0) {
+                if (api->add_entity(ctx, &name, &type, &id) != NGX_OK) {
+                    set_error("failed to add entity attribute: %s", key);
+                    return -1;
+                }
+
             } else {
                 nxe_cedar_record_t *rec;
 
-                rec = add_record(ctx, &name);
+                rec = api->add_record(ctx, &name);
                 if (rec == NULL) {
                     set_error("failed to create record attribute: %s",
                               key);
@@ -354,6 +589,48 @@ add_attrs_via_api(nxe_cedar_eval_ctx_t *ctx, json_t *obj,
 
     return 0;
 }
+
+
+/* attribute adder bundles for the four contexts */
+static const attr_api_t principal_api = {
+    nxe_cedar_eval_ctx_add_principal_attr,
+    nxe_cedar_eval_ctx_add_principal_attr_long,
+    nxe_cedar_eval_ctx_add_principal_attr_bool,
+    nxe_cedar_eval_ctx_add_principal_attr_ip,
+    nxe_cedar_eval_ctx_add_principal_attr_record,
+    nxe_cedar_eval_ctx_add_principal_attr_set,
+    nxe_cedar_eval_ctx_add_principal_attr_entity,
+};
+
+static const attr_api_t action_api = {
+    nxe_cedar_eval_ctx_add_action_attr,
+    nxe_cedar_eval_ctx_add_action_attr_long,
+    nxe_cedar_eval_ctx_add_action_attr_bool,
+    nxe_cedar_eval_ctx_add_action_attr_ip,
+    nxe_cedar_eval_ctx_add_action_attr_record,
+    nxe_cedar_eval_ctx_add_action_attr_set,
+    nxe_cedar_eval_ctx_add_action_attr_entity,
+};
+
+static const attr_api_t resource_api = {
+    nxe_cedar_eval_ctx_add_resource_attr,
+    nxe_cedar_eval_ctx_add_resource_attr_long,
+    nxe_cedar_eval_ctx_add_resource_attr_bool,
+    nxe_cedar_eval_ctx_add_resource_attr_ip,
+    nxe_cedar_eval_ctx_add_resource_attr_record,
+    nxe_cedar_eval_ctx_add_resource_attr_set,
+    nxe_cedar_eval_ctx_add_resource_attr_entity,
+};
+
+static const attr_api_t context_api = {
+    nxe_cedar_eval_ctx_add_context_attr,
+    nxe_cedar_eval_ctx_add_context_attr_long,
+    nxe_cedar_eval_ctx_add_context_attr_bool,
+    nxe_cedar_eval_ctx_add_context_attr_ip,
+    nxe_cedar_eval_ctx_add_context_attr_record,
+    nxe_cedar_eval_ctx_add_context_attr_set,
+    nxe_cedar_eval_ctx_add_context_attr_entity,
+};
 
 
 /*
@@ -505,14 +782,7 @@ nxe_cedar_test_evaluate(const char *policy_text, const char *request_json)
     /* principal_attrs */
     principal_attrs = json_object_get(root, "principal_attrs");
     if (principal_attrs != NULL) {
-        if (add_attrs_via_api(ctx, principal_attrs,
-                              nxe_cedar_eval_ctx_add_principal_attr,
-                              nxe_cedar_eval_ctx_add_principal_attr_long,
-                              nxe_cedar_eval_ctx_add_principal_attr_bool,
-                              nxe_cedar_eval_ctx_add_principal_attr_ip,
-                              nxe_cedar_eval_ctx_add_principal_attr_record)
-            != 0)
-        {
+        if (add_attrs_via_api(ctx, principal_attrs, &principal_api) != 0) {
             ngx_destroy_pool(pool);
             json_decref(root);
             return -1;
@@ -522,14 +792,7 @@ nxe_cedar_test_evaluate(const char *policy_text, const char *request_json)
     /* action_attrs */
     action_attrs = json_object_get(root, "action_attrs");
     if (action_attrs != NULL) {
-        if (add_attrs_via_api(ctx, action_attrs,
-                              nxe_cedar_eval_ctx_add_action_attr,
-                              nxe_cedar_eval_ctx_add_action_attr_long,
-                              nxe_cedar_eval_ctx_add_action_attr_bool,
-                              nxe_cedar_eval_ctx_add_action_attr_ip,
-                              nxe_cedar_eval_ctx_add_action_attr_record)
-            != 0)
-        {
+        if (add_attrs_via_api(ctx, action_attrs, &action_api) != 0) {
             ngx_destroy_pool(pool);
             json_decref(root);
             return -1;
@@ -539,14 +802,7 @@ nxe_cedar_test_evaluate(const char *policy_text, const char *request_json)
     /* resource_attrs */
     resource_attrs = json_object_get(root, "resource_attrs");
     if (resource_attrs != NULL) {
-        if (add_attrs_via_api(ctx, resource_attrs,
-                              nxe_cedar_eval_ctx_add_resource_attr,
-                              nxe_cedar_eval_ctx_add_resource_attr_long,
-                              nxe_cedar_eval_ctx_add_resource_attr_bool,
-                              nxe_cedar_eval_ctx_add_resource_attr_ip,
-                              nxe_cedar_eval_ctx_add_resource_attr_record)
-            != 0)
-        {
+        if (add_attrs_via_api(ctx, resource_attrs, &resource_api) != 0) {
             ngx_destroy_pool(pool);
             json_decref(root);
             return -1;
@@ -556,14 +812,7 @@ nxe_cedar_test_evaluate(const char *policy_text, const char *request_json)
     /* context */
     context_obj = json_object_get(root, "context");
     if (context_obj != NULL) {
-        if (add_attrs_via_api(ctx, context_obj,
-                              nxe_cedar_eval_ctx_add_context_attr,
-                              nxe_cedar_eval_ctx_add_context_attr_long,
-                              nxe_cedar_eval_ctx_add_context_attr_bool,
-                              nxe_cedar_eval_ctx_add_context_attr_ip,
-                              nxe_cedar_eval_ctx_add_context_attr_record)
-            != 0)
-        {
+        if (add_attrs_via_api(ctx, context_obj, &context_api) != 0) {
             ngx_destroy_pool(pool);
             json_decref(root);
             return -1;
