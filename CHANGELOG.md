@@ -1,5 +1,15 @@
 # Changelog
 
+## [c8debca](../../commit/c8debca) - 2026-05-20
+
+### Added
+
+- Inject set- and entity-valued attributes (issues #002, #019)
+  - New public APIs `nxe_cedar_eval_ctx_add_*_attr_{set,entity}`, `nxe_cedar_record_add_{set,entity}`, and `nxe_cedar_set_add_{str,long,bool,ip,entity,set,record}` complete the previously-missing leg of the injection surface, so callers can pass `principal.scopes`, `principal.manager`, set-of-entities bag attributes, etc. without flattening through strings
+  - Set element type-checking happens at injection time: `set_add_ip` parses through `nxe_cedar_make_ip()` and rejects malformed strings with `NGX_ERROR`, mirroring scalar IP behavior
+  - Nested set values share the existing record depth ceiling via the new alias `NXE_CEDAR_MAX_SET_DEPTH = NXE_CEDAR_MAX_RECORD_DEPTH`; `set_add_record()` / `record_add_set()` inherit the parent's depth instead of restarting at 1, so any mixed graph respects one limit regardless of how kinds alternate
+  - `nxe_cedar_attr_t` was already `{name, value_t}` after the Phase C unification, so no value-type ID or storage-layout change is needed — only the injection path was missing
+
 ## [8c26a51](../../commit/8c26a51) - 2026-05-20
 
 ### Added
