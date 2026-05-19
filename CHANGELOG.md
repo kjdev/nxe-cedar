@@ -1,5 +1,16 @@
 # Changelog
 
+## [8c26a51](../../commit/8c26a51) - 2026-05-20
+
+### Added
+
+- Implement entity hierarchy for the `in` operator (issues #001, #003, #010, #020)
+  - Callers register the transitive closure of an entity's ancestors via the new public APIs `nxe_cedar_eval_ctx_add_{principal,action,resource}_parent()`; the evaluator then resolves `principal in Group::"admins"` and friends without falling back to `==`
+  - Coverage spans the `principal/action/resource in entity_ref` scope form, the action-only `action in [Action::"a", Action::"b"]` set form, the expression-level `in` inside `when`/`unless`, and the `is T in expr` scope/expression — all share one helper (`nxe_cedar_entity_in_target`) so reflexive `X in X` and ancestor lookup stay in lockstep
+  - `nxe_cedar_eval_ctx_t` carries three ancestor arrays (`principal_parents` / `action_parents` / `resource_parents`); the previously implicit `SCOPE_EQ` / `SCOPE_IN` overlap is now dispatched separately so `==` keeps strict equality and `in` is the only path that consults parents
+  - `entity in set` is position-independent: every element is type-checked before deciding, so `[matching_entity, 1]` and `[1, matching_entity]` both surface the ERROR from the non-entity element (Cedar requires homogeneous RHS for `in`); short-circuit was sacrificed because attribute-side sets are small and the order dependency was a real user-facing inconsistency once set-valued attribute injection landed
+  - Action attribute injection (`nxe_cedar_eval_ctx_add_action_attr_*`) was already implemented and is now confirmed reachable through the test wrapper, closing the documentation gap from #010
+
 ## [9d6ae41](../../commit/9d6ae41) - 2026-04-23
 
 ### Refactor
