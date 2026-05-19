@@ -91,6 +91,8 @@ typedef ngx_int_t (*add_ip_attr_pt)(nxe_cedar_eval_ctx_t *,
     ngx_str_t *, ngx_str_t *);
 typedef nxe_cedar_record_t *(*add_record_attr_pt)(nxe_cedar_eval_ctx_t *,
     ngx_str_t *);
+typedef ngx_int_t (*add_parent_pt)(nxe_cedar_eval_ctx_t *,
+    ngx_str_t *, ngx_str_t *);
 
 
 /*
@@ -354,6 +356,44 @@ add_attrs_via_api(nxe_cedar_eval_ctx_t *ctx, json_t *obj,
 }
 
 
+/*
+ * Add parents from a JSON array of {"type": ..., "id": ...} entries
+ * via the public eval_ctx parent registration API.
+ */
+static int
+add_parents_via_api(nxe_cedar_eval_ctx_t *ctx, json_t *arr,
+    add_parent_pt add_parent, const char *field)
+{
+    json_t *entry;
+    ngx_str_t type, id;
+    size_t i, n;
+
+    if (arr == NULL) {
+        return 0;
+    }
+
+    if (!json_is_array(arr)) {
+        set_error("%s must be a JSON array", field);
+        return -1;
+    }
+
+    n = json_array_size(arr);
+    for (i = 0; i < n; i++) {
+        entry = json_array_get(arr, i);
+        if (parse_entity(entry, &type, &id) != 0) {
+            set_error("invalid entity ref in %s[%zu]", field, i);
+            return -1;
+        }
+        if (add_parent(ctx, &type, &id) != NGX_OK) {
+            set_error("failed to add parent in %s[%zu]", field, i);
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+
 int32_t
 nxe_cedar_test_evaluate(const char *policy_text, const char *request_json)
 {
@@ -367,6 +407,7 @@ nxe_cedar_test_evaluate(const char *policy_text, const char *request_json)
     nxe_cedar_decision_t decision;
     json_t *principal, *action, *resource;
     json_t *context_obj, *principal_attrs, *action_attrs, *resource_attrs;
+    json_t *principal_parents, *action_parents, *resource_parents;
     ngx_str_t type, id;
 
     clear_error();
@@ -527,6 +568,39 @@ nxe_cedar_test_evaluate(const char *policy_text, const char *request_json)
             json_decref(root);
             return -1;
         }
+    }
+
+    /* principal_parents */
+    principal_parents = json_object_get(root, "principal_parents");
+    if (add_parents_via_api(ctx, principal_parents,
+                            nxe_cedar_eval_ctx_add_principal_parent,
+                            "principal_parents") != 0)
+    {
+        ngx_destroy_pool(pool);
+        json_decref(root);
+        return -1;
+    }
+
+    /* action_parents */
+    action_parents = json_object_get(root, "action_parents");
+    if (add_parents_via_api(ctx, action_parents,
+                            nxe_cedar_eval_ctx_add_action_parent,
+                            "action_parents") != 0)
+    {
+        ngx_destroy_pool(pool);
+        json_decref(root);
+        return -1;
+    }
+
+    /* resource_parents */
+    resource_parents = json_object_get(root, "resource_parents");
+    if (add_parents_via_api(ctx, resource_parents,
+                            nxe_cedar_eval_ctx_add_resource_parent,
+                            "resource_parents") != 0)
+    {
+        ngx_destroy_pool(pool);
+        json_decref(root);
+        return -1;
     }
 
     /* evaluate */

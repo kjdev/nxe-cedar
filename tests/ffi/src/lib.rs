@@ -53,6 +53,12 @@ struct FfiRequest {
     action_attrs: HashMap<String, serde_json::Value>,
     #[serde(default)]
     resource_attrs: HashMap<String, serde_json::Value>,
+    #[serde(default)]
+    principal_parents: Vec<EntityRef>,
+    #[serde(default)]
+    action_parents: Vec<EntityRef>,
+    #[serde(default)]
+    resource_parents: Vec<EntityRef>,
 }
 
 /// Nesting limit mirrored from the C implementation
@@ -160,10 +166,11 @@ fn make_entity_uid(entity_ref: &EntityRef) -> Result<EntityUid, String> {
     Ok(EntityUid::from_type_name_and_id(type_name, id))
 }
 
-/// Build Entity from attribute map
+/// Build Entity from attribute map and (transitive) parent list
 fn build_entity(
     entity_ref: &EntityRef,
     attrs: &HashMap<String, serde_json::Value>,
+    parents: &[EntityRef],
 ) -> Result<Entity, String> {
     let uid = make_entity_uid(entity_ref)?;
 
@@ -173,7 +180,22 @@ fn build_entity(
         attr_map.insert(key.clone(), expr);
     }
 
-    Entity::new(uid, attr_map, HashSet::new()).map_err(|e| e.to_string())
+    let mut parent_set = HashSet::new();
+    for parent in parents {
+        parent_set.insert(make_entity_uid(parent)?);
+    }
+
+    Entity::new(uid, attr_map, parent_set).map_err(|e| e.to_string())
+}
+
+
+/// Build a parent-only Entity stub so Cedar's hierarchy resolution finds
+/// the ancestor in the entity store. C-side parents are flat transitive
+/// closures; mirror that by adding each parent as its own entity with no
+/// attributes and no further parents.
+fn build_parent_stub(entity_ref: &EntityRef) -> Result<Entity, String> {
+    let uid = make_entity_uid(entity_ref)?;
+    Entity::new(uid, HashMap::new(), HashSet::new()).map_err(|e| e.to_string())
 }
 
 /// Main authorization logic
@@ -187,17 +209,42 @@ fn authorize_inner(
     // build entities
     let mut entities_vec = Vec::new();
 
-    // principal entity (with attributes)
-    let principal_entity = build_entity(&request.principal, &request.principal_attrs)?;
+    // principal entity (with attributes and parents)
+    let principal_entity = build_entity(
+        &request.principal,
+        &request.principal_attrs,
+        &request.principal_parents,
+    )?;
     entities_vec.push(principal_entity);
 
-    // action entity (with attributes)
-    let action_entity = build_entity(&request.action, &request.action_attrs)?;
+    // action entity (with attributes and parents)
+    let action_entity = build_entity(
+        &request.action,
+        &request.action_attrs,
+        &request.action_parents,
+    )?;
     entities_vec.push(action_entity);
 
-    // resource entity (with attributes)
-    let resource_entity = build_entity(&request.resource, &request.resource_attrs)?;
+    // resource entity (with attributes and parents)
+    let resource_entity = build_entity(
+        &request.resource,
+        &request.resource_attrs,
+        &request.resource_parents,
+    )?;
     entities_vec.push(resource_entity);
+
+    // parent stubs: Cedar requires referenced ancestors to exist in the
+    // entity store. The C side carries them implicitly via the flat
+    // parent list; mirror that here.
+    for parent in &request.principal_parents {
+        entities_vec.push(build_parent_stub(parent)?);
+    }
+    for parent in &request.action_parents {
+        entities_vec.push(build_parent_stub(parent)?);
+    }
+    for parent in &request.resource_parents {
+        entities_vec.push(build_parent_stub(parent)?);
+    }
 
     let entities =
         Entities::from_entities(entities_vec, None).map_err(|e| e.to_string())?;
