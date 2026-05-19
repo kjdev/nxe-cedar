@@ -22,6 +22,14 @@
  */
 typedef struct nxe_cedar_record_s nxe_cedar_record_t;
 
+/*
+ * Opaque handle used to populate a set-valued attribute element by
+ * element. Created by nxe_cedar_eval_ctx_add_*_attr_set() for a
+ * top-level set, by nxe_cedar_record_add_set() inside a record, or by
+ * nxe_cedar_set_add_set() inside another set.
+ */
+typedef struct nxe_cedar_set_s nxe_cedar_set_t;
+
 
 nxe_cedar_decision_t nxe_cedar_eval(nxe_cedar_policy_set_t *policy_set,
     nxe_cedar_eval_ctx_t *ctx, ngx_log_t *log);
@@ -106,6 +114,61 @@ ngx_int_t nxe_cedar_record_add_ip(nxe_cedar_record_t *rec,
     ngx_str_t *name, ngx_str_t *value);
 nxe_cedar_record_t *nxe_cedar_record_add_record(nxe_cedar_record_t *rec,
     ngx_str_t *name);
+ngx_int_t nxe_cedar_record_add_entity(nxe_cedar_record_t *rec,
+    ngx_str_t *name, ngx_str_t *type, ngx_str_t *id);
+nxe_cedar_set_t *nxe_cedar_record_add_set(nxe_cedar_record_t *rec,
+    ngx_str_t *name);
+
+
+/*
+ * Set-valued attribute constructors. Each call reserves a new
+ * set-valued attribute on the corresponding entity / context and
+ * returns a handle for appending elements via
+ * nxe_cedar_set_add_{str,long,bool,ip,entity,set,record}().
+ *
+ * Returns NULL on allocation failure.
+ */
+nxe_cedar_set_t *nxe_cedar_eval_ctx_add_principal_attr_set(
+    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name);
+nxe_cedar_set_t *nxe_cedar_eval_ctx_add_action_attr_set(
+    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name);
+nxe_cedar_set_t *nxe_cedar_eval_ctx_add_resource_attr_set(
+    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name);
+nxe_cedar_set_t *nxe_cedar_eval_ctx_add_context_attr_set(
+    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name);
+
+ngx_int_t nxe_cedar_eval_ctx_add_principal_attr_entity(
+    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name,
+    ngx_str_t *type, ngx_str_t *id);
+ngx_int_t nxe_cedar_eval_ctx_add_action_attr_entity(
+    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name,
+    ngx_str_t *type, ngx_str_t *id);
+ngx_int_t nxe_cedar_eval_ctx_add_resource_attr_entity(
+    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name,
+    ngx_str_t *type, ngx_str_t *id);
+ngx_int_t nxe_cedar_eval_ctx_add_context_attr_entity(
+    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name,
+    ngx_str_t *type, ngx_str_t *id);
+
+
+/*
+ * Set element constructors. Add one element to an existing set
+ * handle. nxe_cedar_set_add_set() and nxe_cedar_set_add_record()
+ * return a handle for the new nested container; the other variants
+ * return NGX_OK / NGX_ERROR.
+ *
+ * Set handles enforce NXE_CEDAR_MAX_SET_DEPTH for set-in-set nesting
+ * and NXE_CEDAR_MAX_RECORD_DEPTH for record values placed inside a
+ * set; exceeding either ceiling returns NULL.
+ */
+ngx_int_t nxe_cedar_set_add_str(nxe_cedar_set_t *set, ngx_str_t *value);
+ngx_int_t nxe_cedar_set_add_long(nxe_cedar_set_t *set, int64_t value);
+ngx_int_t nxe_cedar_set_add_bool(nxe_cedar_set_t *set, ngx_flag_t value);
+ngx_int_t nxe_cedar_set_add_ip(nxe_cedar_set_t *set, ngx_str_t *value);
+ngx_int_t nxe_cedar_set_add_entity(nxe_cedar_set_t *set,
+    ngx_str_t *type, ngx_str_t *id);
+nxe_cedar_set_t *nxe_cedar_set_add_set(nxe_cedar_set_t *set);
+nxe_cedar_record_t *nxe_cedar_set_add_record(nxe_cedar_set_t *set);
 
 
 /*

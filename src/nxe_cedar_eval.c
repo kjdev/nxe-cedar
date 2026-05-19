@@ -694,6 +694,441 @@ nxe_cedar_record_add_record(nxe_cedar_record_t *rec, ngx_str_t *name)
 }
 
 
+/* --- set values --- */
+
+/*
+ * Set handle.
+ *
+ * - elts: array of nxe_cedar_value_t shared with the attribute value
+ *   stored in the owning entity / record / set; element pushes are
+ *   visible through both views.
+ * - pool: owns all set / element allocations; freed with the
+ *   evaluation context.
+ * - depth: nesting depth for set-in-set (1 = direct child of an
+ *   entity / context / record / set).
+ */
+struct nxe_cedar_set_s {
+    ngx_array_t *elts;
+    ngx_pool_t  *pool;
+    ngx_uint_t   depth;
+};
+
+
+static nxe_cedar_set_t *
+nxe_cedar_set_create(ngx_pool_t *pool, ngx_uint_t depth)
+{
+    nxe_cedar_set_t *set;
+
+    set = ngx_pcalloc(pool, sizeof(nxe_cedar_set_t));
+    if (set == NULL) {
+        return NULL;
+    }
+
+    set->elts = ngx_array_create(pool, 4, sizeof(nxe_cedar_value_t));
+    if (set->elts == NULL) {
+        return NULL;
+    }
+
+    set->pool = pool;
+    set->depth = depth;
+
+    return set;
+}
+
+
+/*
+ * Reserve a new set-valued attribute on the given attr array and
+ * return a populated handle. Shared helper for the four
+ * nxe_cedar_eval_ctx_add_*_attr_set entry points (depth = 1) and for
+ * nxe_cedar_record_add_set, which passes its own depth + 1 so a mixed
+ * record / set graph respects one NXE_CEDAR_MAX_SET_DEPTH ceiling.
+ */
+static nxe_cedar_set_t *
+nxe_cedar_eval_ctx_add_set_attr(ngx_array_t *attrs, ngx_pool_t *pool,
+    ngx_str_t *name, ngx_uint_t depth)
+{
+    nxe_cedar_attr_t *attr;
+    nxe_cedar_set_t *set;
+
+    if (attrs == NULL || pool == NULL || name == NULL) {
+        return NULL;
+    }
+
+    if (depth > NXE_CEDAR_MAX_SET_DEPTH) {
+        ngx_log_error(NGX_LOG_ERR, pool->log, 0,
+                      "nxe_cedar_eval_ctx_add_set_attr: "
+                      "set nesting exceeds max depth (%d)",
+                      NXE_CEDAR_MAX_SET_DEPTH);
+        return NULL;
+    }
+
+    set = nxe_cedar_set_create(pool, depth);
+    if (set == NULL) {
+        return NULL;
+    }
+
+    attr = ngx_array_push(attrs);
+    if (attr == NULL) {
+        return NULL;
+    }
+
+    ngx_memzero(attr, sizeof(nxe_cedar_attr_t));
+    attr->name = *name;
+    attr->value.type = NXE_CEDAR_RVAL_SET;
+    attr->value.v.set_elts = set->elts;
+
+    return set;
+}
+
+
+/*
+ * Append an entity-valued attribute to the given attr array.
+ * Shared helper for the four nxe_cedar_eval_ctx_add_*_attr_entity
+ * entry points and for nxe_cedar_record_add_entity().
+ */
+static ngx_int_t
+nxe_cedar_eval_ctx_add_entity_attr(ngx_array_t *attrs,
+    ngx_str_t *name, ngx_str_t *type, ngx_str_t *id)
+{
+    nxe_cedar_attr_t *attr;
+
+    if (attrs == NULL || name == NULL || type == NULL || id == NULL) {
+        return NGX_ERROR;
+    }
+
+    attr = ngx_array_push(attrs);
+    if (attr == NULL) {
+        return NGX_ERROR;
+    }
+
+    ngx_memzero(attr, sizeof(nxe_cedar_attr_t));
+    attr->name = *name;
+    attr->value.type = NXE_CEDAR_RVAL_ENTITY;
+    attr->value.v.entity.type = *type;
+    attr->value.v.entity.id = *id;
+
+    return NGX_OK;
+}
+
+
+ngx_int_t
+nxe_cedar_set_add_str(nxe_cedar_set_t *set, ngx_str_t *value)
+{
+    nxe_cedar_value_t *v;
+
+    if (set == NULL || value == NULL) {
+        return NGX_ERROR;
+    }
+
+    v = ngx_array_push(set->elts);
+    if (v == NULL) {
+        return NGX_ERROR;
+    }
+
+    ngx_memzero(v, sizeof(nxe_cedar_value_t));
+    v->type = NXE_CEDAR_RVAL_STRING;
+    v->v.str_val = *value;
+
+    return NGX_OK;
+}
+
+
+ngx_int_t
+nxe_cedar_set_add_long(nxe_cedar_set_t *set, int64_t value)
+{
+    nxe_cedar_value_t *v;
+
+    if (set == NULL) {
+        return NGX_ERROR;
+    }
+
+    v = ngx_array_push(set->elts);
+    if (v == NULL) {
+        return NGX_ERROR;
+    }
+
+    ngx_memzero(v, sizeof(nxe_cedar_value_t));
+    v->type = NXE_CEDAR_RVAL_LONG;
+    v->v.long_val = value;
+
+    return NGX_OK;
+}
+
+
+ngx_int_t
+nxe_cedar_set_add_bool(nxe_cedar_set_t *set, ngx_flag_t value)
+{
+    nxe_cedar_value_t *v;
+
+    if (set == NULL) {
+        return NGX_ERROR;
+    }
+
+    v = ngx_array_push(set->elts);
+    if (v == NULL) {
+        return NGX_ERROR;
+    }
+
+    ngx_memzero(v, sizeof(nxe_cedar_value_t));
+    v->type = NXE_CEDAR_RVAL_BOOL;
+    v->v.bool_val = value;
+
+    return NGX_OK;
+}
+
+
+ngx_int_t
+nxe_cedar_set_add_ip(nxe_cedar_set_t *set, ngx_str_t *value)
+{
+    nxe_cedar_value_t *v, ip_val;
+
+    if (set == NULL || value == NULL) {
+        return NGX_ERROR;
+    }
+
+    ip_val = nxe_cedar_make_ip(value);
+    if (ip_val.type == NXE_CEDAR_RVAL_ERROR) {
+        return NGX_ERROR;
+    }
+
+    v = ngx_array_push(set->elts);
+    if (v == NULL) {
+        return NGX_ERROR;
+    }
+
+    *v = ip_val;
+
+    return NGX_OK;
+}
+
+
+ngx_int_t
+nxe_cedar_set_add_entity(nxe_cedar_set_t *set,
+    ngx_str_t *type, ngx_str_t *id)
+{
+    nxe_cedar_value_t *v;
+
+    if (set == NULL || type == NULL || id == NULL) {
+        return NGX_ERROR;
+    }
+
+    v = ngx_array_push(set->elts);
+    if (v == NULL) {
+        return NGX_ERROR;
+    }
+
+    ngx_memzero(v, sizeof(nxe_cedar_value_t));
+    v->type = NXE_CEDAR_RVAL_ENTITY;
+    v->v.entity.type = *type;
+    v->v.entity.id = *id;
+
+    return NGX_OK;
+}
+
+
+nxe_cedar_set_t *
+nxe_cedar_set_add_set(nxe_cedar_set_t *set)
+{
+    nxe_cedar_value_t *v;
+    nxe_cedar_set_t *child;
+
+    if (set == NULL) {
+        return NULL;
+    }
+
+    if (set->depth >= NXE_CEDAR_MAX_SET_DEPTH) {
+        ngx_log_error(NGX_LOG_ERR, set->pool->log, 0,
+                      "nxe_cedar_set_add_set: "
+                      "set nesting exceeds max depth (%d)",
+                      NXE_CEDAR_MAX_SET_DEPTH);
+        return NULL;
+    }
+
+    child = nxe_cedar_set_create(set->pool, set->depth + 1);
+    if (child == NULL) {
+        return NULL;
+    }
+
+    v = ngx_array_push(set->elts);
+    if (v == NULL) {
+        return NULL;
+    }
+
+    ngx_memzero(v, sizeof(nxe_cedar_value_t));
+    v->type = NXE_CEDAR_RVAL_SET;
+    v->v.set_elts = child->elts;
+
+    return child;
+}
+
+
+nxe_cedar_record_t *
+nxe_cedar_set_add_record(nxe_cedar_set_t *set)
+{
+    nxe_cedar_value_t *v;
+    nxe_cedar_record_t *child;
+
+    if (set == NULL) {
+        return NULL;
+    }
+
+    /*
+     * Inherit the set's depth so a mixed graph (record -> set ->
+     * record -> ...) shares one ceiling. Without this, kind switches
+     * reset the counter to 1 and `==` could descend deeper than
+     * NXE_CEDAR_MAX_RECORD_DEPTH on alternating chains.
+     */
+    if (set->depth >= NXE_CEDAR_MAX_RECORD_DEPTH) {
+        ngx_log_error(NGX_LOG_ERR, set->pool->log, 0,
+                      "nxe_cedar_set_add_record: "
+                      "record nesting exceeds max depth (%d)",
+                      NXE_CEDAR_MAX_RECORD_DEPTH);
+        return NULL;
+    }
+
+    child = nxe_cedar_record_create(set->pool, set->depth + 1);
+    if (child == NULL) {
+        return NULL;
+    }
+
+    v = ngx_array_push(set->elts);
+    if (v == NULL) {
+        return NULL;
+    }
+
+    ngx_memzero(v, sizeof(nxe_cedar_value_t));
+    v->type = NXE_CEDAR_RVAL_RECORD;
+    v->v.record_attrs = child->attrs;
+
+    return child;
+}
+
+
+nxe_cedar_set_t *
+nxe_cedar_eval_ctx_add_principal_attr_set(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *name)
+{
+    if (ctx == NULL) {
+        return NULL;
+    }
+    return nxe_cedar_eval_ctx_add_set_attr(ctx->principal_attrs,
+                                           ctx->pool, name, 1);
+}
+
+
+nxe_cedar_set_t *
+nxe_cedar_eval_ctx_add_action_attr_set(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *name)
+{
+    if (ctx == NULL) {
+        return NULL;
+    }
+    return nxe_cedar_eval_ctx_add_set_attr(ctx->action_attrs,
+                                           ctx->pool, name, 1);
+}
+
+
+nxe_cedar_set_t *
+nxe_cedar_eval_ctx_add_resource_attr_set(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *name)
+{
+    if (ctx == NULL) {
+        return NULL;
+    }
+    return nxe_cedar_eval_ctx_add_set_attr(ctx->resource_attrs,
+                                           ctx->pool, name, 1);
+}
+
+
+nxe_cedar_set_t *
+nxe_cedar_eval_ctx_add_context_attr_set(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *name)
+{
+    if (ctx == NULL) {
+        return NULL;
+    }
+    return nxe_cedar_eval_ctx_add_set_attr(ctx->context_attrs,
+                                           ctx->pool, name, 1);
+}
+
+
+ngx_int_t
+nxe_cedar_eval_ctx_add_principal_attr_entity(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *name, ngx_str_t *type, ngx_str_t *id)
+{
+    if (ctx == NULL) {
+        return NGX_ERROR;
+    }
+    return nxe_cedar_eval_ctx_add_entity_attr(ctx->principal_attrs,
+                                              name, type, id);
+}
+
+
+ngx_int_t
+nxe_cedar_eval_ctx_add_action_attr_entity(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *name, ngx_str_t *type, ngx_str_t *id)
+{
+    if (ctx == NULL) {
+        return NGX_ERROR;
+    }
+    return nxe_cedar_eval_ctx_add_entity_attr(ctx->action_attrs,
+                                              name, type, id);
+}
+
+
+ngx_int_t
+nxe_cedar_eval_ctx_add_resource_attr_entity(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *name, ngx_str_t *type, ngx_str_t *id)
+{
+    if (ctx == NULL) {
+        return NGX_ERROR;
+    }
+    return nxe_cedar_eval_ctx_add_entity_attr(ctx->resource_attrs,
+                                              name, type, id);
+}
+
+
+ngx_int_t
+nxe_cedar_eval_ctx_add_context_attr_entity(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *name, ngx_str_t *type, ngx_str_t *id)
+{
+    if (ctx == NULL) {
+        return NGX_ERROR;
+    }
+    return nxe_cedar_eval_ctx_add_entity_attr(ctx->context_attrs,
+                                              name, type, id);
+}
+
+
+ngx_int_t
+nxe_cedar_record_add_entity(nxe_cedar_record_t *rec, ngx_str_t *name,
+    ngx_str_t *type, ngx_str_t *id)
+{
+    if (rec == NULL) {
+        return NGX_ERROR;
+    }
+    return nxe_cedar_eval_ctx_add_entity_attr(rec->attrs, name, type, id);
+}
+
+
+nxe_cedar_set_t *
+nxe_cedar_record_add_set(nxe_cedar_record_t *rec, ngx_str_t *name)
+{
+    if (rec == NULL) {
+        return NULL;
+    }
+    if (rec->depth >= NXE_CEDAR_MAX_SET_DEPTH) {
+        ngx_log_error(NGX_LOG_ERR, rec->pool->log, 0,
+                      "nxe_cedar_record_add_set: "
+                      "set nesting exceeds max depth (%d)",
+                      NXE_CEDAR_MAX_SET_DEPTH);
+        return NULL;
+    }
+    return nxe_cedar_eval_ctx_add_set_attr(rec->attrs, rec->pool, name,
+                                           rec->depth + 1);
+}
+
+
 /* --- entity hierarchy --- */
 
 static ngx_int_t

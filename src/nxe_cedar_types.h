@@ -322,6 +322,13 @@ typedef struct {
  */
 #define NXE_CEDAR_MAX_RECORD_DEPTH NXE_CEDAR_MAX_MEMBER_CHAIN
 
+/*
+ * Set-value nesting limit. Mirrors NXE_CEDAR_MAX_RECORD_DEPTH so a
+ * value graph mixing nested records and sets shares one depth ceiling,
+ * preventing unbounded recursion in `==` and other value walks.
+ */
+#define NXE_CEDAR_MAX_SET_DEPTH NXE_CEDAR_MAX_RECORD_DEPTH
+
 
 /* --- runtime values --- */
 
