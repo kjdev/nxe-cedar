@@ -15,6 +15,26 @@
 #include "nxe_cedar_eval.h"
 
 
+/* forward declaration: real evaluator body, wrapped by
+ * nxe_cedar_expr_eval() to manage ctx->eval_depth. */
+static nxe_cedar_value_t nxe_cedar_expr_eval_body(nxe_cedar_node_t *node,
+    nxe_cedar_eval_ctx_t *ctx, ngx_pool_t *pool, ngx_log_t *log);
+
+
+/*
+ * Upper bound on the element count of a single record / set passed to
+ * nxe_cedar_value_equals(). The bijective match uses a stack bitmap
+ * sized for this limit; larger containers are rejected with NGX_ERROR
+ * rather than risking incorrect equality on a degraded match. The
+ * parser caps record literals at NXE_CEDAR_MAX_RECORD_ENTRIES (64) and
+ * set literals at NXE_CEDAR_MAX_SET_ELEMENTS (256), so 1024 covers
+ * those plus considerable headroom for injection-API growth.
+ */
+#define NXE_CEDAR_VALUE_EQUALS_MAX_ELTS  1024
+#define NXE_CEDAR_VALUE_EQUALS_BITMAP_WORDS \
+        ((NXE_CEDAR_VALUE_EQUALS_MAX_ELTS + 63) / 64)
+
+
 /* value constructors */
 
 static nxe_cedar_value_t
@@ -488,16 +508,29 @@ nxe_cedar_value_equals(nxe_cedar_value_t *a, nxe_cedar_value_t *b)
             nxe_cedar_value_t *a_elts = a->v.set_elts->elts;
             nxe_cedar_value_t *b_elts = b->v.set_elts->elts;
             ngx_uint_t i, j;
+            uint64_t matched[NXE_CEDAR_VALUE_EQUALS_BITMAP_WORDS];
+
+            if (a->v.set_elts->nelts > NXE_CEDAR_VALUE_EQUALS_MAX_ELTS) {
+                return NGX_ERROR;
+            }
+
+            ngx_memzero(matched, sizeof(matched));
 
             for (i = 0; i < a->v.set_elts->nelts; i++) {
                 ngx_flag_t found = 0;
                 for (j = 0; j < b->v.set_elts->nelts; j++) {
-                    ngx_int_t r = nxe_cedar_value_equals(&a_elts[i],
-                                                         &b_elts[j]);
+                    ngx_int_t r;
+
+                    if (matched[j >> 6] & ((uint64_t) 1 << (j & 63))) {
+                        continue;
+                    }
+
+                    r = nxe_cedar_value_equals(&a_elts[i], &b_elts[j]);
                     if (r == NGX_ERROR) {
                         return NGX_ERROR;
                     }
                     if (r) {
+                        matched[j >> 6] |= (uint64_t) 1 << (j & 63);
                         found = 1;
                         break;
                     }
@@ -520,23 +553,48 @@ nxe_cedar_value_equals(nxe_cedar_value_t *a, nxe_cedar_value_t *b)
             nxe_cedar_attr_t *a_attrs = a->v.record_attrs->elts;
             nxe_cedar_attr_t *b_attrs = b->v.record_attrs->elts;
             ngx_uint_t i, j;
+            uint64_t matched[NXE_CEDAR_VALUE_EQUALS_BITMAP_WORDS];
+
+            if (a->v.record_attrs->nelts
+                > NXE_CEDAR_VALUE_EQUALS_MAX_ELTS)
+            {
+                return NGX_ERROR;
+            }
+
+            ngx_memzero(matched, sizeof(matched));
 
             for (i = 0; i < a->v.record_attrs->nelts; i++) {
                 ngx_flag_t found = 0;
                 for (j = 0; j < b->v.record_attrs->nelts; j++) {
-                    if (nxe_cedar_str_eq(&a_attrs[i].name,
-                                         &b_attrs[j].name))
-                    {
-                        ngx_int_t r = nxe_cedar_value_equals(
-                            &a_attrs[i].value, &b_attrs[j].value);
-                        if (r == NGX_ERROR) {
-                            return NGX_ERROR;
-                        }
-                        if (r) {
-                            found = 1;
-                            break;
-                        }
+                    ngx_int_t r;
+
+                    if (matched[j >> 6] & ((uint64_t) 1 << (j & 63))) {
+                        continue;
                     }
+                    if (!nxe_cedar_str_eq(&a_attrs[i].name,
+                                          &b_attrs[j].name))
+                    {
+                        continue;
+                    }
+
+                    r = nxe_cedar_value_equals(&a_attrs[i].value,
+                                               &b_attrs[j].value);
+                    if (r == NGX_ERROR) {
+                        return NGX_ERROR;
+                    }
+                    if (r) {
+                        matched[j >> 6] |= (uint64_t) 1 << (j & 63);
+                        found = 1;
+                        break;
+                    }
+                    /*
+                     * Name matched but values differ. With unique keys
+                     * (parser and injection API both enforce this on a
+                     * and b independently) there is no other b[j] with
+                     * the same name, so the records cannot be equal.
+                     * Short-circuit the entire equality.
+                     */
+                    return 0;
                 }
                 if (!found) {
                     return 0;
@@ -1141,8 +1199,8 @@ nxe_cedar_eval_is_check(nxe_cedar_node_t *node,
 }
 
 
-nxe_cedar_value_t
-nxe_cedar_expr_eval(nxe_cedar_node_t *node,
+static nxe_cedar_value_t
+nxe_cedar_expr_eval_body(nxe_cedar_node_t *node,
     nxe_cedar_eval_ctx_t *ctx, ngx_pool_t *pool,
     ngx_log_t *log)
 {
@@ -1518,4 +1576,38 @@ nxe_cedar_expr_eval(nxe_cedar_node_t *node,
     default:
         return nxe_cedar_make_error();
     }
+}
+
+
+/*
+ * Public expression evaluator. Manages ctx->eval_depth as a recursion
+ * guard so deeply nested AST or value walks (record / set values
+ * injected at runtime) cannot blow the C stack: when ctx->eval_depth
+ * would exceed NXE_CEDAR_MAX_EVAL_DEPTH the call short-circuits to an
+ * RVAL_ERROR, which propagates to the policy as deny.
+ */
+nxe_cedar_value_t
+nxe_cedar_expr_eval(nxe_cedar_node_t *node,
+    nxe_cedar_eval_ctx_t *ctx, ngx_pool_t *pool,
+    ngx_log_t *log)
+{
+    nxe_cedar_value_t val;
+
+    if (ctx == NULL) {
+        return nxe_cedar_make_error();
+    }
+
+    if (ctx->eval_depth >= NXE_CEDAR_MAX_EVAL_DEPTH) {
+        ngx_log_error(NGX_LOG_ERR, log, 0,
+                      "nxe_cedar_expr_eval: "
+                      "recursion depth exceeded (max %d)",
+                      NXE_CEDAR_MAX_EVAL_DEPTH);
+        return nxe_cedar_make_error();
+    }
+
+    ctx->eval_depth++;
+    val = nxe_cedar_expr_eval_body(node, ctx, pool, log);
+    ctx->eval_depth--;
+
+    return val;
 }

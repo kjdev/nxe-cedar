@@ -329,6 +329,20 @@ typedef struct {
  */
 #define NXE_CEDAR_MAX_SET_DEPTH NXE_CEDAR_MAX_RECORD_DEPTH
 
+/*
+ * Expression-evaluation recursion limit. AST shape is already bounded
+ * by the parser (NXE_CEDAR_MAX_PARSE_DEPTH, MAX_MEMBER_CHAIN,
+ * MAX_BINOP_CHAIN), but recursive walks during evaluation can stack
+ * AST depth on top of attribute lookups and method-call dispatch, so
+ * an evaluator-side ceiling is needed too. Each entry into
+ * nxe_cedar_expr_eval() increments ctx->eval_depth; once the count
+ * reaches the limit further entries short-circuit to RVAL_ERROR.
+ * 128 gives ~2x the parser's NXE_CEDAR_MAX_PARSE_DEPTH (64) so any
+ * AST the parser accepts evaluates without spuriously hitting the
+ * cap, while keeping recursion well under typical thread stack sizes.
+ */
+#define NXE_CEDAR_MAX_EVAL_DEPTH 128
+
 
 /* --- runtime values --- */
 
@@ -429,6 +443,14 @@ typedef struct {
 
     /* context */
     ngx_array_t *context_attrs;              /* array of nxe_cedar_attr_t */
+
+    /*
+     * Recursion guard for nxe_cedar_expr_eval(). Incremented at entry
+     * and decremented at exit; the entry guard returns an RVAL_ERROR
+     * value before recursing further when the count would exceed
+     * NXE_CEDAR_MAX_EVAL_DEPTH.
+     */
+    ngx_uint_t  eval_depth;
 } nxe_cedar_eval_ctx_t;
 
 
