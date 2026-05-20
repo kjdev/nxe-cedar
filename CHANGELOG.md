@@ -1,5 +1,37 @@
 # Changelog
 
+## [b14263b](../../commit/b14263b) - 2026-05-21
+
+### Fixed
+
+- Reject duplicate keys in the attribute / record injection API (issue #008, injection side)
+  - The parser refused duplicate keys in record literals at parse time, but the runtime injection helpers (`nxe_cedar_eval_ctx_add_*_attr*`, `nxe_cedar_record_add_*`) used `ngx_array_push()` unconditionally — a second `add_*_attr()` call with the same name silently stacked a second tuple on the entity / context / record, breaking the uniqueness invariant that equality and member access assume
+  - The new internal helper `nxe_cedar_attrs_has_name()` guards every shared add path (`add_str_attr` / `add_long_attr` / `add_bool_attr` / `add_ip_attr` / `add_record_attr` / `add_set_attr` / `add_entity_attr`); the check covers entity-level attributes (principal / action / resource / context) and record fields uniformly, including the cross-kind collision case (e.g. `str` followed by `long` under the same name)
+  - Duplicate insertions now return `NGX_ERROR` / `NULL` before any push so the caller can surface the failure, and downstream value walks can assume the parser contract
+
+## [e05a53b](../../commit/e05a53b) - 2026-05-21
+
+### Added
+
+- Cap expression-evaluator recursion depth (issue #007)
+  - `nxe_cedar_expr_eval()` is now a thin wrapper that increments / decrements a new `eval_depth` counter on `nxe_cedar_eval_ctx_t` around the real body (`nxe_cedar_expr_eval_body`); every internal recursive call goes through the public name so the guard trips on each re-entry, no matter which helper function (attribute access, method call, binop, …) triggered it
+  - `NXE_CEDAR_MAX_EVAL_DEPTH = 128` (≈2× the parser's `NXE_CEDAR_MAX_PARSE_DEPTH = 64`) leaves plenty of headroom for any AST the parser accepts while staying well under typical thread stack sizes; exceeding the limit short-circuits to `RVAL_ERROR`, which propagates to the policy as deny
+
+### Fixed
+
+- Harden record / set equality with bijective matching (issue #008, equality side)
+  - The previous `nxe_cedar_value_equals()` walk over records and sets was a one-sided linear scan that could return `true` for cases like `{x:1, x:1} == {x:1, y:2}` once a duplicate key slipped past the injection API
+  - The match now tracks the consumed indices on the `b` side with a stack `uint64_t` bitmap (`NXE_CEDAR_VALUE_EQUALS_MAX_ELTS = 1024`, well above `NXE_CEDAR_MAX_RECORD_ENTRIES = 64` and `NXE_CEDAR_MAX_SET_ELEMENTS = 256`); containers larger than the bitmap return `NGX_ERROR` rather than degrade to a sloppy match
+  - Record equality additionally short-circuits to `false` when a name matches but the value differs, since unique keys mean there is no second chance to satisfy `a[i]`
+
+## [ad67aca](../../commit/ad67aca) - 2026-05-21
+
+### Docs
+
+- Document `nxe_cedar_parse()` NULL preconditions (issue #006)
+  - The public header now states that `pool` / `log` / `text` are required and that the entry point returns `NULL` on any `NULL` argument without dereferencing it
+  - The runtime guard was already in place; this only formalizes the contract for callers and is paired with the new `unit/parse_null_guard` test cases that exercise each argument
+
 ## [f86d785](../../commit/f86d785) - 2026-05-20
 
 ### Fixed
