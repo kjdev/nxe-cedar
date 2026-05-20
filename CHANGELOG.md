@@ -1,5 +1,16 @@
 # Changelog
 
+## [1bf018f](../../commit/1bf018f) - 2026-05-20
+
+### Fixed
+
+- Disambiguate the `in` operator by entity origin slot (issue #023)
+  - `nxe_cedar_eval_ctx_lookup_parents()` resolved an entity's ancestor list by `(type, id)` linear scan, so it always returned the first matching slot; when principal / action / resource shared the same identity, `resource in <group>` would silently consult `principal_parents` and could flip permit/deny
+  - The scope path was unaffected (it passes the per-slot parents array directly), but the expression-level `in` inside `when` / `unless` and the `is T in expr` expression went through `lookup_parents` and were vulnerable
+  - `nxe_cedar_value_t.v.entity` now carries a `slot` tag (`NXE_CEDAR_ENTITY_SLOT_{NONE,PRINCIPAL,ACTION,RESOURCE}`); `NXE_CEDAR_NODE_VAR` evaluation stamps the slot on the produced value, and `lookup_parents()` switches on it instead of probing identities
+  - Derived entities (literals, attribute lookups, set elements) inherit `NXE_CEDAR_ENTITY_SLOT_NONE` via `ngx_memzero`, so `lookup_parents` returns NULL for them and `in` falls back to reflexive comparison only — matching Cedar's semantics for entities that carry no ancestor information
+  - The fix is localized to the value union, the VAR evaluation case, and `lookup_parents()`; expression-evaluator signatures and the public context manipulators stay unchanged
+
 ## [c8debca](../../commit/c8debca) - 2026-05-20
 
 ### Added
