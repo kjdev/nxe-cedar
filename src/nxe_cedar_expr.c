@@ -395,6 +395,27 @@ nxe_cedar_make_ip(ngx_str_t *s)
 }
 
 
+/*
+ * Strip the principal / action / resource slot tag from an entity
+ * value before it crosses a composite-expression or container
+ * boundary (set element, record value, if-then-else result).
+ *
+ * The slot is set in NXE_CEDAR_NODE_VAR so `in` can pick the matching
+ * parents array on (type, id) collisions, but the tag is meaningful
+ * only while the value is still syntactically the principal / action /
+ * resource keyword. Once it is buried inside a composite, the derived
+ * value must be treated as an arbitrary entity and match reflexively
+ * only in `in` checks.
+ */
+static void
+nxe_cedar_clear_entity_slot(nxe_cedar_value_t *val)
+{
+    if (val->type == NXE_CEDAR_RVAL_ENTITY) {
+        val->v.entity.slot = NXE_CEDAR_ENTITY_SLOT_NONE;
+    }
+}
+
+
 /* overflow-checked Long arithmetic (Cedar i64::checked_{add,sub,mul}).
  * Accepts any result representable in int64_t (including INT64_MIN);
  * rejects true overflow. */
@@ -1204,6 +1225,7 @@ nxe_cedar_expr_eval(nxe_cedar_node_t *node,
             if (val_slot == NULL) {
                 return nxe_cedar_make_error();
             }
+            nxe_cedar_clear_entity_slot(&left);
             *val_slot = left;
         }
 
@@ -1240,6 +1262,7 @@ nxe_cedar_expr_eval(nxe_cedar_node_t *node,
                 return nxe_cedar_make_error();
             }
 
+            nxe_cedar_clear_entity_slot(&left);
             attr_slot->name = entries[i].key;
             attr_slot->value = left;
         }
@@ -1482,11 +1505,15 @@ nxe_cedar_expr_eval(nxe_cedar_node_t *node,
             return nxe_cedar_make_error();
         }
         if (left.v.bool_val) {
-            return nxe_cedar_expr_eval(
+            val = nxe_cedar_expr_eval(
                 node->u.if_then_else.then_expr, ctx, pool, log);
+
+        } else {
+            val = nxe_cedar_expr_eval(
+                node->u.if_then_else.else_expr, ctx, pool, log);
         }
-        return nxe_cedar_expr_eval(
-            node->u.if_then_else.else_expr, ctx, pool, log);
+        nxe_cedar_clear_entity_slot(&val);
+        return val;
 
     default:
         return nxe_cedar_make_error();
