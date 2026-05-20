@@ -21,6 +21,9 @@
 #include <jansson.h>
 
 #include "nxe_cedar_test_wrapper.h"
+#include "nxe_cedar_parser.h"
+#include "nxe_cedar_eval.h"
+#include "ngx_stub.h"
 
 
 typedef struct {
@@ -238,6 +241,204 @@ run_test_file(const char *path, int max_phase, test_stats_t *stats)
 
 
 static void
+run_parser_null_guard_tests(test_stats_t *stats)
+{
+    ngx_pool_t *pool;
+    ngx_log_t log;
+    ngx_str_t text;
+    nxe_cedar_policy_set_t *ps;
+    const char *label = "unit/parse_null_guard";
+
+    memset(&log, 0, sizeof(log));
+    pool = ngx_create_pool(1024, &log);
+    if (pool == NULL) {
+        fprintf(stderr, "%s :: setup ... FAILED (pool create)\n", label);
+        stats->failed++;
+        return;
+    }
+
+    text.data = (u_char *) "permit (principal, action, resource);";
+    text.len = strlen((const char *) text.data);
+
+    ps = nxe_cedar_parse(NULL, &log, &text);
+    if (ps == NULL) {
+        printf("%s :: pool_null ... ok\n", label);
+        stats->passed++;
+    } else {
+        printf("%s :: pool_null ... FAILED\n", label);
+        fprintf(stderr, "  expected NULL, got non-NULL\n");
+        stats->failed++;
+    }
+
+    ps = nxe_cedar_parse(pool, NULL, &text);
+    if (ps == NULL) {
+        printf("%s :: log_null ... ok\n", label);
+        stats->passed++;
+    } else {
+        printf("%s :: log_null ... FAILED\n", label);
+        fprintf(stderr, "  expected NULL, got non-NULL\n");
+        stats->failed++;
+    }
+
+    ps = nxe_cedar_parse(pool, &log, NULL);
+    if (ps == NULL) {
+        printf("%s :: text_null ... ok\n", label);
+        stats->passed++;
+    } else {
+        printf("%s :: text_null ... FAILED\n", label);
+        fprintf(stderr, "  expected NULL, got non-NULL\n");
+        stats->failed++;
+    }
+
+    ngx_destroy_pool(pool);
+}
+
+
+/* helper for unit tests: build a static ngx_str_t from a C string */
+static void
+unit_set_str(ngx_str_t *s, const char *cstr)
+{
+    s->data = (u_char *) cstr;
+    s->len = strlen(cstr);
+}
+
+
+static void
+run_injection_duplicate_key_tests(test_stats_t *stats)
+{
+    ngx_pool_t *pool;
+    ngx_log_t log;
+    nxe_cedar_eval_ctx_t *ctx;
+    nxe_cedar_record_t *rec, *child;
+    ngx_str_t name_a, name_b, val_a, val_b;
+    ngx_str_t ent_type, ent_id;
+    ngx_int_t rc;
+    const char *label = "unit/dup_key_rejected";
+
+    memset(&log, 0, sizeof(log));
+    pool = ngx_create_pool(4096, &log);
+    if (pool == NULL) {
+        fprintf(stderr, "%s :: setup ... FAILED (pool create)\n", label);
+        stats->failed++;
+        return;
+    }
+
+    ctx = nxe_cedar_eval_ctx_create(pool);
+    if (ctx == NULL) {
+        fprintf(stderr, "%s :: setup ... FAILED (ctx create)\n", label);
+        stats->failed++;
+        ngx_destroy_pool(pool);
+        return;
+    }
+
+    unit_set_str(&name_a, "role");
+    unit_set_str(&val_a, "admin");
+    unit_set_str(&val_b, "guest");
+
+    /* first insertion succeeds */
+    rc = nxe_cedar_eval_ctx_add_principal_attr(ctx, &name_a, &val_a);
+    if (rc != NGX_OK) {
+        printf("%s :: principal_str_first ... FAILED\n", label);
+        stats->failed++;
+    } else {
+        printf("%s :: principal_str_first ... ok\n", label);
+        stats->passed++;
+    }
+
+    /* duplicate (string -> string) must be rejected */
+    rc = nxe_cedar_eval_ctx_add_principal_attr(ctx, &name_a, &val_b);
+    if (rc == NGX_ERROR) {
+        printf("%s :: principal_str_dup ... ok\n", label);
+        stats->passed++;
+    } else {
+        printf("%s :: principal_str_dup ... FAILED\n", label);
+        stats->failed++;
+    }
+
+    /* duplicate across kinds (string -> long on same entity) must also
+     * be rejected: attribute names are unique per entity regardless of
+     * value kind */
+    rc = nxe_cedar_eval_ctx_add_principal_attr_long(ctx, &name_a, 42);
+    if (rc == NGX_ERROR) {
+        printf("%s :: principal_kind_collision ... ok\n", label);
+        stats->passed++;
+    } else {
+        printf("%s :: principal_kind_collision ... FAILED\n", label);
+        stats->failed++;
+    }
+
+    /* entity attribute duplicate */
+    unit_set_str(&name_b, "owner");
+    unit_set_str(&ent_type, "User");
+    unit_set_str(&ent_id, "alice");
+    rc = nxe_cedar_eval_ctx_add_principal_attr_entity(ctx, &name_b,
+                                                      &ent_type, &ent_id);
+    if (rc != NGX_OK) {
+        printf("%s :: principal_entity_first ... FAILED\n", label);
+        stats->failed++;
+    } else {
+        printf("%s :: principal_entity_first ... ok\n", label);
+        stats->passed++;
+    }
+    rc = nxe_cedar_eval_ctx_add_principal_attr_entity(ctx, &name_b,
+                                                      &ent_type, &ent_id);
+    if (rc == NGX_ERROR) {
+        printf("%s :: principal_entity_dup ... ok\n", label);
+        stats->passed++;
+    } else {
+        printf("%s :: principal_entity_dup ... FAILED\n", label);
+        stats->failed++;
+    }
+
+    /* record field duplicate */
+    {
+        ngx_str_t rec_name;
+        unit_set_str(&rec_name, "profile");
+        rec = nxe_cedar_eval_ctx_add_principal_attr_record(ctx, &rec_name);
+    }
+    if (rec == NULL) {
+        printf("%s :: record_create ... FAILED\n", label);
+        stats->failed++;
+    } else {
+        ngx_str_t f_name, f_val;
+        unit_set_str(&f_name, "city");
+        unit_set_str(&f_val, "tokyo");
+
+        rc = nxe_cedar_record_add_str(rec, &f_name, &f_val);
+        if (rc != NGX_OK) {
+            printf("%s :: record_field_first ... FAILED\n", label);
+            stats->failed++;
+        } else {
+            printf("%s :: record_field_first ... ok\n", label);
+            stats->passed++;
+        }
+
+        unit_set_str(&f_val, "osaka");
+        rc = nxe_cedar_record_add_str(rec, &f_name, &f_val);
+        if (rc == NGX_ERROR) {
+            printf("%s :: record_field_dup ... ok\n", label);
+            stats->passed++;
+        } else {
+            printf("%s :: record_field_dup ... FAILED\n", label);
+            stats->failed++;
+        }
+
+        /* nested record name duplicate against existing scalar field */
+        child = nxe_cedar_record_add_record(rec, &f_name);
+        if (child == NULL) {
+            printf("%s :: record_nested_dup ... ok\n", label);
+            stats->passed++;
+        } else {
+            printf("%s :: record_nested_dup ... FAILED\n", label);
+            stats->failed++;
+        }
+    }
+
+    ngx_destroy_pool(pool);
+}
+
+
+static void
 scan_phase_dir(const char *dir_path, int max_phase, test_stats_t *stats)
 {
     DIR *dir;
@@ -311,6 +512,11 @@ main(int argc, char **argv)
     }
 
     closedir(dir);
+
+    if (max_phase == 0 || max_phase >= 2) {
+        run_parser_null_guard_tests(&stats);
+        run_injection_duplicate_key_tests(&stats);
+    }
 
     if (stats.passed + stats.failed == 0) {
         fprintf(stderr, "no test cases executed");

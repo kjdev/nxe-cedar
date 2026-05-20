@@ -358,6 +358,83 @@
                 "resource": {"type": "Endpoint", "id": "/api/data"}
             },
             "expected": "allow"
+        },
+        {
+            "name": "record_with_invalid_ip_field_propagates_error",
+            "description": "record value containing a malformed IP literal evaluates to ERROR; equality must not silently treat it as a type mismatch",
+            "policy": "permit (principal, action, resource) when { {addr: ip(\"999.999.999.999\")} == {addr: ip(\"999.999.999.999\")} };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "nested_record_with_invalid_ip_propagates_error",
+            "description": "malformed IP nested inside an outer record still surfaces as ERROR, so the policy does not apply",
+            "policy": "permit (principal, action, resource) when { {outer: {addr: ip(\"not-an-ip\")}} == {outer: {addr: ip(\"not-an-ip\")}} };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "set_with_invalid_ip_element_propagates_error",
+            "description": "set element evaluating to ERROR (malformed IP literal) propagates as ERROR through equality",
+            "policy": "permit (principal, action, resource) when { [ip(\"::not-v6::\")] == [ip(\"::not-v6::\")] };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "record_equal_same_key_value_pair",
+            "description": "records with identical single key=value pair are equal",
+            "policy": "permit (principal, action, resource) when { {x: 1} == {x: 1} };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "record_unequal_same_key_different_value",
+            "description": "records with identical key but different value short-circuit to false (parser enforces unique keys, so no second chance to match)",
+            "policy": "permit (principal, action, resource) when { {x: 1} == {x: 2} };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "record_equal_two_keys_reordered",
+            "description": "records compare as unordered key/value maps; same fields in different order are equal",
+            "policy": "permit (principal, action, resource) when { {x: 1, y: 2} == {y: 2, x: 1} };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "record_unequal_two_keys_one_value_differs",
+            "description": "two-key records differing in one value are not equal (bijective match must reject)",
+            "policy": "permit (principal, action, resource) when { {x: 1, y: 2} == {x: 1, y: 3} };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
         }
     ]
 }

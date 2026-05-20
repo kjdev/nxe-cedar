@@ -290,6 +290,50 @@
                 "context": {"x": 9223372036854775807}
             },
             "expected": "deny"
+        },
+        {
+            "name": "long_min_literal_accepted",
+            "description": "i64::MIN literal -9223372036854775808 must be accepted via unary-minus folding",
+            "policy": "permit (principal, action, resource) when { -9223372036854775808 == -9223372036854775808 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "long_min_literal_plus_one",
+            "description": "i64::MIN + 1 yields i64::MIN+1 (not overflow)",
+            "policy": "permit (principal, action, resource) when { -9223372036854775808 + 1 == -9223372036854775807 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "long_min_negated_is_overflow",
+            "description": "negating -9223372036854775808 (i.e. -i64::MIN) overflows: policy does not apply",
+            "policy": "permit (principal, action, resource) when { -(-9223372036854775808) == 0 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "long_max_plus_one_literal_overflow",
+            "description": "positive literal 9223372036854775808 overflows i64 at parse time",
+            "policy": "permit (principal, action, resource) when { 9223372036854775808 == 0 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
         }
     ]
 }
