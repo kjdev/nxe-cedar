@@ -1,5 +1,16 @@
 # Changelog
 
+## [f86d785](../../commit/f86d785) - 2026-05-20
+
+### Fixed
+
+- Clear entity slot tag at composite-expression boundaries (issue #024)
+  - The slot tag introduced for #023 (`NXE_CEDAR_ENTITY_SLOT_{PRINCIPAL,ACTION,RESOURCE}`) was stamped on entity values produced by `NXE_CEDAR_NODE_VAR` but copied unchanged through record literals, set literals, and if-then-else results because `nxe_cedar_value_t` flows by value
+  - A derived entity such as `({p: principal}).p` therefore still carried `slot=PRINCIPAL` into `in` evaluation, and `lookup_parents()` returned `principal_parents` — flipping permit/forbid decisions whenever a composite expression appeared on the left of `in`
+  - `nxe_cedar_clear_entity_slot()` now strips the slot back to `NXE_CEDAR_ENTITY_SLOT_NONE` at three composite boundaries: set element insertion, record entry insertion, and if-then-else result return
+  - After clearing, `lookup_parents` falls back to reflexive comparison only — matching the semantics for derived entities that no longer have a syntactic chain to the principal / action / resource keyword
+  - The fix is localized to `nxe_cedar_expr_eval()`; expression-evaluator signatures, the public API context manipulators, and the value union layout are unchanged
+
 ## [1bf018f](../../commit/1bf018f) - 2026-05-20
 
 ### Fixed
