@@ -343,15 +343,32 @@ typedef struct {
 #define NXE_CEDAR_RVAL_RECORD   7
 
 
+/*
+ * Origin tag on entity values. NONE is the default for derived entities
+ * (literals, attribute lookups, set elements) and must compare equal to
+ * zero so ngx_memzero-initialized values inherit it. PRINCIPAL / ACTION
+ * / RESOURCE are stamped only when the value is produced by evaluating
+ * the corresponding NXE_CEDAR_NODE_VAR. The slot lets `in` evaluation
+ * pick the matching parents array even when principal / action /
+ * resource share the same (type, id) — looking up by identity alone
+ * collapses on collisions and silently picks the first slot.
+ */
+#define NXE_CEDAR_ENTITY_SLOT_NONE      0
+#define NXE_CEDAR_ENTITY_SLOT_PRINCIPAL 1
+#define NXE_CEDAR_ENTITY_SLOT_ACTION    2
+#define NXE_CEDAR_ENTITY_SLOT_RESOURCE  3
+
+
 typedef struct {
     ngx_uint_t  type;       /* NXE_CEDAR_RVAL_* */
     union {
-        ngx_str_t    str_val;
-        int64_t      long_val;   /* Cedar i64 runtime value */
-        ngx_flag_t   bool_val;
+        ngx_str_t   str_val;
+        int64_t     long_val;    /* Cedar i64 runtime value */
+        ngx_flag_t  bool_val;
         struct {
-            ngx_str_t  type;
-            ngx_str_t  id;
+            ngx_str_t   type;
+            ngx_str_t   id;
+            ngx_uint_t  slot;    /* NXE_CEDAR_ENTITY_SLOT_* */
         } entity;
         ngx_array_t *set_elts;     /* array of nxe_cedar_value_t */
         ngx_array_t *record_attrs; /* array of nxe_cedar_attr_t */

@@ -194,12 +194,14 @@ ngx_int_t nxe_cedar_eval_ctx_add_resource_parent(
 
 /*
  * Internal helpers shared with the expression evaluator. Resolve the
- * ancestor list for an arbitrary entity (returns NULL when the entity
- * is none of principal / action / resource) and perform the reflexive
- * + ancestor membership check used by `in` operators.
+ * ancestor list by the origin slot stamped on the entity value
+ * (NXE_CEDAR_ENTITY_SLOT_*); returns NULL for NXE_CEDAR_ENTITY_SLOT_NONE
+ * so `in` evaluation falls back to reflexive comparison only. The
+ * second helper performs the reflexive + ancestor membership check used
+ * by `in` operators.
  */
 ngx_array_t *nxe_cedar_eval_ctx_lookup_parents(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *entity_type, ngx_str_t *entity_id);
+    nxe_cedar_eval_ctx_t *ctx, ngx_uint_t slot);
 ngx_int_t nxe_cedar_entity_in_target(
     ngx_str_t *entity_type, ngx_str_t *entity_id, ngx_array_t *parents,
     ngx_str_t *target_type, ngx_str_t *target_id);

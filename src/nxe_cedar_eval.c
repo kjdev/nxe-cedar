@@ -57,37 +57,36 @@ nxe_cedar_entity_in_target(ngx_str_t *entity_type, ngx_str_t *entity_id,
 
 
 /*
- * Locate the parents array for an arbitrary entity. Returns NULL when
- * the entity matches none of principal / action / resource, in which
- * case `in` evaluation falls back to reflexive comparison only.
+ * Resolve the parents array for an entity value by its origin slot.
+ * The slot is stamped on the value when NXE_CEDAR_NODE_VAR evaluation
+ * produces the principal / action / resource entity. Returns NULL for
+ * NXE_CEDAR_ENTITY_SLOT_NONE (literals, attribute lookups, set
+ * elements) so `in` evaluation falls back to reflexive comparison only,
+ * which matches Cedar semantics: derived entities have no ancestor
+ * information attached.
+ *
+ * The previous (type, id) lookup collapsed on collisions and silently
+ * returned principal_parents whenever principal / action / resource
+ * shared the same identity, flipping `in` decisions.
  */
 ngx_array_t *
 nxe_cedar_eval_ctx_lookup_parents(nxe_cedar_eval_ctx_t *ctx,
-    ngx_str_t *entity_type, ngx_str_t *entity_id)
+    ngx_uint_t slot)
 {
     if (ctx == NULL) {
         return NULL;
     }
 
-    if (nxe_cedar_str_eq(entity_type, &ctx->principal_type)
-        && nxe_cedar_str_eq(entity_id, &ctx->principal_id))
-    {
+    switch (slot) {
+    case NXE_CEDAR_ENTITY_SLOT_PRINCIPAL:
         return ctx->principal_parents;
-    }
-
-    if (nxe_cedar_str_eq(entity_type, &ctx->action_type)
-        && nxe_cedar_str_eq(entity_id, &ctx->action_id))
-    {
+    case NXE_CEDAR_ENTITY_SLOT_ACTION:
         return ctx->action_parents;
-    }
-
-    if (nxe_cedar_str_eq(entity_type, &ctx->resource_type)
-        && nxe_cedar_str_eq(entity_id, &ctx->resource_id))
-    {
+    case NXE_CEDAR_ENTITY_SLOT_RESOURCE:
         return ctx->resource_parents;
+    default:
+        return NULL;
     }
-
-    return NULL;
 }
 
 
@@ -124,8 +123,8 @@ nxe_cedar_scope_matches(nxe_cedar_scope_t *scope,
         }
 
         return nxe_cedar_entity_in_target(entity_type, entity_id, parents,
-            &target->u.entity_ref.entity_type,
-            &target->u.entity_ref.entity_id);
+                                          &target->u.entity_ref.entity_type,
+                                          &target->u.entity_ref.entity_id);
     }
 
     target = scope->target;
@@ -146,8 +145,8 @@ nxe_cedar_scope_matches(nxe_cedar_scope_t *scope,
     /* SCOPE_IN */
     if (target->type == NXE_CEDAR_NODE_ENTITY_REF) {
         return nxe_cedar_entity_in_target(entity_type, entity_id, parents,
-            &target->u.entity_ref.entity_type,
-            &target->u.entity_ref.entity_id);
+                                          &target->u.entity_ref.entity_type,
+                                          &target->u.entity_ref.entity_id);
     }
 
     /* set target: entity in [Group::"a", Group::"b"] */
@@ -161,9 +160,9 @@ nxe_cedar_scope_matches(nxe_cedar_scope_t *scope,
         for (i = 0; i < target->u.set_elts->nelts; i++) {
             if (elts[i]->type == NXE_CEDAR_NODE_ENTITY_REF
                 && nxe_cedar_entity_in_target(entity_type, entity_id,
-                       parents,
-                       &elts[i]->u.entity_ref.entity_type,
-                       &elts[i]->u.entity_ref.entity_id))
+                                              parents,
+                                              &elts[i]->u.entity_ref.entity_type,
+                                              &elts[i]->u.entity_ref.entity_id))
             {
                 return 1;
             }

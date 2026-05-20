@@ -1037,14 +1037,15 @@ nxe_cedar_eval_in(nxe_cedar_value_t *left, nxe_cedar_value_t *right,
         return nxe_cedar_make_error();
     }
 
-    parents = nxe_cedar_eval_ctx_lookup_parents(ctx,
-        &left->v.entity.type, &left->v.entity.id);
+    parents = nxe_cedar_eval_ctx_lookup_parents(ctx, left->v.entity.slot);
 
     /* entity in entity */
     if (right->type == NXE_CEDAR_RVAL_ENTITY) {
         return nxe_cedar_make_bool(nxe_cedar_entity_in_target(
-            &left->v.entity.type, &left->v.entity.id, parents,
-            &right->v.entity.type, &right->v.entity.id));
+                                       &left->v.entity.type, &left->v.entity.id,
+                                       parents,
+                                       &right->v.entity.type,
+                                       &right->v.entity.id));
     }
 
     /*
@@ -1154,14 +1155,20 @@ nxe_cedar_expr_eval(nxe_cedar_node_t *node,
     case NXE_CEDAR_NODE_VAR:
         switch (node->u.var_type) {
         case NXE_CEDAR_VAR_PRINCIPAL:
-            return nxe_cedar_make_entity(ctx->principal_type,
-                                         ctx->principal_id);
+            val = nxe_cedar_make_entity(ctx->principal_type,
+                                        ctx->principal_id);
+            val.v.entity.slot = NXE_CEDAR_ENTITY_SLOT_PRINCIPAL;
+            return val;
         case NXE_CEDAR_VAR_ACTION:
-            return nxe_cedar_make_entity(ctx->action_type,
-                                         ctx->action_id);
+            val = nxe_cedar_make_entity(ctx->action_type,
+                                        ctx->action_id);
+            val.v.entity.slot = NXE_CEDAR_ENTITY_SLOT_ACTION;
+            return val;
         case NXE_CEDAR_VAR_RESOURCE:
-            return nxe_cedar_make_entity(ctx->resource_type,
-                                         ctx->resource_id);
+            val = nxe_cedar_make_entity(ctx->resource_type,
+                                        ctx->resource_id);
+            val.v.entity.slot = NXE_CEDAR_ENTITY_SLOT_RESOURCE;
+            return val;
         case NXE_CEDAR_VAR_CONTEXT:
             /* context alone is not a value; only context.attr */
             return nxe_cedar_make_error();
