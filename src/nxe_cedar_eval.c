@@ -203,11 +203,51 @@ nxe_cedar_condition_matches(nxe_cedar_condition_t *cond,
 
 /* --- evaluation context API --- */
 
+/*
+ * Reject duplicate attribute names within a single attrs array.
+ * Entity attributes (principal / action / resource / context) and
+ * record fields share the same flat (name, value) representation, so
+ * both contracts use the same uniqueness check: a second insertion
+ * with a name that already exists returns NGX_ERROR before any push.
+ *
+ * Cedar records are semantically unordered key -> value maps with
+ * unique keys; the parser already rejects duplicates in record
+ * literals, and equality / hashing assume that invariant. This
+ * matches the parser-side contract for the injection API too.
+ *
+ * Returns 1 if a matching name is already present (caller should
+ * reject), 0 otherwise. Tolerates a NULL attrs (treated as empty).
+ */
+static ngx_int_t
+nxe_cedar_attrs_has_name(ngx_array_t *attrs, ngx_str_t *name)
+{
+    nxe_cedar_attr_t *elts;
+    ngx_uint_t i;
+
+    if (attrs == NULL || name == NULL) {
+        return 0;
+    }
+
+    elts = attrs->elts;
+    for (i = 0; i < attrs->nelts; i++) {
+        if (nxe_cedar_str_eq(&elts[i].name, name)) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+
 static ngx_int_t
 nxe_cedar_eval_ctx_add_str_attr(ngx_array_t *attrs,
     ngx_str_t *name, ngx_str_t *value)
 {
     nxe_cedar_attr_t *attr;
+
+    if (nxe_cedar_attrs_has_name(attrs, name)) {
+        return NGX_ERROR;
+    }
 
     attr = ngx_array_push(attrs);
     if (attr == NULL) {
@@ -228,6 +268,10 @@ nxe_cedar_eval_ctx_add_long_attr(ngx_array_t *attrs,
 {
     nxe_cedar_attr_t *attr;
 
+    if (nxe_cedar_attrs_has_name(attrs, name)) {
+        return NGX_ERROR;
+    }
+
     attr = ngx_array_push(attrs);
     if (attr == NULL) {
         return NGX_ERROR;
@@ -246,6 +290,10 @@ nxe_cedar_eval_ctx_add_bool_attr(ngx_array_t *attrs,
     ngx_str_t *name, ngx_flag_t value)
 {
     nxe_cedar_attr_t *attr;
+
+    if (nxe_cedar_attrs_has_name(attrs, name)) {
+        return NGX_ERROR;
+    }
 
     attr = ngx_array_push(attrs);
     if (attr == NULL) {
@@ -272,6 +320,10 @@ nxe_cedar_eval_ctx_add_ip_attr(ngx_array_t *attrs,
 {
     nxe_cedar_attr_t *attr;
     nxe_cedar_value_t ip_val;
+
+    if (nxe_cedar_attrs_has_name(attrs, name)) {
+        return NGX_ERROR;
+    }
 
     ip_val = nxe_cedar_make_ip(value);
     if (ip_val.type == NXE_CEDAR_RVAL_ERROR) {
@@ -340,6 +392,10 @@ nxe_cedar_eval_ctx_add_record_attr(ngx_array_t *attrs, ngx_pool_t *pool,
 {
     nxe_cedar_attr_t *attr;
     nxe_cedar_record_t *rec;
+
+    if (nxe_cedar_attrs_has_name(attrs, name)) {
+        return NULL;
+    }
 
     rec = nxe_cedar_record_create(pool, 1);
     if (rec == NULL) {
@@ -667,6 +723,10 @@ nxe_cedar_record_add_record(nxe_cedar_record_t *rec, ngx_str_t *name)
         return NULL;
     }
 
+    if (nxe_cedar_attrs_has_name(rec->attrs, name)) {
+        return NULL;
+    }
+
     if (rec->depth >= NXE_CEDAR_MAX_RECORD_DEPTH) {
         ngx_log_error(NGX_LOG_ERR, rec->pool->log, 0,
                       "nxe_cedar_record_add_record: "
@@ -753,6 +813,10 @@ nxe_cedar_eval_ctx_add_set_attr(ngx_array_t *attrs, ngx_pool_t *pool,
         return NULL;
     }
 
+    if (nxe_cedar_attrs_has_name(attrs, name)) {
+        return NULL;
+    }
+
     if (depth > NXE_CEDAR_MAX_SET_DEPTH) {
         ngx_log_error(NGX_LOG_ERR, pool->log, 0,
                       "nxe_cedar_eval_ctx_add_set_attr: "
@@ -792,6 +856,10 @@ nxe_cedar_eval_ctx_add_entity_attr(ngx_array_t *attrs,
     nxe_cedar_attr_t *attr;
 
     if (attrs == NULL || name == NULL || type == NULL || id == NULL) {
+        return NGX_ERROR;
+    }
+
+    if (nxe_cedar_attrs_has_name(attrs, name)) {
         return NGX_ERROR;
     }
 
