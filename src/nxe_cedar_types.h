@@ -45,6 +45,7 @@ typedef enum {
     NXE_CEDAR_TOKEN_HAS,            /* Phase 2 */
     NXE_CEDAR_TOKEN_LIKE,           /* Phase 2 */
     NXE_CEDAR_TOKEN_IP,             /* Phase 3 */
+    NXE_CEDAR_TOKEN_DECIMAL,        /* Phase 3 */
     NXE_CEDAR_TOKEN_IS,             /* Phase 4 */
 
     /* operators */
@@ -153,6 +154,7 @@ typedef enum {
 
     /* Phase 3 */
     NXE_CEDAR_NODE_IP_LITERAL,      /* ip("addr") */
+    NXE_CEDAR_NODE_DECIMAL_LITERAL, /* decimal("1.23") */
 
     /* Phase 4 */
     NXE_CEDAR_NODE_IS,              /* expr is type_name [in expr] */
@@ -226,7 +228,11 @@ struct nxe_cedar_node_s {
                                                    "isInRange",
                                                    "isIpv4", "isIpv6",
                                                    "isLoopback",
-                                                   "isMulticast" */
+                                                   "isMulticast",
+                                                   "lessThan",
+                                                   "lessThanOrEqual",
+                                                   "greaterThan",
+                                                   "greaterThanOrEqual" */
             nxe_cedar_node_t *arg;              /* NULL for zero-arg
                                                    methods (isIpv4 etc.) */
         } method_call;
@@ -234,6 +240,10 @@ struct nxe_cedar_node_s {
         struct {                                /* IP_LITERAL */
             ngx_str_t  addr;
         } ip_literal;
+
+        struct {                                /* DECIMAL_LITERAL */
+            ngx_str_t  text;
+        } decimal_literal;
 
         struct {                                /* IS (Phase 4) */
             nxe_cedar_node_t *object;           /* expression under test */
@@ -355,6 +365,7 @@ typedef struct {
 #define NXE_CEDAR_RVAL_ERROR    5
 #define NXE_CEDAR_RVAL_IP       6
 #define NXE_CEDAR_RVAL_RECORD   7
+#define NXE_CEDAR_RVAL_DECIMAL  8
 
 
 /*
@@ -391,6 +402,13 @@ typedef struct {
             ngx_uint_t  prefix_len;  /* /prefix; single=32(v4)/128(v6) */
             unsigned    is_ipv6   :1;
         } ip_addr;
+        /*
+         * Cedar decimal: fixed-point i64 with implicit scale 10^4.
+         * "1.23" is stored as 12300, "-0.5" as -5000, "0.0001" as 1.
+         * Holds the full int64_t range; the parser rejects inputs whose
+         * scaled value would overflow.
+         */
+        int64_t  decimal_val;
     } v;
 } nxe_cedar_value_t;
 

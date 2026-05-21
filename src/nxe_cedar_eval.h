@@ -46,6 +46,8 @@ ngx_int_t nxe_cedar_eval_ctx_add_principal_attr_bool(
     nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_flag_t value);
 ngx_int_t nxe_cedar_eval_ctx_add_principal_attr_ip(
     nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_str_t *value);
+ngx_int_t nxe_cedar_eval_ctx_add_principal_attr_decimal(
+    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_str_t *value);
 
 void nxe_cedar_eval_ctx_set_action(nxe_cedar_eval_ctx_t *ctx,
     ngx_str_t *type, ngx_str_t *id);
@@ -56,6 +58,8 @@ ngx_int_t nxe_cedar_eval_ctx_add_action_attr_long(
 ngx_int_t nxe_cedar_eval_ctx_add_action_attr_bool(
     nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_flag_t value);
 ngx_int_t nxe_cedar_eval_ctx_add_action_attr_ip(
+    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_str_t *value);
+ngx_int_t nxe_cedar_eval_ctx_add_action_attr_decimal(
     nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_str_t *value);
 
 void nxe_cedar_eval_ctx_set_resource(nxe_cedar_eval_ctx_t *ctx,
@@ -68,6 +72,8 @@ ngx_int_t nxe_cedar_eval_ctx_add_resource_attr_bool(
     nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_flag_t value);
 ngx_int_t nxe_cedar_eval_ctx_add_resource_attr_ip(
     nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_str_t *value);
+ngx_int_t nxe_cedar_eval_ctx_add_resource_attr_decimal(
+    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_str_t *value);
 
 ngx_int_t nxe_cedar_eval_ctx_add_context_attr(nxe_cedar_eval_ctx_t *ctx,
     ngx_str_t *name, ngx_str_t *value);
@@ -76,6 +82,8 @@ ngx_int_t nxe_cedar_eval_ctx_add_context_attr_long(
 ngx_int_t nxe_cedar_eval_ctx_add_context_attr_bool(
     nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_flag_t value);
 ngx_int_t nxe_cedar_eval_ctx_add_context_attr_ip(
+    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_str_t *value);
+ngx_int_t nxe_cedar_eval_ctx_add_context_attr_decimal(
     nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_str_t *value);
 
 /*
@@ -111,6 +119,8 @@ ngx_int_t nxe_cedar_record_add_long(nxe_cedar_record_t *rec,
 ngx_int_t nxe_cedar_record_add_bool(nxe_cedar_record_t *rec,
     ngx_str_t *name, ngx_flag_t value);
 ngx_int_t nxe_cedar_record_add_ip(nxe_cedar_record_t *rec,
+    ngx_str_t *name, ngx_str_t *value);
+ngx_int_t nxe_cedar_record_add_decimal(nxe_cedar_record_t *rec,
     ngx_str_t *name, ngx_str_t *value);
 nxe_cedar_record_t *nxe_cedar_record_add_record(nxe_cedar_record_t *rec,
     ngx_str_t *name);
@@ -165,6 +175,8 @@ ngx_int_t nxe_cedar_set_add_str(nxe_cedar_set_t *set, ngx_str_t *value);
 ngx_int_t nxe_cedar_set_add_long(nxe_cedar_set_t *set, int64_t value);
 ngx_int_t nxe_cedar_set_add_bool(nxe_cedar_set_t *set, ngx_flag_t value);
 ngx_int_t nxe_cedar_set_add_ip(nxe_cedar_set_t *set, ngx_str_t *value);
+ngx_int_t nxe_cedar_set_add_decimal(nxe_cedar_set_t *set,
+    ngx_str_t *value);
 ngx_int_t nxe_cedar_set_add_entity(nxe_cedar_set_t *set,
     ngx_str_t *type, ngx_str_t *id);
 nxe_cedar_set_t *nxe_cedar_set_add_set(nxe_cedar_set_t *set);

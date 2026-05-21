@@ -49,15 +49,16 @@ static nxe_cedar_node_t *nxe_cedar_parse_unary_expr(
 
 /*
  * Check if a token type can be used as an identifier (attribute name).
- * Extension function keywords like 'ip' are valid attribute names in
- * Cedar (e.g. context.ip, principal has ip).
+ * Extension function keywords like 'ip' and 'decimal' are valid
+ * attribute names in Cedar (e.g. context.ip, principal has decimal).
  * Add new extension keywords here as they are introduced.
  */
 static ngx_int_t
 nxe_cedar_token_is_ident(nxe_cedar_token_type_t type)
 {
     return (type == NXE_CEDAR_TOKEN_IDENT
-            || type == NXE_CEDAR_TOKEN_IP);
+            || type == NXE_CEDAR_TOKEN_IP
+            || type == NXE_CEDAR_TOKEN_DECIMAL);
 }
 
 
@@ -814,6 +815,42 @@ nxe_cedar_parse_primary(nxe_cedar_parser_ctx_t *ctx)
             return NULL;
         }
         node->u.ip_literal.addr = ctx->current.value;
+        nxe_cedar_parser_advance(ctx);
+        if (nxe_cedar_parser_expect(ctx, NXE_CEDAR_TOKEN_RPAREN)
+            != NGX_OK)
+        {
+            return NULL;
+        }
+        return node;
+
+    case NXE_CEDAR_TOKEN_DECIMAL:
+        nxe_cedar_parser_advance(ctx);
+        if (nxe_cedar_parser_expect(ctx, NXE_CEDAR_TOKEN_LPAREN)
+            != NGX_OK)
+        {
+            return NULL;
+        }
+        if (ctx->current.type != NXE_CEDAR_TOKEN_STRING) {
+            ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                          "nxe_cedar_parse: "
+                          "decimal() requires a string argument");
+            ctx->error = 1;
+            return NULL;
+        }
+        if (ctx->current.has_star_escape) {
+            ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                          "nxe_cedar_parse: "
+                          "invalid escape sequence \\*: "
+                          "only valid in like patterns");
+            ctx->error = 1;
+            return NULL;
+        }
+        node = nxe_cedar_parser_alloc_node(ctx,
+                                           NXE_CEDAR_NODE_DECIMAL_LITERAL);
+        if (node == NULL) {
+            return NULL;
+        }
+        node->u.decimal_literal.text = ctx->current.value;
         nxe_cedar_parser_advance(ctx);
         if (nxe_cedar_parser_expect(ctx, NXE_CEDAR_TOKEN_RPAREN)
             != NGX_OK)

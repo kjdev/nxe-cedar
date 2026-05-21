@@ -343,6 +343,39 @@ nxe_cedar_eval_ctx_add_ip_attr(ngx_array_t *attrs,
 
 
 /*
+ * Decimal attributes are eagerly parsed at injection time, mirroring
+ * the IP path: callers see malformed input rejected with NGX_ERROR up
+ * front instead of as a silent evaluation error later.
+ */
+static ngx_int_t
+nxe_cedar_eval_ctx_add_decimal_attr(ngx_array_t *attrs,
+    ngx_str_t *name, ngx_str_t *value)
+{
+    nxe_cedar_attr_t *attr;
+    nxe_cedar_value_t dec_val;
+
+    if (nxe_cedar_attrs_has_name(attrs, name)) {
+        return NGX_ERROR;
+    }
+
+    dec_val = nxe_cedar_make_decimal(value);
+    if (dec_val.type == NXE_CEDAR_RVAL_ERROR) {
+        return NGX_ERROR;
+    }
+
+    attr = ngx_array_push(attrs);
+    if (attr == NULL) {
+        return NGX_ERROR;
+    }
+
+    attr->name = *name;
+    attr->value = dec_val;
+
+    return NGX_OK;
+}
+
+
+/*
  * Record handle.
  *
  * - attrs: array of nxe_cedar_attr_t (shared with the attribute value
@@ -507,6 +540,15 @@ nxe_cedar_eval_ctx_add_principal_attr_ip(nxe_cedar_eval_ctx_t *ctx,
 }
 
 
+ngx_int_t
+nxe_cedar_eval_ctx_add_principal_attr_decimal(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *name, ngx_str_t *value)
+{
+    return nxe_cedar_eval_ctx_add_decimal_attr(ctx->principal_attrs,
+                                               name, value);
+}
+
+
 void
 nxe_cedar_eval_ctx_set_action(nxe_cedar_eval_ctx_t *ctx,
     ngx_str_t *type, ngx_str_t *id)
@@ -549,6 +591,15 @@ nxe_cedar_eval_ctx_add_action_attr_ip(nxe_cedar_eval_ctx_t *ctx,
 {
     return nxe_cedar_eval_ctx_add_ip_attr(ctx->action_attrs,
                                           name, value);
+}
+
+
+ngx_int_t
+nxe_cedar_eval_ctx_add_action_attr_decimal(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *name, ngx_str_t *value)
+{
+    return nxe_cedar_eval_ctx_add_decimal_attr(ctx->action_attrs,
+                                               name, value);
 }
 
 
@@ -598,6 +649,15 @@ nxe_cedar_eval_ctx_add_resource_attr_ip(nxe_cedar_eval_ctx_t *ctx,
 
 
 ngx_int_t
+nxe_cedar_eval_ctx_add_resource_attr_decimal(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *name, ngx_str_t *value)
+{
+    return nxe_cedar_eval_ctx_add_decimal_attr(ctx->resource_attrs,
+                                               name, value);
+}
+
+
+ngx_int_t
 nxe_cedar_eval_ctx_add_context_attr(nxe_cedar_eval_ctx_t *ctx,
     ngx_str_t *name, ngx_str_t *value)
 {
@@ -630,6 +690,15 @@ nxe_cedar_eval_ctx_add_context_attr_ip(nxe_cedar_eval_ctx_t *ctx,
 {
     return nxe_cedar_eval_ctx_add_ip_attr(ctx->context_attrs,
                                           name, value);
+}
+
+
+ngx_int_t
+nxe_cedar_eval_ctx_add_context_attr_decimal(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *name, ngx_str_t *value)
+{
+    return nxe_cedar_eval_ctx_add_decimal_attr(ctx->context_attrs,
+                                               name, value);
 }
 
 
@@ -710,6 +779,17 @@ nxe_cedar_record_add_ip(nxe_cedar_record_t *rec, ngx_str_t *name,
         return NGX_ERROR;
     }
     return nxe_cedar_eval_ctx_add_ip_attr(rec->attrs, name, value);
+}
+
+
+ngx_int_t
+nxe_cedar_record_add_decimal(nxe_cedar_record_t *rec, ngx_str_t *name,
+    ngx_str_t *value)
+{
+    if (rec == NULL) {
+        return NGX_ERROR;
+    }
+    return nxe_cedar_eval_ctx_add_decimal_attr(rec->attrs, name, value);
 }
 
 
@@ -964,6 +1044,31 @@ nxe_cedar_set_add_ip(nxe_cedar_set_t *set, ngx_str_t *value)
     }
 
     *v = ip_val;
+
+    return NGX_OK;
+}
+
+
+ngx_int_t
+nxe_cedar_set_add_decimal(nxe_cedar_set_t *set, ngx_str_t *value)
+{
+    nxe_cedar_value_t *v, dec_val;
+
+    if (set == NULL || value == NULL) {
+        return NGX_ERROR;
+    }
+
+    dec_val = nxe_cedar_make_decimal(value);
+    if (dec_val.type == NXE_CEDAR_RVAL_ERROR) {
+        return NGX_ERROR;
+    }
+
+    v = ngx_array_push(set->elts);
+    if (v == NULL) {
+        return NGX_ERROR;
+    }
+
+    *v = dec_val;
 
     return NGX_OK;
 }

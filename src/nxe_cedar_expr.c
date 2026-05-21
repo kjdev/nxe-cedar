@@ -364,6 +364,113 @@ done_groups:
 }
 
 
+/*
+ * Parse a Cedar decimal literal "[-]?d+\.d{1,4}" into an i64 with an
+ * implicit scale of 10^4. The Cedar grammar requires at least one
+ * digit on each side of the decimal point and at most four fractional
+ * digits; anything else (missing integer part, missing fractional
+ * digits, trailing garbage, scaled magnitude beyond int64_t) is
+ * rejected as RVAL_ERROR. Leading zeros are tolerated to match the
+ * reference parser.
+ */
+nxe_cedar_value_t
+nxe_cedar_make_decimal(ngx_str_t *s)
+{
+    nxe_cedar_value_t val;
+    u_char *p, *end;
+    ngx_flag_t negative;
+    int64_t int_part, frac_part, scaled;
+    ngx_uint_t frac_digits;
+
+    ngx_memzero(&val, sizeof(nxe_cedar_value_t));
+    val.type = NXE_CEDAR_RVAL_ERROR;
+
+    if (s == NULL || s->len == 0) {
+        return val;
+    }
+
+    p = s->data;
+    end = p + s->len;
+
+    negative = 0;
+    if (*p == '-') {
+        negative = 1;
+        p++;
+        if (p == end) {
+            return val;
+        }
+    }
+
+    if (p >= end || *p < '0' || *p > '9') {
+        return val;
+    }
+
+    int_part = 0;
+    while (p < end && *p >= '0' && *p <= '9') {
+        int64_t d = *p - '0';
+        if (int_part > (INT64_MAX - d) / 10) {
+            return val;
+        }
+        int_part = int_part * 10 + d;
+        p++;
+    }
+
+    if (p >= end || *p != '.') {
+        return val;
+    }
+    p++;
+
+    frac_part = 0;
+    frac_digits = 0;
+    while (p < end && *p >= '0' && *p <= '9') {
+        if (frac_digits >= 4) {
+            return val;
+        }
+        frac_part = frac_part * 10 + (*p - '0');
+        frac_digits++;
+        p++;
+    }
+
+    if (frac_digits == 0 || p != end) {
+        return val;
+    }
+
+    while (frac_digits < 4) {
+        frac_part *= 10;
+        frac_digits++;
+    }
+
+    /*
+     * Combine int_part and frac_part into the scaled i64 representation.
+     * Sign is applied at the multiplication step so that the negative
+     * range can reach INT64_MIN (-922337203685477.5808): if we negated
+     * after assembly, the positive intermediate would overflow at
+     * |INT64_MIN| and we would reject the value, diverging from the
+     * Cedar reference parser whose range is symmetric only up to
+     * 922337203685477.5807 / -922337203685477.5808.
+     */
+    if (negative) {
+        if (__builtin_mul_overflow(int_part, (int64_t) -10000, &scaled)) {
+            return val;
+        }
+        if (__builtin_sub_overflow(scaled, frac_part, &scaled)) {
+            return val;
+        }
+    } else {
+        if (__builtin_mul_overflow(int_part, (int64_t) 10000, &scaled)) {
+            return val;
+        }
+        if (__builtin_add_overflow(scaled, frac_part, &scaled)) {
+            return val;
+        }
+    }
+
+    val.type = NXE_CEDAR_RVAL_DECIMAL;
+    val.v.decimal_val = scaled;
+    return val;
+}
+
+
 /* parse IP string to binary runtime value */
 nxe_cedar_value_t
 nxe_cedar_make_ip(ngx_str_t *s)
@@ -496,6 +603,9 @@ nxe_cedar_value_equals(nxe_cedar_value_t *a, nxe_cedar_value_t *b)
                 && a->v.ip_addr.prefix_len == b->v.ip_addr.prefix_len
                 && ngx_memcmp(a->v.ip_addr.addr, b->v.ip_addr.addr,
                               a->v.ip_addr.is_ipv6 ? 16 : 4) == 0);
+
+    case NXE_CEDAR_RVAL_DECIMAL:
+        return (a->v.decimal_val == b->v.decimal_val);
 
     case NXE_CEDAR_RVAL_SET:
         if (a->v.set_elts == NULL || b->v.set_elts == NULL) {
@@ -1098,6 +1208,53 @@ nxe_cedar_eval_method_call(nxe_cedar_node_t *node,
             nxe_cedar_ip_cidr_contains(&obj, &arg));
     }
 
+    /*
+     * Decimal comparison methods. Cedar exposes ordering on decimals
+     * only via these four methods; the binary <, <=, >, >= operators
+     * remain reserved for Long. Both receiver and argument must be
+     * RVAL_DECIMAL, otherwise the method is not applicable and the
+     * containing policy is treated as a non-match.
+     */
+    if (obj.type == NXE_CEDAR_RVAL_DECIMAL
+        || arg.type == NXE_CEDAR_RVAL_DECIMAL)
+    {
+        if (obj.type != NXE_CEDAR_RVAL_DECIMAL
+            || arg.type != NXE_CEDAR_RVAL_DECIMAL)
+        {
+            return nxe_cedar_make_error();
+        }
+
+        if (method->len == 8
+            && ngx_memcmp(method->data, "lessThan", 8) == 0)
+        {
+            return nxe_cedar_make_bool(
+                obj.v.decimal_val < arg.v.decimal_val);
+        }
+
+        if (method->len == 15
+            && ngx_memcmp(method->data, "lessThanOrEqual", 15) == 0)
+        {
+            return nxe_cedar_make_bool(
+                obj.v.decimal_val <= arg.v.decimal_val);
+        }
+
+        if (method->len == 11
+            && ngx_memcmp(method->data, "greaterThan", 11) == 0)
+        {
+            return nxe_cedar_make_bool(
+                obj.v.decimal_val > arg.v.decimal_val);
+        }
+
+        if (method->len == 18
+            && ngx_memcmp(method->data, "greaterThanOrEqual", 18) == 0)
+        {
+            return nxe_cedar_make_bool(
+                obj.v.decimal_val >= arg.v.decimal_val);
+        }
+
+        return nxe_cedar_make_error();
+    }
+
     /* unknown method */
     return nxe_cedar_make_error();
 }
@@ -1226,6 +1383,9 @@ nxe_cedar_expr_eval_body(nxe_cedar_node_t *node,
 
     case NXE_CEDAR_NODE_IP_LITERAL:
         return nxe_cedar_make_ip(&node->u.ip_literal.addr);
+
+    case NXE_CEDAR_NODE_DECIMAL_LITERAL:
+        return nxe_cedar_make_decimal(&node->u.decimal_literal.text);
 
     case NXE_CEDAR_NODE_ENTITY_REF:
         return nxe_cedar_make_entity(node->u.entity_ref.entity_type,

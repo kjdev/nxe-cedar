@@ -38,4 +38,14 @@ nxe_cedar_value_t nxe_cedar_expr_eval(nxe_cedar_node_t *node,
 nxe_cedar_value_t nxe_cedar_make_ip(ngx_str_t *s);
 
 
+/*
+ * Parse a Cedar decimal string ("[-]?d+\.d{1,4}") into a fixed-point
+ * i64 runtime value with implicit scale 10^4. Returns an RVAL_ERROR
+ * value when the input is malformed or the scaled magnitude does not
+ * fit in int64_t. Shared with eval.c so the injection API can eagerly
+ * materialize decimal attribute values at insertion time.
+ */
+nxe_cedar_value_t nxe_cedar_make_decimal(ngx_str_t *s);
+
+
 #endif /* NXE_CEDAR_EXPR_H */
