@@ -1,5 +1,15 @@
 # Changelog
 
+## [43cbdcf](../../commit/43cbdcf) - 2026-05-22
+
+### Added
+
+- Implement Cedar `decimal(...)` extension type (issue #004)
+  - The lexer now recognizes `decimal` as a Phase 3 keyword (reusable as an attribute identifier alongside `ip`); the parser produces `NXE_CEDAR_NODE_DECIMAL_LITERAL` for `decimal("d.d")` reusing the `ip()` token / parentheses / string-arg shape, so the AST surface grows by one well-bounded node and one keyword
+  - Runtime values gain `NXE_CEDAR_RVAL_DECIMAL` backed by `int64_t` with an implicit scale of 10^4 — `"1.23"` becomes `12300`, `"-0.0001"` becomes `-1`, and `nxe_cedar_make_decimal()` enforces the Cedar grammar (`[-]?d+\.d{1,4}`) with overflow detection on `int_part * 10000 + frac_part` so malformed or out-of-range inputs surface as `RVAL_ERROR` instead of silently truncating
+  - The four ordering methods `lessThan`, `lessThanOrEqual`, `greaterThan`, `greaterThanOrEqual` evaluate via direct i64 comparison on the scaled representation; the `<`, `>`, `<=`, `>=` operators remain Long-only (Cedar exposes decimal ordering only through methods, never through binary operators), so the type system stays consistent
+  - The public injection API gains `nxe_cedar_eval_ctx_add_{principal,action,resource,context}_attr_decimal()`, `nxe_cedar_record_add_decimal()`, and `nxe_cedar_set_add_decimal()`; each validates the input string at insertion time through `nxe_cedar_make_decimal()` and rejects malformed decimals with `NGX_ERROR`, mirroring the eager IP injection path so callers cannot accidentally inject a "deferred RVAL_ERROR" attribute
+
 ## [b14263b](../../commit/b14263b) - 2026-05-21
 
 ### Fixed
