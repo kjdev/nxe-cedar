@@ -1,0 +1,118 @@
+{
+    "description": "eagerly-parsed extension types reject malformed values injected through the public eval_ctx attribute API",
+    "phase": 3,
+    "tests": [
+        {
+            "name": "invalid_ip_in_principal_attr_rejected",
+            "description": "injecting an invalid IPv4 literal via principal attr fails at eval ctx setup",
+            "policy": "permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "src_ip": {"__extn": {"fn": "ip", "arg": "not-an-ip"}}
+                }
+            },
+            "expected": "error"
+        },
+        {
+            "name": "invalid_ip_in_context_attr_rejected",
+            "description": "injecting an invalid IPv4 literal via context attr fails at eval ctx setup",
+            "policy": "permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {
+                    "client_ip": {"__extn": {"fn": "ip", "arg": "256.0.0.1"}}
+                }
+            },
+            "expected": "error"
+        },
+        {
+            "name": "invalid_ip_in_resource_attr_rejected",
+            "description": "injecting a malformed IPv6 group via resource attr fails at eval ctx setup",
+            "policy": "permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "resource_attrs": {
+                    "bind_ip": {"__extn": {"fn": "ip", "arg": "1:::2"}}
+                }
+            },
+            "expected": "error"
+        },
+        {
+            "name": "invalid_ip_empty_string_in_action_attr_rejected",
+            "description": "empty IP string in action attr is rejected at eval ctx setup",
+            "policy": "permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "action_attrs": {
+                    "server_ip": {"__extn": {"fn": "ip", "arg": ""}}
+                }
+            },
+            "expected": "error"
+        },
+        {
+            "name": "invalid_decimal_in_principal_attr_rejected",
+            "description": "injecting a decimal lacking the dot via principal attr fails at eval ctx setup",
+            "policy": "permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "balance": {"__extn": {"fn": "decimal", "arg": "5"}}
+                }
+            },
+            "expected": "error"
+        },
+        {
+            "name": "invalid_decimal_overflow_in_context_attr_rejected",
+            "description": "decimal whose scaled value overflows i64 is rejected when injected via context attr",
+            "policy": "permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {
+                    "rate": {"__extn": {"fn": "decimal", "arg": "9999999999999999.0"}}
+                }
+            },
+            "expected": "error"
+        },
+        {
+            "name": "invalid_decimal_too_many_fraction_digits_resource_attr_rejected",
+            "description": "decimal with more than four fractional digits is rejected at resource attr injection",
+            "policy": "permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "resource_attrs": {
+                    "price": {"__extn": {"fn": "decimal", "arg": "1.23456"}}
+                }
+            },
+            "expected": "error"
+        },
+        {
+            "name": "invalid_decimal_empty_string_action_attr_rejected",
+            "description": "empty decimal string in action attr is rejected at eval ctx setup",
+            "policy": "permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "action_attrs": {
+                    "fee": {"__extn": {"fn": "decimal", "arg": ""}}
+                }
+            },
+            "expected": "error"
+        }
+    ]
+}

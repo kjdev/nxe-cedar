@@ -298,6 +298,90 @@
                 "context": {"\"": "x"}
             },
             "expected": "allow"
+        },
+        {
+            "name": "bracket_nested_record_match",
+            "description": "nested bracket access traverses a record-valued attribute and equals the inner scalar",
+            "policy": "permit (principal, action, resource) when { principal[\"profile\"][\"name\"] == \"alice\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "profile": {"name": "alice", "role": "admin"}
+                }
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "bracket_nested_record_mismatch",
+            "description": "nested bracket access on existing record but mismatching inner scalar denies",
+            "policy": "permit (principal, action, resource) when { principal[\"profile\"][\"name\"] == \"alice\" };",
+            "request": {
+                "principal": {"type": "User", "id": "bob"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "profile": {"name": "bob", "role": "admin"}
+                }
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "bracket_nested_record_mixed_with_dot",
+            "description": "bracket and dot access mix freely across the nested record chain",
+            "policy": "permit (principal, action, resource) when { principal[\"profile\"].name == \"alice\" && principal.profile[\"role\"] == \"admin\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "profile": {"name": "alice", "role": "admin"}
+                }
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "bracket_then_contains_method_true",
+            "description": "bracket access followed by contains() returns true when the set attribute contains the queried element",
+            "policy": "permit (principal, action, resource) when { principal[\"tags\"].contains(\"admin\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "tags": ["admin", "ops"]
+                }
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "bracket_then_contains_method_false",
+            "description": "bracket access followed by contains() returns false when the queried element is absent",
+            "policy": "permit (principal, action, resource) when { principal[\"tags\"].contains(\"admin\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "tags": ["viewer", "ops"]
+                }
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "bracket_then_containsAll_method_true",
+            "description": "bracket access followed by containsAll() returns true when the set attribute is a superset",
+            "policy": "permit (principal, action, resource) when { principal[\"tags\"].containsAll([\"admin\", \"ops\"]) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "tags": ["admin", "ops", "viewer"]
+                }
+            },
+            "expected": "allow"
         }
     ]
 }
