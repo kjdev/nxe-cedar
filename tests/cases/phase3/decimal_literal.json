@@ -1,0 +1,277 @@
+{
+    "description": "decimal literal parsing, equality, and comparison methods",
+    "phase": 3,
+    "tests": [
+        {
+            "name": "decimal_eq_same",
+            "description": "two identical decimal literals should be equal",
+            "policy": "permit (principal, action, resource) when { decimal(\"1.23\") == decimal(\"1.23\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "decimal_eq_trailing_zeros",
+            "description": "decimal values with implicit trailing zeros are equal",
+            "policy": "permit (principal, action, resource) when { decimal(\"1.2\") == decimal(\"1.2000\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "decimal_eq_different",
+            "description": "different decimal literals should not be equal",
+            "policy": "permit (principal, action, resource) when { decimal(\"1.23\") == decimal(\"1.24\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "decimal_ne",
+            "description": "!= comparison on different decimals",
+            "policy": "permit (principal, action, resource) when { decimal(\"1.0\") != decimal(\"2.0\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "decimal_lessThan_true",
+            "description": "lessThan returns true when receiver is strictly smaller",
+            "policy": "permit (principal, action, resource) when { decimal(\"1.5\").lessThan(decimal(\"2.0\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "decimal_lessThan_equal_false",
+            "description": "lessThan returns false on equal operands",
+            "policy": "permit (principal, action, resource) when { decimal(\"1.5\").lessThan(decimal(\"1.5\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "decimal_lessThanOrEqual_equal_true",
+            "description": "lessThanOrEqual returns true on equal operands",
+            "policy": "permit (principal, action, resource) when { decimal(\"1.5\").lessThanOrEqual(decimal(\"1.5\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "decimal_lessThanOrEqual_greater_false",
+            "description": "lessThanOrEqual returns false when receiver is greater",
+            "policy": "permit (principal, action, resource) when { decimal(\"2.0\").lessThanOrEqual(decimal(\"1.0\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "decimal_greaterThan_true",
+            "description": "greaterThan returns true when receiver is strictly greater",
+            "policy": "permit (principal, action, resource) when { decimal(\"5.5\").greaterThan(decimal(\"5.0\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "decimal_greaterThan_equal_false",
+            "description": "greaterThan returns false on equal operands",
+            "policy": "permit (principal, action, resource) when { decimal(\"5.0\").greaterThan(decimal(\"5.0\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "decimal_greaterThanOrEqual_equal_true",
+            "description": "greaterThanOrEqual returns true on equal operands",
+            "policy": "permit (principal, action, resource) when { decimal(\"5.0\").greaterThanOrEqual(decimal(\"5.0\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "decimal_greaterThanOrEqual_less_false",
+            "description": "greaterThanOrEqual returns false when receiver is smaller",
+            "policy": "permit (principal, action, resource) when { decimal(\"1.0\").greaterThanOrEqual(decimal(\"5.0\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "decimal_negative_lessThan",
+            "description": "negative decimal compares smaller than positive",
+            "policy": "permit (principal, action, resource) when { decimal(\"-1.5\").lessThan(decimal(\"0.5\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "decimal_negative_equality",
+            "description": "negative decimals compare equal when scaled values match",
+            "policy": "permit (principal, action, resource) when { decimal(\"-0.5\") == decimal(\"-0.5000\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "decimal_smallest_fraction",
+            "description": "smallest representable fraction 0.0001 equals itself",
+            "policy": "permit (principal, action, resource) when { decimal(\"0.0001\") == decimal(\"0.0001\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "decimal_context_attr_eq",
+            "description": "decimal literal equals context decimal attribute",
+            "policy": "permit (principal, action, resource) when { decimal(\"3.14\") == context.rate };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"rate": {"__extn": {"fn": "decimal", "arg": "3.14"}}}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "decimal_context_attr_lessThan",
+            "description": "context decimal attribute compared via lessThan",
+            "policy": "permit (principal, action, resource) when { context.rate.lessThan(decimal(\"1.0\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"rate": {"__extn": {"fn": "decimal", "arg": "0.5"}}}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "decimal_principal_attr_greaterThan",
+            "description": "principal decimal attribute compared via greaterThan",
+            "policy": "permit (principal, action, resource) when { principal.balance.greaterThan(decimal(\"100.0\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"balance": {"__extn": {"fn": "decimal", "arg": "150.5"}}}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "decimal_resource_attr_lessThanOrEqual",
+            "description": "resource decimal attribute compared via lessThanOrEqual",
+            "policy": "permit (principal, action, resource) when { resource.price.lessThanOrEqual(decimal(\"99.99\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "resource_attrs": {"price": {"__extn": {"fn": "decimal", "arg": "99.99"}}}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "decimal_action_attr_eq",
+            "description": "action decimal attribute equality",
+            "policy": "permit (principal, action, resource) when { action.fee == decimal(\"0.05\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "action_attrs": {"fee": {"__extn": {"fn": "decimal", "arg": "0.05"}}}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "decimal_has_keyword",
+            "description": "has operator should accept decimal as unquoted attribute name",
+            "policy": "permit (principal, action, resource) when { context has decimal && context.decimal == decimal(\"1.0\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"decimal": {"__extn": {"fn": "decimal", "arg": "1.0"}}}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "decimal_in_forbid",
+            "description": "forbid with decimal comparison overrides permit",
+            "policy": "permit (principal, action, resource);\nforbid (principal, action, resource) when { principal.balance.lessThan(decimal(\"0.0\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {"balance": {"__extn": {"fn": "decimal", "arg": "-10.5"}}}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "decimal_max_positive_boundary",
+            "description": "decimal 922337203685477.5807 is the i64 max boundary and must be accepted",
+            "policy": "permit (principal, action, resource) when { decimal(\"922337203685477.5807\") == decimal(\"922337203685477.5807\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "decimal_min_negative_boundary",
+            "description": "decimal -922337203685477.5808 is the i64 min boundary and must be accepted",
+            "policy": "permit (principal, action, resource) when { decimal(\"-922337203685477.5808\").lessThan(decimal(\"-922337203685477.5807\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        }
+    ]
+}
