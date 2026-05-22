@@ -564,15 +564,26 @@ nxe_cedar_long_arith(nxe_cedar_op_t op, int64_t a, int64_t b, int64_t *out)
 
 /*
  * Tri-state value equality: returns 1 (equal), 0 (not equal), or
- * NGX_ERROR when either operand is RVAL_ERROR. Defense in depth: the
- * normal evaluation paths reject RVAL_ERROR before storing it in
- * record_attrs / set_elts, so NGX_ERROR is not expected in practice;
- * callers must still propagate it as nxe_cedar_make_error() instead of
+ * NGX_ERROR when either operand is RVAL_ERROR, when the recursion
+ * exceeds NXE_CEDAR_MAX_VALUE_EQUALS_DEPTH, or when a set/record bitmap
+ * cannot accommodate the comparand. Defense in depth: the normal
+ * evaluation paths reject RVAL_ERROR before storing it in
+ * record_attrs / set_elts, and the depth ceiling is well above what
+ * MAX_RECORD_DEPTH / MAX_SET_DEPTH allow injected values to reach.
+ * Callers must propagate NGX_ERROR as nxe_cedar_make_error() instead of
  * treating it as "not equal".
+ *
+ * `depth` is the number of value_equals frames already on the stack;
+ * top-level callers pass 0, recursive calls pass depth + 1.
  */
 static ngx_int_t
-nxe_cedar_value_equals(nxe_cedar_value_t *a, nxe_cedar_value_t *b)
+nxe_cedar_value_equals(nxe_cedar_value_t *a, nxe_cedar_value_t *b,
+    ngx_uint_t depth)
 {
+    if (depth > NXE_CEDAR_MAX_VALUE_EQUALS_DEPTH) {
+        return NGX_ERROR;
+    }
+
     if (a->type == NXE_CEDAR_RVAL_ERROR
         || b->type == NXE_CEDAR_RVAL_ERROR)
     {
@@ -635,7 +646,8 @@ nxe_cedar_value_equals(nxe_cedar_value_t *a, nxe_cedar_value_t *b)
                         continue;
                     }
 
-                    r = nxe_cedar_value_equals(&a_elts[i], &b_elts[j]);
+                    r = nxe_cedar_value_equals(&a_elts[i], &b_elts[j],
+                                               depth + 1);
                     if (r == NGX_ERROR) {
                         return NGX_ERROR;
                     }
@@ -688,7 +700,8 @@ nxe_cedar_value_equals(nxe_cedar_value_t *a, nxe_cedar_value_t *b)
                     }
 
                     r = nxe_cedar_value_equals(&a_attrs[i].value,
-                                               &b_attrs[j].value);
+                                               &b_attrs[j].value,
+                                               depth + 1);
                     if (r == NGX_ERROR) {
                         return NGX_ERROR;
                     }
@@ -1115,7 +1128,7 @@ nxe_cedar_eval_method_call(nxe_cedar_node_t *node,
 
             for (j = 0; j < obj.v.set_elts->nelts; j++) {
                 ngx_int_t r = nxe_cedar_value_equals(&arg_elts[i],
-                                                     &obj_elts[j]);
+                                                     &obj_elts[j], 0);
                 if (r == NGX_ERROR) {
                     return nxe_cedar_make_error();
                 }
@@ -1154,7 +1167,7 @@ nxe_cedar_eval_method_call(nxe_cedar_node_t *node,
         for (i = 0; i < arg.v.set_elts->nelts; i++) {
             for (j = 0; j < obj.v.set_elts->nelts; j++) {
                 ngx_int_t r = nxe_cedar_value_equals(&arg_elts[i],
-                                                     &obj_elts[j]);
+                                                     &obj_elts[j], 0);
                 if (r == NGX_ERROR) {
                     return nxe_cedar_make_error();
                 }
@@ -1182,7 +1195,7 @@ nxe_cedar_eval_method_call(nxe_cedar_node_t *node,
         obj_elts = obj.v.set_elts->elts;
 
         for (i = 0; i < obj.v.set_elts->nelts; i++) {
-            ngx_int_t r = nxe_cedar_value_equals(&obj_elts[i], &arg);
+            ngx_int_t r = nxe_cedar_value_equals(&obj_elts[i], &arg, 0);
             if (r == NGX_ERROR) {
                 return nxe_cedar_make_error();
             }
@@ -1552,7 +1565,7 @@ nxe_cedar_expr_eval_body(nxe_cedar_node_t *node,
                 return nxe_cedar_make_error();
             }
             {
-                ngx_int_t r = nxe_cedar_value_equals(&left, &right);
+                ngx_int_t r = nxe_cedar_value_equals(&left, &right, 0);
                 if (r == NGX_ERROR) {
                     return nxe_cedar_make_error();
                 }
@@ -1574,7 +1587,7 @@ nxe_cedar_expr_eval_body(nxe_cedar_node_t *node,
                 return nxe_cedar_make_error();
             }
             {
-                ngx_int_t r = nxe_cedar_value_equals(&left, &right);
+                ngx_int_t r = nxe_cedar_value_equals(&left, &right, 0);
                 if (r == NGX_ERROR) {
                     return nxe_cedar_make_error();
                 }

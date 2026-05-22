@@ -340,6 +340,21 @@ typedef struct {
 #define NXE_CEDAR_MAX_SET_DEPTH NXE_CEDAR_MAX_RECORD_DEPTH
 
 /*
+ * Independent recursion limit for nxe_cedar_value_equals(). The function
+ * recurses into nested set/record elements without going through
+ * nxe_cedar_expr_eval(), so ctx->eval_depth does not protect it. In
+ * practice the structural caps on injected values (MAX_RECORD_DEPTH and
+ * MAX_SET_DEPTH) and the parser's MAX_PARSE_DEPTH already bound the
+ * graph, but value_equals deserves its own ceiling as a defense-in-depth
+ * measure so the safety of one recursive walk is not load-bearing on
+ * invariants enforced elsewhere. The sum of MAX_RECORD_DEPTH and
+ * MAX_SET_DEPTH (=32) is the worst case for an alternating record/set
+ * chain at the injection-API ceiling.
+ */
+#define NXE_CEDAR_MAX_VALUE_EQUALS_DEPTH \
+    (NXE_CEDAR_MAX_RECORD_DEPTH + NXE_CEDAR_MAX_SET_DEPTH)
+
+/*
  * Expression-evaluation recursion limit. AST shape is already bounded
  * by the parser (NXE_CEDAR_MAX_PARSE_DEPTH, MAX_MEMBER_CHAIN,
  * MAX_BINOP_CHAIN), but recursive walks during evaluation can stack
