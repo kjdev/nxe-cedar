@@ -108,10 +108,11 @@ nxe_cedar_parser_alloc_node(nxe_cedar_parser_ctx_t *ctx,
 
 
 /*
- * Consume a STRING token used as an attribute name (bracket access key,
- * `has` operator string branch, etc.). Rejects non-STRING tokens and
- * strings containing the `\*` escape (which is only valid in `like`
- * patterns). On success, copies the string value to *out and advances.
+ * Consume a STRING token where like-style wildcards are not allowed
+ * (bracket access key, `has` operator string branch, record literal
+ * string key, annotation value, etc.). Rejects non-STRING tokens and
+ * strings containing the `\*` escape (only valid in `like` patterns).
+ * On success, copies the string value to *out and advances.
  */
 static ngx_int_t
 nxe_cedar_parser_consume_attr_name_string(nxe_cedar_parser_ctx_t *ctx,
@@ -607,17 +608,12 @@ nxe_cedar_parse_record_literal(nxe_cedar_parser_ctx_t *ctx)
             nxe_cedar_parser_advance(ctx);
 
         } else if (ctx->current.type == NXE_CEDAR_TOKEN_STRING) {
-            if (ctx->current.has_star_escape) {
-                ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
-                              "nxe_cedar_parse: "
-                              "invalid escape sequence \\*: "
-                              "only valid in like patterns");
-                ctx->error = 1;
+            if (nxe_cedar_parser_consume_attr_name_string(ctx, &key)
+                != NGX_OK)
+            {
                 node = NULL;
                 goto out;
             }
-            key = ctx->current.value;
-            nxe_cedar_parser_advance(ctx);
 
         } else {
             ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
@@ -1808,26 +1804,11 @@ nxe_cedar_parse_annotations(nxe_cedar_parser_ctx_t *ctx,
         if (ctx->current.type == NXE_CEDAR_TOKEN_LPAREN) {
             nxe_cedar_parser_advance(ctx);  /* consume ( */
 
-            if (ctx->current.type != NXE_CEDAR_TOKEN_STRING) {
-                ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
-                              "nxe_cedar_parse: "
-                              "expected string in annotation value");
-                ctx->error = 1;
+            if (nxe_cedar_parser_consume_attr_name_string(ctx, &ann->value)
+                != NGX_OK)
+            {
                 return NGX_ERROR;
             }
-
-            if (ctx->current.has_star_escape) {
-                ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
-                              "nxe_cedar_parse: "
-                              "invalid escape sequence \\*: "
-                              "only valid in like patterns");
-                ctx->error = 1;
-                return NGX_ERROR;
-            }
-
-            ann->value = ctx->current.value;
-
-            nxe_cedar_parser_advance(ctx);  /* consume STRING */
 
             if (nxe_cedar_parser_expect(ctx,
                                         NXE_CEDAR_TOKEN_RPAREN) != NGX_OK)
