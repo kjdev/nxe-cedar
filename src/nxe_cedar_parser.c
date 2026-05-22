@@ -938,6 +938,76 @@ nxe_cedar_parse_bracket_step(nxe_cedar_parser_ctx_t *ctx,
 
 
 /*
+ * Parse one dot-access step: `.ident` (attribute access) or
+ * `.ident(args)` (method call). Called with `.` as the current token;
+ * returns a new node wrapping `object` on success, or NULL with
+ * ctx->error set on failure.
+ */
+static nxe_cedar_node_t *
+nxe_cedar_parse_dot_step(nxe_cedar_parser_ctx_t *ctx,
+    nxe_cedar_node_t *object)
+{
+    nxe_cedar_node_t *access;
+    ngx_str_t ident;
+
+    nxe_cedar_parser_advance(ctx);  /* consume '.' */
+
+    if (!nxe_cedar_token_is_ident(ctx->current.type)) {
+        ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
+                      "nxe_cedar_parse: expected identifier after '.'");
+        ctx->error = 1;
+        return NULL;
+    }
+
+    ident = ctx->current.value;
+    nxe_cedar_parser_advance(ctx);
+
+    /* method call: expr.method(arg) or expr.method() */
+    if (ctx->current.type == NXE_CEDAR_TOKEN_LPAREN) {
+        nxe_cedar_node_t *call;
+
+        nxe_cedar_parser_advance(ctx);
+
+        call = nxe_cedar_parser_alloc_node(ctx,
+                                           NXE_CEDAR_NODE_METHOD_CALL);
+        if (call == NULL) {
+            return NULL;
+        }
+
+        call->u.method_call.object = object;
+        call->u.method_call.method = ident;
+
+        if (ctx->current.type == NXE_CEDAR_TOKEN_RPAREN) {
+            call->u.method_call.arg = NULL;
+
+        } else {
+            call->u.method_call.arg = nxe_cedar_parse_expr(ctx);
+            if (ctx->error) {
+                return NULL;
+            }
+        }
+
+        if (nxe_cedar_parser_expect(ctx, NXE_CEDAR_TOKEN_RPAREN) != NGX_OK) {
+            return NULL;
+        }
+
+        return call;
+    }
+
+    /* attribute access: expr.ident */
+    access = nxe_cedar_parser_alloc_node(ctx, NXE_CEDAR_NODE_ATTR_ACCESS);
+    if (access == NULL) {
+        return NULL;
+    }
+
+    access->u.attr_access.object = object;
+    access->u.attr_access.attr = ident;
+
+    return access;
+}
+
+
+/*
  * parse member expression:
  *   primary { .ident | .ident(args) | [ STRING ] }
  *
@@ -949,8 +1019,7 @@ nxe_cedar_parse_bracket_step(nxe_cedar_parser_ctx_t *ctx,
 static nxe_cedar_node_t *
 nxe_cedar_parse_member_expr(nxe_cedar_parser_ctx_t *ctx)
 {
-    nxe_cedar_node_t *node, *access;
-    ngx_str_t ident;
+    nxe_cedar_node_t *node;
     ngx_uint_t chain;
 
     node = nxe_cedar_parse_primary(ctx);
@@ -972,70 +1041,13 @@ nxe_cedar_parse_member_expr(nxe_cedar_parser_ctx_t *ctx)
 
         if (ctx->current.type == NXE_CEDAR_TOKEN_LBRACKET) {
             node = nxe_cedar_parse_bracket_step(ctx, node);
-            if (node == NULL) {
-                return NULL;
-            }
-            continue;
+        } else {
+            node = nxe_cedar_parse_dot_step(ctx, node);
         }
 
-        nxe_cedar_parser_advance(ctx);
-
-        if (!nxe_cedar_token_is_ident(ctx->current.type)) {
-            ngx_log_error(NGX_LOG_ERR, ctx->log, 0,
-                          "nxe_cedar_parse: expected identifier after '.'");
-            ctx->error = 1;
+        if (node == NULL) {
             return NULL;
         }
-
-        ident = ctx->current.value;
-        nxe_cedar_parser_advance(ctx);
-
-        /* method call: expr.method(arg) or expr.method() */
-        if (ctx->current.type == NXE_CEDAR_TOKEN_LPAREN) {
-            nxe_cedar_node_t *call;
-
-            nxe_cedar_parser_advance(ctx);
-
-            call = nxe_cedar_parser_alloc_node(ctx,
-                                               NXE_CEDAR_NODE_METHOD_CALL);
-            if (call == NULL) {
-                return NULL;
-            }
-
-            call->u.method_call.object = node;
-            call->u.method_call.method = ident;
-
-            if (ctx->current.type == NXE_CEDAR_TOKEN_RPAREN) {
-                call->u.method_call.arg = NULL;
-
-            } else {
-                call->u.method_call.arg = nxe_cedar_parse_expr(ctx);
-                if (ctx->error) {
-                    return NULL;
-                }
-            }
-
-            if (nxe_cedar_parser_expect(ctx, NXE_CEDAR_TOKEN_RPAREN)
-                != NGX_OK)
-            {
-                return NULL;
-            }
-
-            node = call;
-            continue;
-        }
-
-        /* attribute access: expr.ident */
-        access = nxe_cedar_parser_alloc_node(ctx,
-                                             NXE_CEDAR_NODE_ATTR_ACCESS);
-        if (access == NULL) {
-            return NULL;
-        }
-
-        access->u.attr_access.object = node;
-        access->u.attr_access.attr = ident;
-
-        node = access;
     }
 
     return node;
