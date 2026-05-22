@@ -5,6 +5,7 @@
 
 nxe_cedar_module_deps="\
   $nxe_cedar_dir/src/nxe_cedar_types.h \
+  $nxe_cedar_dir/src/nxe_cedar_util.h \
   $nxe_cedar_dir/src/nxe_cedar_lexer.h \
   $nxe_cedar_dir/src/nxe_cedar_parser.h \
   $nxe_cedar_dir/src/nxe_cedar_expr.h \

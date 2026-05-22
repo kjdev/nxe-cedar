@@ -12,16 +12,7 @@
 #define NXE_CEDAR_EXPR_H
 
 #include "nxe_cedar_types.h"
-
-
-/* string equality (shared by expr.c and eval.c) */
-static inline ngx_int_t
-nxe_cedar_str_eq(ngx_str_t *a, ngx_str_t *b)
-{
-    return (a->len == b->len
-            && (a->len == 0
-                || ngx_memcmp(a->data, b->data, a->len) == 0));
-}
+#include "nxe_cedar_util.h"
 
 
 nxe_cedar_value_t nxe_cedar_expr_eval(nxe_cedar_node_t *node,

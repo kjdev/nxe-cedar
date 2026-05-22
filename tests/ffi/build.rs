@@ -56,6 +56,7 @@ fn main() {
         "cargo:rerun-if-changed={tests_dir}/ngx_compat/nxe_cedar_test_wrapper.h"
     );
     println!("cargo:rerun-if-changed={src_dir}/nxe_cedar_types.h");
+    println!("cargo:rerun-if-changed={src_dir}/nxe_cedar_util.h");
     println!("cargo:rerun-if-changed={src_dir}/nxe_cedar_lexer.h");
     println!("cargo:rerun-if-changed={src_dir}/nxe_cedar_lexer.c");
     println!("cargo:rerun-if-changed={src_dir}/nxe_cedar_parser.h");

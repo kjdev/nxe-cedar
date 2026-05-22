@@ -11,7 +11,7 @@
 #include <ngx_core.h>
 #include "nxe_cedar_lexer.h"
 #include "nxe_cedar_parser.h"
-#include "nxe_cedar_expr.h"     /* nxe_cedar_str_eq */
+#include "nxe_cedar_util.h"     /* nxe_cedar_str_eq */
 
 
 #define NXE_CEDAR_MAX_PARSE_DEPTH   64
