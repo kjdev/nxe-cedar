@@ -1,5 +1,15 @@
 # Changelog
 
+## [f9254b5](../../commit/f9254b5) - 2026-05-26
+
+### Added
+
+- Implement `nxe_cedar_eval_detail()` diagnostic API (issue #028)
+  - The new entry point evaluates a policy set and writes the matching policies into a caller-supplied `nxe_cedar_decision_detail_t`: every matching `forbid` when at least one fired (the decision is DENY), every matching `permit` on ALLOW, and an empty list (`policies = NULL`, `npolicies = 0`) on default-deny when no policy matched
+  - `nxe_cedar_eval()` becomes a thin wrapper that passes `out = NULL`, so existing callers that only need the decision keep the previous early-exit fast path; the detail-collecting path enumerates every matching policy because the API contract is to return all contributing policies, not just the first
+  - A companion `nxe_cedar_policy_get_annotation(policy, key)` helper returns the value `ngx_str_t` for a given annotation key (or `NULL` when absent / valueless distinction preserved via empty-string values), so callers can lift `@id` / `@advice` off the returned policies for audit logging without rolling their own annotation walk
+  - The pointer arrays inside the detail struct are allocated from `ctx->pool` and share the policy set's lifetime; an allocation failure mid-collection still returns a correct decision (the rest of the list is simply truncated)
+
 ## [43cbdcf](../../commit/43cbdcf) - 2026-05-22
 
 ### Added
