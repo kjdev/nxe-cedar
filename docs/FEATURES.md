@@ -1,0 +1,236 @@
+# nxe-cedar Feature Support
+
+This document enumerates every feature in the [Cedar policy language
+reference](https://docs.cedarpolicy.com/) and records whether nxe-cedar
+supports it. The intent is to give integrators a single place to confirm
+whether a Cedar policy will be accepted and evaluated identically against the
+upstream `cedar-policy` crate.
+
+## Status legend
+
+| Symbol | Meaning |
+| --- | --- |
+| ✅ | Supported. Behavior matches the upstream `cedar-policy` reference (verified via the FFI oracle for cases under `tests/cases/`). |
+| ⚠️ | Partially supported. The feature works but with a documented restriction. See the Notes column. |
+| ❌ | Not yet supported. Implementing it is consistent with the project scope and may be added in a future Phase. |
+| 🚫 | Out of scope. Will not be implemented; alternatives are noted. |
+
+A per-commit feature history is in [`CHANGELOG.md`](../CHANGELOG.md).
+
+## Policy structure
+
+| Feature | Syntax | Status | Notes |
+| --- | --- | --- | --- |
+| `permit` effect | `permit (scope) conditions;` | ✅ | Phase 1 |
+| `forbid` effect | `forbid (scope) conditions;` | ✅ | Phase 1 |
+| `when` clause | `when { expr }` | ✅ | Phase 1; multiple clauses AND-combined |
+| `unless` clause | `unless { expr }` | ✅ | Phase 1; multiple clauses AND-combined |
+| Annotations | `@key`, `@key("value")` | ✅ | Phase 4; up to 16 per policy; duplicate keys rejected at parse time |
+| Line comments | `// …` | ✅ | Phase 1 |
+| Block comments | `/* … */` | ❌ | Not implemented; Cedar reference parser accepts `//` only as well |
+
+## Scope constraints
+
+| Constraint | Syntax | Status | Notes |
+| --- | --- | --- | --- |
+| Unconstrained | `principal,` | ✅ | Phase 1 |
+| Equality | `principal == Entity::"id"` | ✅ | Phase 1; also `action`, `resource` |
+| Hierarchy | `principal in Entity::"id"` | ✅ | Phase 1; ancestors injected by caller (see [Entity hierarchy](#entity-hierarchies)) |
+| Action set | `action in [Action::"a", Action::"b"]` | ✅ | Phase 1; **action only** — non-entity elements rejected at parse time |
+| Type check | `principal is Type` | ✅ | Phase 4; principal/resource only; rejected on action |
+| Type + hierarchy | `principal is Type in Entity::"id"` | ✅ | Phase 4; principal/resource only |
+| Namespaced type | `principal is NS::Sub::Type` | ✅ | Phase 4 |
+
+## Data types
+
+| Type | Syntax / constructor | Status | Notes |
+| --- | --- | --- | --- |
+| `Bool` | `true`, `false` | ✅ | Phase 1 |
+| `Long` | `42`, `-100` | ✅ | Phase 1; pinned to `int64_t` for cross-platform i64 integrity; overflow surfaces as evaluation error |
+| `String` | `"..."` | ✅ | Phase 1; escapes `\n` `\r` `\t` `\\` `\"` `\'` `\xHH` `\u{…}`; `\*` allowed only in `like` patterns |
+| `Set` | `[expr, …]` | ✅ | Phase 1 in policy text; element-injection API added in Phase 4 |
+| `Record` | `{key: expr, …}` in policy text; injection API for ctx | ✅ | Phase 4; up to 64 entries; up to 16 depth; trailing comma accepted |
+| `Entity` | `Type::"id"`, `NS::Type::"id"` | ✅ | Phase 1; namespaced types supported |
+| `ipaddr` | `ip("…")` | ✅ | Phase 3; IPv4 / IPv6 / CIDR; dot-notation IPv4-mapped IPv6 rejected per Cedar spec |
+| `decimal` | `decimal("d.d")` | ✅ | Phase 3; i64-backed with scale 10^4; range −922337203685477.5808 to 922337203685477.5807 |
+| `datetime` | `datetime("…")` | ❌ | Not implemented. Pass an integer hour / timestamp via `context` as a workaround |
+| `duration` | `duration("…")` | ❌ | Not implemented. Same workaround as `datetime` |
+
+## Variables
+
+| Variable | Status | Notes |
+| --- | --- | --- |
+| `principal` | ✅ | Phase 1 |
+| `action` | ✅ | Phase 1; attribute injection (`add_action_attr_*`) supported |
+| `resource` | ✅ | Phase 1 |
+| `context` | ✅ | Phase 1 |
+
+## Comparison operators
+
+| Operator | Operand types | Status | Notes |
+| --- | --- | --- | --- |
+| `==` | any matching type | ✅ | Phase 1; sets and records compare order-independently with bijective matching |
+| `!=` | any matching type | ✅ | Phase 1 |
+| `<` `<=` `>` `>=` | `Long` | ✅ | Phase 2 |
+| `<` `<=` `>` `>=` | `datetime`, `duration` | ❌ | Not implemented (depends on the types themselves being unsupported) |
+| `.lessThan` `.lessThanOrEqual` `.greaterThan` `.greaterThanOrEqual` | `decimal` | ✅ | Phase 3 |
+
+## Logical operators
+
+| Operator | Status | Notes |
+| --- | --- | --- |
+| `&&` | ✅ | Phase 1; short-circuit per Cedar spec |
+| `\|\|` | ✅ | Phase 1; short-circuit per Cedar spec |
+| `!` | ✅ | Phase 1 |
+| `if-then-else` | ✅ | Phase 2; only the selected branch is evaluated |
+
+## Arithmetic operators
+
+| Operator | Operand types | Status | Notes |
+| --- | --- | --- | --- |
+| `+` | `Long + Long` | ✅ | Phase 4; overflow → evaluation error |
+| `-` (binary) | `Long - Long` | ✅ | Phase 4; overflow → evaluation error |
+| `*` | `Long * Long` | ✅ | Phase 4; overflow → evaluation error; `INT64_MIN * -1` rejected |
+| `-` (unary) | `Long` | ✅ | Phase 4 |
+
+## String operators
+
+| Operator | Status | Notes |
+| --- | --- | --- |
+| `like` | ✅ | Phase 2; `*` = zero-or-more, `\*` = literal `*`; `\x2A` / `\u{2A}` treated as wildcards per Cedar spec |
+
+## Hierarchy operator
+
+| Form | Status | Notes |
+| --- | --- | --- |
+| `entity in entity` | ✅ | Phase 1 (reflexive) + Phase 4 (ancestor lookup); caller injects ancestors via `nxe_cedar_eval_ctx_add_{principal,action,resource}_parent()` |
+| `entity in [entity, …]` | ✅ | Phase 1 (scope, action-only) / expression-level RHS validates all set elements are entities |
+
+## Type-check operator
+
+| Form | Status | Notes |
+| --- | --- | --- |
+| `expr is Type` (expression) | ✅ | Phase 4; LHS must be entity-typed, else evaluation error |
+| `expr is Type in expr` (expression) | ✅ | Phase 4 |
+| `principal is Type` (scope) | ✅ | Phase 4 |
+| `principal is Type in entity_ref` (scope) | ✅ | Phase 4 |
+
+## Attribute / record / tag operators
+
+| Operator | Form | Status | Notes |
+| --- | --- | --- | --- |
+| `.attr` (dot access) | `expr.ident` | ✅ | Phase 1 |
+| `["key"]` (bracket access) | `expr["X-Header"]` | ✅ | Phase 4; only string literals accepted inside `[ ]` |
+| Nested access | `expr.a.b`, `expr["a"].b`, `expr.a["b"]` | ✅ | Phase 4; up to `NXE_CEDAR_MAX_MEMBER_CHAIN` = 16 |
+| `has` (single key) | `expr has ident`, `expr has "string"` | ✅ | Phase 2 |
+| `has` (nested path) | `expr has a.b.c` | ⚠️ | Single identifier RHS only; chain not parsed. Workaround: chain explicit `has` with `&&` |
+| `.hasTag(string)` | entity tag presence | ❌ | Entity tags not implemented. Use a record-valued attribute as a workaround |
+| `.getTag(string)` | entity tag value | ❌ | See `.hasTag` |
+
+## Set methods
+
+| Method | Receiver | Status | Notes |
+| --- | --- | --- | --- |
+| `.contains(elt)` | Set | ✅ | Phase 3; argument may be any type; type mismatch returns `false`, not error |
+| `.containsAll(set)` | Set | ✅ | Phase 2; both operands must be sets |
+| `.containsAny(set)` | Set | ✅ | Phase 2; both operands must be sets |
+| `.isEmpty()` | Set | ✅ | Phase 4 |
+
+## `ipaddr` methods
+
+| Method | Status | Notes |
+| --- | --- | --- |
+| `.isInRange(ipaddr)` | ✅ | Phase 3; receiver CIDR must be at least as specific as argument range; family mismatch → `false` |
+| `.isIpv4()` | ✅ | Phase 4 |
+| `.isIpv6()` | ✅ | Phase 4 |
+| `.isLoopback()` | ✅ | Phase 4; receiver CIDR must be entirely within `127.0.0.0/8` or `::1/128` |
+| `.isMulticast()` | ✅ | Phase 4; receiver CIDR must be entirely within `224.0.0.0/4` or `ff00::/8` |
+
+## `decimal` methods
+
+| Method | Status | Notes |
+| --- | --- | --- |
+| `.lessThan(decimal)` | ✅ | Phase 3 |
+| `.lessThanOrEqual(decimal)` | ✅ | Phase 3 |
+| `.greaterThan(decimal)` | ✅ | Phase 3 |
+| `.greaterThanOrEqual(decimal)` | ✅ | Phase 3 |
+
+## `datetime` / `duration` methods
+
+| Method | Status | Notes |
+| --- | --- | --- |
+| `.offset(duration)` | ❌ | `datetime` type itself not implemented |
+| `.durationSince(datetime)` | ❌ | |
+| `.toDate()` | ❌ | |
+| `.toTime()` | ❌ | |
+| `.toMilliseconds()` `.toSeconds()` `.toMinutes()` `.toHours()` `.toDays()` | ❌ | `duration` type not implemented |
+
+## Extension constructors
+
+| Constructor | Status | Notes |
+| --- | --- | --- |
+| `ip("…")` | ✅ | Phase 3 |
+| `decimal("…")` | ✅ | Phase 3; grammar `[-]?d+\.d{1,4}` strictly enforced |
+| `datetime("…")` | ❌ | Not implemented |
+| `duration("…")` | ❌ | Not implemented |
+
+## Entity attribute / hierarchy injection (API surface)
+
+| Capability | API | Status |
+| --- | --- | --- |
+| Set principal / action / resource | `nxe_cedar_eval_ctx_set_{principal,action,resource}` | ✅ |
+| Scalar attributes (String / Long / Bool / IP / Decimal) | `nxe_cedar_eval_ctx_add_*_attr{,_long,_bool,_ip,_decimal}` | ✅ |
+| Set-valued attributes | `nxe_cedar_eval_ctx_add_*_attr_set` + `nxe_cedar_set_add_*` | ✅ |
+| Record-valued attributes (nested) | `nxe_cedar_eval_ctx_add_*_attr_record` + `nxe_cedar_record_add_*` | ✅ |
+| Entity-valued attributes | `nxe_cedar_eval_ctx_add_*_attr_entity` | ✅ |
+| Datetime / Duration attributes | — | ❌ |
+| Entity tags | — | ❌ |
+| Entity ancestor injection | `nxe_cedar_eval_ctx_add_{principal,action,resource}_parent` | ✅ |
+| External entity store / dynamic hierarchy resolution | — | 🚫 Caller injects the transitive closure of ancestors; nxe-cedar does not query a store |
+
+## Advanced Cedar features (out of scope)
+
+These are intentionally **not** in scope for nxe-cedar. Each row notes why and
+the recommended alternative.
+
+| Feature | Status | Why / alternative |
+| --- | --- | --- |
+| Schema validation | 🚫 | Out of scope for runtime evaluation. Run static checks with the official Cedar CLI before deploying policies |
+| Template-linked policies (`?principal`, `?resource`) | 🚫 | nginx ingress-time policies are static. Inline the placeholder via a context attribute if needed |
+| Partial evaluation (`is_authorized_partial`) | 🚫 | All inputs are available at the time the nginx module evaluates the request |
+| Multi-file namespace separation | 🚫 | A single policy set is sufficient for the nginx authorization use case |
+| Record literals outside `when`/`unless` (e.g. in scope) | 🚫 | Cedar reference parser also rejects this; record literals are only meaningful in conditions |
+| Dynamic entity hierarchy from an external store | 🚫 | Caller injects ancestors with `*_parent()` APIs after computing the transitive closure |
+
+## Evaluation model
+
+| Aspect | Status | Notes |
+| --- | --- | --- |
+| `forbid` priority | ✅ | Any matching `forbid` → DENY; otherwise any matching `permit` → ALLOW; otherwise DENY |
+| Default deny | ✅ | Empty policy set evaluates to DENY |
+| Determining policies in result | ✅ | `nxe_cedar_eval_detail()` returns the policies that caused the decision (use to log `@id` / `@advice`) |
+| Recursion depth guard | ✅ | Expression evaluator caps at `NXE_CEDAR_MAX_EVAL_DEPTH = 128`; parser caps at `NXE_CEDAR_MAX_PARSE_DEPTH = 64` |
+| Order-independent record / set equality | ✅ | Bijective bitmap matching; containers larger than 1024 elements return error rather than degrade |
+| Eager extension validation on injection | ✅ | `ip()` and `decimal()` constructors validate at injection time; invalid input returns `NGX_ERROR` instead of a deferred runtime error |
+
+## Entity hierarchies
+
+Cedar resolves `entity in entity` over a hierarchy graph. nxe-cedar does
+**not** maintain that graph internally; the caller is responsible for
+computing the transitive closure of every relevant entity's ancestors and
+injecting them via:
+
+- `nxe_cedar_eval_ctx_add_principal_parent(ctx, type, id)`
+- `nxe_cedar_eval_ctx_add_action_parent(ctx, type, id)`
+- `nxe_cedar_eval_ctx_add_resource_parent(ctx, type, id)`
+
+The reflexive case (`X in X`) is automatic. This design keeps nxe-cedar
+free of any entity-store dependency and matches the lifecycle of an nginx
+request where the caller already knows the user's group memberships.
+
+## Cross-platform integer width
+
+`Long` values use `int64_t` everywhere — AST literals, runtime values,
+attribute storage, and the public API for long attribute injection. This
+preserves Cedar's i64 semantics on 32-bit platforms where `ngx_int_t`
+(`intptr_t`) would otherwise collapse to 32 bits.
