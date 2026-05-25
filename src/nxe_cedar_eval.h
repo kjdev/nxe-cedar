@@ -34,6 +34,39 @@ typedef struct nxe_cedar_set_s nxe_cedar_set_t;
 nxe_cedar_decision_t nxe_cedar_eval(nxe_cedar_policy_set_t *policy_set,
     nxe_cedar_eval_ctx_t *ctx, ngx_log_t *log);
 
+/*
+ * Variant of nxe_cedar_eval() that records the policies responsible
+ * for the decision into `out`. On DENY because at least one `forbid`
+ * matched, `out->policies` lists every matching `forbid`; on ALLOW it
+ * lists every matching `permit`; on default DENY (no policy matched)
+ * `out->policies` is NULL and `out->npolicies` is 0. The pointer
+ * array is allocated from `ctx->pool`; each entry points into the
+ * input policy set, so the caller must not dereference entries past
+ * the shorter of `ctx->pool` and the policy set's lifetimes.
+ *
+ * Detail collection is best-effort: if allocation fails while growing
+ * the pointer array, the returned decision remains correct but
+ * `out->policies` may be truncated (it lists a prefix of the matching
+ * policies rather than every one).
+ *
+ * `out` may be NULL; nxe_cedar_eval() is a thin wrapper that passes
+ * NULL and is preserved for callers that only need the decision.
+ */
+nxe_cedar_decision_t nxe_cedar_eval_detail(
+    nxe_cedar_policy_set_t *policy_set,
+    nxe_cedar_eval_ctx_t *ctx, ngx_log_t *log,
+    nxe_cedar_decision_detail_t *out);
+
+/*
+ * Lookup an annotation value by key on a parsed policy. Returns the
+ * annotation's value (which may be an empty string for valueless
+ * annotations like `@deprecated`) or NULL when the key is absent.
+ * The returned ngx_str_t is owned by the policy set; the caller must
+ * not modify or free it.
+ */
+ngx_str_t *nxe_cedar_policy_get_annotation(nxe_cedar_policy_t *policy,
+    ngx_str_t *key);
+
 nxe_cedar_eval_ctx_t *nxe_cedar_eval_ctx_create(ngx_pool_t *pool);
 
 void nxe_cedar_eval_ctx_set_principal(nxe_cedar_eval_ctx_t *ctx,

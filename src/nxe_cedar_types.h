@@ -310,6 +310,32 @@ typedef struct {
 } nxe_cedar_policy_set_t;
 
 
+/*
+ * Diagnostic detail returned by nxe_cedar_eval_detail().
+ *
+ * `policies` points to the subset of policies that produced the
+ * decision: every matching `forbid` when the decision is DENY because
+ * at least one `forbid` matched, or every matching `permit` when the
+ * decision is ALLOW. For a default-deny outcome (no policy matched)
+ * `policies` is NULL and `npolicies` is 0.
+ *
+ * Each entry is a pointer to a policy inside the input
+ * `nxe_cedar_policy_set_t`; the caller must not reference them past
+ * the lifetime of that policy set (or of the evaluation pool used to
+ * allocate the pointer array).
+ *
+ * `errored` / `nerrored` are reserved for policies whose conditions
+ * produced an evaluation error. They are unused in the current
+ * implementation (always NULL / 0) and reserved for a future revision.
+ */
+typedef struct {
+    nxe_cedar_policy_t **policies;
+    ngx_uint_t           npolicies;
+    nxe_cedar_policy_t **errored;
+    ngx_uint_t           nerrored;
+} nxe_cedar_decision_detail_t;
+
+
 /* --- evaluation context --- */
 
 /*
@@ -352,7 +378,7 @@ typedef struct {
  * chain at the injection-API ceiling.
  */
 #define NXE_CEDAR_MAX_VALUE_EQUALS_DEPTH \
-    (NXE_CEDAR_MAX_RECORD_DEPTH + NXE_CEDAR_MAX_SET_DEPTH)
+        (NXE_CEDAR_MAX_RECORD_DEPTH + NXE_CEDAR_MAX_SET_DEPTH)
 
 /*
  * Expression-evaluation recursion limit. AST shape is already bounded

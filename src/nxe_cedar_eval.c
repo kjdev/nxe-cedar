@@ -1360,16 +1360,130 @@ nxe_cedar_eval_ctx_add_resource_parent(nxe_cedar_eval_ctx_t *ctx,
 
 /* --- main evaluation --- */
 
-nxe_cedar_decision_t
-nxe_cedar_eval(nxe_cedar_policy_set_t *policy_set,
+ngx_str_t *
+nxe_cedar_policy_get_annotation(nxe_cedar_policy_t *policy, ngx_str_t *key)
+{
+    nxe_cedar_annotation_t *elts;
+    ngx_uint_t i;
+
+    if (policy == NULL || key == NULL || policy->annotations == NULL) {
+        return NULL;
+    }
+
+    elts = policy->annotations->elts;
+    for (i = 0; i < policy->annotations->nelts; i++) {
+        if (nxe_cedar_str_eq(&elts[i].key, key)) {
+            return &elts[i].value;
+        }
+    }
+
+    return NULL;
+}
+
+
+/*
+ * Test all scope and condition clauses of `policy` against `ctx`.
+ * Returns 1 when every clause matches (the policy contributes to the
+ * decision), 0 otherwise. Shared by the detail-collecting evaluator
+ * so the forbid and permit passes apply identical match semantics.
+ */
+static ngx_int_t
+nxe_cedar_policy_matches(nxe_cedar_policy_t *policy,
     nxe_cedar_eval_ctx_t *ctx, ngx_log_t *log)
 {
-    nxe_cedar_policy_t *policies, *p;
     nxe_cedar_condition_t *conds, *c;
-    ngx_uint_t i, j;
-    ngx_uint_t has_permit, all_met;
+    ngx_uint_t j;
 
-    has_permit = 0;
+    if (!nxe_cedar_scope_matches(&policy->principal,
+                                 &ctx->principal_type, &ctx->principal_id,
+                                 ctx->principal_parents))
+    {
+        return 0;
+    }
+
+    if (!nxe_cedar_scope_matches(&policy->action,
+                                 &ctx->action_type, &ctx->action_id,
+                                 ctx->action_parents))
+    {
+        return 0;
+    }
+
+    if (!nxe_cedar_scope_matches(&policy->resource,
+                                 &ctx->resource_type, &ctx->resource_id,
+                                 ctx->resource_parents))
+    {
+        return 0;
+    }
+
+    if (policy->conditions != NULL && policy->conditions->nelts > 0) {
+        conds = policy->conditions->elts;
+
+        for (j = 0; j < policy->conditions->nelts; j++) {
+            c = &conds[j];
+
+            if (!nxe_cedar_condition_matches(c, ctx, ctx->pool, log)) {
+                return 0;
+            }
+        }
+    }
+
+    return 1;
+}
+
+
+/*
+ * Record a matching policy into `out->policies`, growing the buffer
+ * geometrically. Returns NGX_OK on success, NGX_ERROR if allocation
+ * fails. A NULL `out` is treated as success (detail is opt-in).
+ */
+static ngx_int_t
+nxe_cedar_detail_push(nxe_cedar_decision_detail_t *out,
+    nxe_cedar_policy_t *policy, ngx_pool_t *pool,
+    ngx_uint_t *cap)
+{
+    nxe_cedar_policy_t **buf;
+    ngx_uint_t new_cap;
+
+    if (out == NULL) {
+        return NGX_OK;
+    }
+
+    if (out->npolicies >= *cap) {
+        new_cap = (*cap == 0) ? 4 : (*cap * 2);
+        buf = ngx_palloc(pool, new_cap * sizeof(nxe_cedar_policy_t *));
+        if (buf == NULL) {
+            return NGX_ERROR;
+        }
+
+        if (out->npolicies > 0) {
+            ngx_memcpy(buf, out->policies,
+                       out->npolicies * sizeof(nxe_cedar_policy_t *));
+        }
+
+        out->policies = buf;
+        *cap = new_cap;
+    }
+
+    out->policies[out->npolicies++] = policy;
+    return NGX_OK;
+}
+
+
+nxe_cedar_decision_t
+nxe_cedar_eval_detail(nxe_cedar_policy_set_t *policy_set,
+    nxe_cedar_eval_ctx_t *ctx, ngx_log_t *log,
+    nxe_cedar_decision_detail_t *out)
+{
+    nxe_cedar_policy_t *policies, *p;
+    ngx_uint_t i;
+    ngx_uint_t has_forbid, has_permit, cap;
+
+    if (out != NULL) {
+        out->policies = NULL;
+        out->npolicies = 0;
+        out->errored = NULL;
+        out->nerrored = 0;
+    }
 
     if (policy_set == NULL || policy_set->policies == NULL
         || ctx == NULL)
@@ -1379,58 +1493,68 @@ nxe_cedar_eval(nxe_cedar_policy_set_t *policy_set,
 
     policies = policy_set->policies->elts;
 
+    /*
+     * Forbid pass: evaluate every policy so all matching forbids are
+     * captured into `out`. Cedar's `forbid` priority means a single
+     * forbid is enough to deny, but the diagnostic API contract is to
+     * return every contributing forbid, not just the first one.
+     */
+    has_forbid = 0;
+    cap = 0;
+
     for (i = 0; i < policy_set->policies->nelts; i++) {
         p = &policies[i];
 
-        /* scope matching */
-        if (!nxe_cedar_scope_matches(&p->principal,
-                                     &ctx->principal_type, &ctx->principal_id,
-                                     ctx->principal_parents))
-        {
+        if (!p->is_forbid) {
             continue;
         }
 
-        if (!nxe_cedar_scope_matches(&p->action,
-                                     &ctx->action_type, &ctx->action_id,
-                                     ctx->action_parents))
-        {
+        if (!nxe_cedar_policy_matches(p, ctx, log)) {
             continue;
         }
 
-        if (!nxe_cedar_scope_matches(&p->resource,
-                                     &ctx->resource_type, &ctx->resource_id,
-                                     ctx->resource_parents))
-        {
-            continue;
-        }
+        has_forbid = 1;
 
-        /* condition matching */
-        all_met = 1;
-
-        if (p->conditions != NULL && p->conditions->nelts > 0) {
-            conds = p->conditions->elts;
-
-            for (j = 0; j < p->conditions->nelts; j++) {
-                c = &conds[j];
-
-                if (!nxe_cedar_condition_matches(c, ctx,
-                                                 ctx->pool, log))
-                {
-                    all_met = 0;
-                    break;
-                }
-            }
-        }
-
-        if (!all_met) {
-            continue;
-        }
-
-        if (p->is_forbid) {
+        if (out == NULL) {
+            /* fast path: no need to enumerate the rest */
             return NXE_CEDAR_DECISION_DENY;
         }
 
+        if (nxe_cedar_detail_push(out, p, ctx->pool, &cap) != NGX_OK) {
+            /* allocation failure still produces a correct decision */
+            return NXE_CEDAR_DECISION_DENY;
+        }
+    }
+
+    if (has_forbid) {
+        return NXE_CEDAR_DECISION_DENY;
+    }
+
+    /* Permit pass: list every matching permit when no forbid fired. */
+    has_permit = 0;
+    cap = 0;
+
+    for (i = 0; i < policy_set->policies->nelts; i++) {
+        p = &policies[i];
+
+        if (p->is_forbid) {
+            continue;
+        }
+
+        if (!nxe_cedar_policy_matches(p, ctx, log)) {
+            continue;
+        }
+
         has_permit = 1;
+
+        if (out == NULL) {
+            /* fast path: caller only wants the decision */
+            return NXE_CEDAR_DECISION_ALLOW;
+        }
+
+        if (nxe_cedar_detail_push(out, p, ctx->pool, &cap) != NGX_OK) {
+            return NXE_CEDAR_DECISION_ALLOW;
+        }
     }
 
     if (has_permit) {
@@ -1438,4 +1562,12 @@ nxe_cedar_eval(nxe_cedar_policy_set_t *policy_set,
     }
 
     return NXE_CEDAR_DECISION_DENY;
+}
+
+
+nxe_cedar_decision_t
+nxe_cedar_eval(nxe_cedar_policy_set_t *policy_set,
+    nxe_cedar_eval_ctx_t *ctx, ngx_log_t *log)
+{
+    return nxe_cedar_eval_detail(policy_set, ctx, log, NULL);
 }
