@@ -438,6 +438,312 @@ run_injection_duplicate_key_tests(test_stats_t *stats)
 }
 
 
+/*
+ * Verify nxe_cedar_eval_detail() returns the policies responsible
+ * for the decision in each branch of the forbid-priority model:
+ *   - forbid decision: detail lists matching forbids (every one of them)
+ *   - permit decision: detail lists matching permits
+ *   - default deny: detail is empty
+ * Also covers nxe_cedar_policy_get_annotation() helper.
+ */
+static void
+run_eval_detail_tests(test_stats_t *stats)
+{
+    ngx_pool_t *pool;
+    ngx_log_t log;
+    ngx_str_t text, principal_type, principal_id;
+    ngx_str_t action_type, action_id, resource_type, resource_id;
+    ngx_str_t annot_key;
+    ngx_str_t *annot_val;
+    nxe_cedar_policy_set_t *ps;
+    nxe_cedar_eval_ctx_t *ctx;
+    nxe_cedar_decision_t decision;
+    nxe_cedar_decision_detail_t detail;
+    nxe_cedar_policy_t *expected_policies;
+    const char *label = "unit/eval_detail";
+
+    memset(&log, 0, sizeof(log));
+    pool = ngx_create_pool(8192, &log);
+    if (pool == NULL) {
+        fprintf(stderr, "%s :: setup ... FAILED (pool create)\n", label);
+        stats->failed++;
+        return;
+    }
+
+    /* --- permit decision lists every matching permit --- */
+    text.data = (u_char *)
+                "@id(\"p1\") permit (principal, action, resource);"
+                "@id(\"p2\") permit (principal, action, resource);";
+    text.len = strlen((const char *) text.data);
+
+    ps = nxe_cedar_parse(pool, &log, &text);
+    if (ps == NULL || ps->policies == NULL || ps->policies->nelts != 2) {
+        printf("%s :: permit_parse ... FAILED\n", label);
+        stats->failed++;
+        ngx_destroy_pool(pool);
+        return;
+    }
+
+    ctx = nxe_cedar_eval_ctx_create(pool);
+    if (ctx == NULL) {
+        fprintf(stderr, "%s :: permit_setup ... FAILED (ctx create)\n",
+                label);
+        stats->failed++;
+        ngx_destroy_pool(pool);
+        return;
+    }
+
+    unit_set_str(&principal_type, "User");
+    unit_set_str(&principal_id, "alice");
+    unit_set_str(&action_type, "Action");
+    unit_set_str(&action_id, "GET");
+    unit_set_str(&resource_type, "Endpoint");
+    unit_set_str(&resource_id, "/api");
+    nxe_cedar_eval_ctx_set_principal(ctx, &principal_type, &principal_id);
+    nxe_cedar_eval_ctx_set_action(ctx, &action_type, &action_id);
+    nxe_cedar_eval_ctx_set_resource(ctx, &resource_type, &resource_id);
+
+    decision = nxe_cedar_eval_detail(ps, ctx, &log, &detail);
+    expected_policies = ps->policies->elts;
+
+    if (decision == NXE_CEDAR_DECISION_ALLOW
+        && detail.npolicies == 2
+        && detail.policies[0] == &expected_policies[0]
+        && detail.policies[1] == &expected_policies[1])
+    {
+        printf("%s :: permit_lists_matches ... ok\n", label);
+        stats->passed++;
+    } else {
+        printf("%s :: permit_lists_matches ... FAILED\n", label);
+        fprintf(stderr, "  decision=%d npolicies=%lu\n",
+                (int) decision, (unsigned long) detail.npolicies);
+        stats->failed++;
+    }
+
+    /* Guard detail.policies[0] in case the preceding permit assertion
+     * failed and left detail with no recorded policies. */
+    if (detail.npolicies == 0 || detail.policies == NULL) {
+        printf("%s :: annotation_lookup_hit ... FAILED\n", label);
+        stats->failed++;
+        printf("%s :: annotation_lookup_miss ... FAILED\n", label);
+        stats->failed++;
+    } else {
+        /* annotation helper on the first matching permit */
+        unit_set_str(&annot_key, "id");
+        annot_val = nxe_cedar_policy_get_annotation(detail.policies[0],
+                                                    &annot_key);
+        if (annot_val != NULL && annot_val->len == 2
+            && memcmp(annot_val->data, "p1", 2) == 0)
+        {
+            printf("%s :: annotation_lookup_hit ... ok\n", label);
+            stats->passed++;
+        } else {
+            printf("%s :: annotation_lookup_hit ... FAILED\n", label);
+            stats->failed++;
+        }
+
+        /* missing annotation returns NULL */
+        unit_set_str(&annot_key, "missing");
+        annot_val = nxe_cedar_policy_get_annotation(detail.policies[0],
+                                                    &annot_key);
+        if (annot_val == NULL) {
+            printf("%s :: annotation_lookup_miss ... ok\n", label);
+            stats->passed++;
+        } else {
+            printf("%s :: annotation_lookup_miss ... FAILED\n", label);
+            stats->failed++;
+        }
+    }
+
+    /* --- forbid decision overrides matching permits --- */
+    text.data = (u_char *)
+                "@id(\"allow_all\") permit (principal, action, resource);"
+                "@id(\"deny_bob\") forbid (principal, action, resource)"
+                " when { principal == User::\"bob\" };"
+                "@id(\"deny_all\") forbid (principal, action, resource);";
+    text.len = strlen((const char *) text.data);
+
+    ps = nxe_cedar_parse(pool, &log, &text);
+    if (ps == NULL || ps->policies == NULL || ps->policies->nelts != 3) {
+        printf("%s :: forbid_parse ... FAILED\n", label);
+        stats->failed++;
+        ngx_destroy_pool(pool);
+        return;
+    }
+
+    ctx = nxe_cedar_eval_ctx_create(pool);
+    if (ctx == NULL) {
+        fprintf(stderr, "%s :: forbid_setup ... FAILED (ctx create)\n",
+                label);
+        stats->failed++;
+        ngx_destroy_pool(pool);
+        return;
+    }
+
+    nxe_cedar_eval_ctx_set_principal(ctx, &principal_type, &principal_id);
+    nxe_cedar_eval_ctx_set_action(ctx, &action_type, &action_id);
+    nxe_cedar_eval_ctx_set_resource(ctx, &resource_type, &resource_id);
+
+    decision = nxe_cedar_eval_detail(ps, ctx, &log, &detail);
+    expected_policies = ps->policies->elts;
+
+    /*
+     * Only deny_all (index 2) matches because principal is alice, not
+     * bob. The matching permit (allow_all) must not appear in detail
+     * when a forbid wins.
+     */
+    if (decision == NXE_CEDAR_DECISION_DENY
+        && detail.npolicies == 1
+        && detail.policies[0] == &expected_policies[2])
+    {
+        printf("%s :: forbid_lists_matching_forbid ... ok\n", label);
+        stats->passed++;
+    } else {
+        printf("%s :: forbid_lists_matching_forbid ... FAILED\n", label);
+        fprintf(stderr, "  decision=%d npolicies=%lu\n",
+                (int) decision, (unsigned long) detail.npolicies);
+        stats->failed++;
+    }
+
+    /* --- multiple matching forbids are all listed --- */
+    text.data = (u_char *)
+                "@id(\"deny_a\") forbid (principal, action, resource);"
+                "@id(\"allow_all\") permit (principal, action, resource);"
+                "@id(\"deny_b\") forbid (principal, action, resource);";
+    text.len = strlen((const char *) text.data);
+
+    ps = nxe_cedar_parse(pool, &log, &text);
+    if (ps == NULL || ps->policies == NULL || ps->policies->nelts != 3) {
+        printf("%s :: multi_forbid_parse ... FAILED\n", label);
+        stats->failed++;
+        ngx_destroy_pool(pool);
+        return;
+    }
+
+    ctx = nxe_cedar_eval_ctx_create(pool);
+    if (ctx == NULL) {
+        fprintf(stderr, "%s :: multi_forbid_setup ... FAILED (ctx create)\n",
+                label);
+        stats->failed++;
+        ngx_destroy_pool(pool);
+        return;
+    }
+
+    nxe_cedar_eval_ctx_set_principal(ctx, &principal_type, &principal_id);
+    nxe_cedar_eval_ctx_set_action(ctx, &action_type, &action_id);
+    nxe_cedar_eval_ctx_set_resource(ctx, &resource_type, &resource_id);
+
+    decision = nxe_cedar_eval_detail(ps, ctx, &log, &detail);
+    expected_policies = ps->policies->elts;
+
+    /*
+     * Both forbids (index 0 and 2) match; the diagnostic contract is
+     * to return every contributing forbid, not just the first.
+     */
+    if (decision == NXE_CEDAR_DECISION_DENY
+        && detail.npolicies == 2
+        && detail.policies[0] == &expected_policies[0]
+        && detail.policies[1] == &expected_policies[2])
+    {
+        printf("%s :: multi_forbid_all_listed ... ok\n", label);
+        stats->passed++;
+    } else {
+        printf("%s :: multi_forbid_all_listed ... FAILED\n", label);
+        fprintf(stderr, "  decision=%d npolicies=%lu\n",
+                (int) decision, (unsigned long) detail.npolicies);
+        stats->failed++;
+    }
+
+    /* --- annotation helper edge cases --- */
+    /* NULL policy returns NULL */
+    unit_set_str(&annot_key, "id");
+    if (nxe_cedar_policy_get_annotation(NULL, &annot_key) == NULL) {
+        printf("%s :: annotation_null_policy ... ok\n", label);
+        stats->passed++;
+    } else {
+        printf("%s :: annotation_null_policy ... FAILED\n", label);
+        stats->failed++;
+    }
+
+    /* NULL key returns NULL */
+    if (nxe_cedar_policy_get_annotation(&expected_policies[0], NULL)
+        == NULL)
+    {
+        printf("%s :: annotation_null_key ... ok\n", label);
+        stats->passed++;
+    } else {
+        printf("%s :: annotation_null_key ... FAILED\n", label);
+        stats->failed++;
+    }
+
+    /* --- default deny: no policy matches --- */
+    text.data = (u_char *)
+                "permit (principal == User::\"bob\", action, resource);";
+    text.len = strlen((const char *) text.data);
+
+    ps = nxe_cedar_parse(pool, &log, &text);
+    if (ps == NULL) {
+        printf("%s :: default_deny_parse ... FAILED\n", label);
+        stats->failed++;
+        ngx_destroy_pool(pool);
+        return;
+    }
+
+    ctx = nxe_cedar_eval_ctx_create(pool);
+    if (ctx == NULL) {
+        fprintf(stderr, "%s :: default_deny_setup ... FAILED (ctx create)\n",
+                label);
+        stats->failed++;
+        ngx_destroy_pool(pool);
+        return;
+    }
+
+    nxe_cedar_eval_ctx_set_principal(ctx, &principal_type, &principal_id);
+    nxe_cedar_eval_ctx_set_action(ctx, &action_type, &action_id);
+    nxe_cedar_eval_ctx_set_resource(ctx, &resource_type, &resource_id);
+
+    decision = nxe_cedar_eval_detail(ps, ctx, &log, &detail);
+
+    if (decision == NXE_CEDAR_DECISION_DENY
+        && detail.npolicies == 0
+        && detail.policies == NULL)
+    {
+        printf("%s :: default_deny_empty_detail ... ok\n", label);
+        stats->passed++;
+    } else {
+        printf("%s :: default_deny_empty_detail ... FAILED\n", label);
+        fprintf(stderr, "  decision=%d npolicies=%lu\n",
+                (int) decision, (unsigned long) detail.npolicies);
+        stats->failed++;
+    }
+
+    /* annotation lookup on a policy without any annotations returns NULL */
+    expected_policies = ps->policies->elts;
+    unit_set_str(&annot_key, "id");
+    if (nxe_cedar_policy_get_annotation(&expected_policies[0], &annot_key)
+        == NULL)
+    {
+        printf("%s :: annotation_no_annotations ... ok\n", label);
+        stats->passed++;
+    } else {
+        printf("%s :: annotation_no_annotations ... FAILED\n", label);
+        stats->failed++;
+    }
+
+    /* --- NULL out: nxe_cedar_eval() wrapper still returns decision --- */
+    decision = nxe_cedar_eval(ps, ctx, &log);
+    if (decision == NXE_CEDAR_DECISION_DENY) {
+        printf("%s :: wrapper_null_out ... ok\n", label);
+        stats->passed++;
+    } else {
+        printf("%s :: wrapper_null_out ... FAILED\n", label);
+        stats->failed++;
+    }
+
+    ngx_destroy_pool(pool);
+}
+
+
 static void
 scan_phase_dir(const char *dir_path, int max_phase, test_stats_t *stats)
 {
@@ -516,6 +822,10 @@ main(int argc, char **argv)
     if (max_phase == 0 || max_phase >= 2) {
         run_parser_null_guard_tests(&stats);
         run_injection_duplicate_key_tests(&stats);
+    }
+
+    if (max_phase == 0 || max_phase >= 4) {
+        run_eval_detail_tests(&stats);
     }
 
     if (stats.passed + stats.failed == 0) {
