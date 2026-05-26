@@ -1436,6 +1436,7 @@ nxe_cedar_expr_eval_body(nxe_cedar_node_t *node,
             return nxe_cedar_make_error();
         }
 
+        ngx_memzero(&val, sizeof(nxe_cedar_value_t));
         val.type = NXE_CEDAR_RVAL_SET;
         val.v.set_elts = ngx_array_create(pool,
                                           node->u.set_elts->nelts,
