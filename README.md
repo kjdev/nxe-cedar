@@ -29,6 +29,41 @@ request pool.
   the upstream `cedar-policy` crate and compares decisions, so each Phase is
   validated against the reference implementation.
 
+## Scope and non-goals
+
+nxe-cedar is the **Cedar evaluator for the nginx process**, not a drop-in
+replacement for upstream Cedar. The design is optimized along three axes:
+
+- **`ngx_pool_t`-native.** Policy ASTs and per-request evaluation state live
+  on nginx pools. No `malloc`/`free`, no foreign heap to bridge.
+- **Submodule-friendly.** Embeds via a single `config.ngx` include. No Rust
+  toolchain, no WASM runtime, no extra build dependency on the consuming
+  nginx module.
+- **Behavioral conformance via differential testing.** Semantic equivalence
+  with upstream Cedar is asserted by the FFI oracle (`tests/ffi/`) for every
+  case under `tests/cases/`. Coverage against the official `cedar-spec`
+  corpus is work in progress.
+
+Explicit **non-goals**:
+
+- **Full Cedar 4.x feature parity.** `datetime` / `duration`, policy
+  templates, entity tags, schema validation, and the AVP `entityList` legacy
+  format are out of scope today. The per-feature status is in
+  [`docs/FEATURES.md`](docs/FEATURES.md).
+- **Formal verification of the C implementation.** The upstream Lean model
+  does not extend here, and machine-checked Lean-to-C is not viable. The
+  guarantee offered is *behavioral* conformance, not *formal* conformance.
+- **A drop-in replacement for AWS Verified Permissions or
+  [`cedar-local-agent`](https://github.com/cedar-policy/cedar-local-agent).**
+  If strict Cedar conformance, formal verification, the full AVP API
+  surface, or policy-store synchronization is a requirement, use one of
+  those instead.
+
+**Fit:** authoring Cedar-style authorization policies for nginx request
+handling, in a submodule that ships without a Rust toolchain. Other Cedar
+deployment shapes (AWS-resident control planes, language SDKs, formally
+verified evaluators) are better served by the upstream Rust SDK or AVP.
+
 ## Feature matrix (summary)
 
 | Phase | Headline features |
