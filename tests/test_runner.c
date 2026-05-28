@@ -336,6 +336,41 @@ run_make_value_null_guard_tests(test_stats_t *stats)
                 (int) val.type);
         stats->failed++;
     }
+
+    val = nxe_cedar_make_datetime(NULL);
+    if (val.type == NXE_CEDAR_RVAL_ERROR) {
+        printf("%s :: datetime_null ... ok\n", label);
+        stats->passed++;
+    } else {
+        printf("%s :: datetime_null ... FAILED\n", label);
+        fprintf(stderr, "  expected RVAL_ERROR, got type=%d\n",
+                (int) val.type);
+        stats->failed++;
+    }
+
+    val = nxe_cedar_make_duration(NULL);
+    if (val.type == NXE_CEDAR_RVAL_ERROR) {
+        printf("%s :: duration_null ... ok\n", label);
+        stats->passed++;
+    } else {
+        printf("%s :: duration_null ... FAILED\n", label);
+        fprintf(stderr, "  expected RVAL_ERROR, got type=%d\n",
+                (int) val.type);
+        stats->failed++;
+    }
+
+    empty.data = NULL;
+    empty.len = 0;
+    val = nxe_cedar_make_duration(&empty);
+    if (val.type == NXE_CEDAR_RVAL_ERROR) {
+        printf("%s :: duration_empty ... ok\n", label);
+        stats->passed++;
+    } else {
+        printf("%s :: duration_empty ... FAILED\n", label);
+        fprintf(stderr, "  expected RVAL_ERROR, got type=%d\n",
+                (int) val.type);
+        stats->failed++;
+    }
 }
 
 

@@ -91,6 +91,10 @@ typedef ngx_int_t (*add_ip_attr_pt)(nxe_cedar_eval_ctx_t *,
     const ngx_str_t *, const ngx_str_t *);
 typedef ngx_int_t (*add_decimal_attr_pt)(nxe_cedar_eval_ctx_t *,
     const ngx_str_t *, const ngx_str_t *);
+typedef ngx_int_t (*add_datetime_attr_pt)(nxe_cedar_eval_ctx_t *,
+    const ngx_str_t *, const ngx_str_t *);
+typedef ngx_int_t (*add_duration_attr_pt)(nxe_cedar_eval_ctx_t *,
+    const ngx_str_t *, const ngx_str_t *);
 typedef nxe_cedar_record_t *(*add_record_attr_pt)(nxe_cedar_eval_ctx_t *,
     const ngx_str_t *);
 typedef nxe_cedar_set_t *(*add_set_attr_pt)(nxe_cedar_eval_ctx_t *,
@@ -103,14 +107,16 @@ typedef ngx_int_t (*add_parent_pt)(nxe_cedar_eval_ctx_t *,
 
 /* bundle of attribute-adder function pointers per entity / context */
 typedef struct {
-    add_str_attr_pt      add_str;
-    add_long_attr_pt     add_long;
-    add_bool_attr_pt     add_bool;
-    add_ip_attr_pt       add_ip;
-    add_decimal_attr_pt  add_decimal;
-    add_record_attr_pt   add_record;
-    add_set_attr_pt      add_set;
-    add_entity_attr_pt   add_entity;
+    add_str_attr_pt       add_str;
+    add_long_attr_pt      add_long;
+    add_bool_attr_pt      add_bool;
+    add_ip_attr_pt        add_ip;
+    add_decimal_attr_pt   add_decimal;
+    add_datetime_attr_pt  add_datetime;
+    add_duration_attr_pt  add_duration;
+    add_record_attr_pt    add_record;
+    add_set_attr_pt       add_set;
+    add_entity_attr_pt    add_entity;
 } attr_api_t;
 
 
@@ -290,6 +296,24 @@ add_set_element(nxe_cedar_set_t *set, json_t *value)
                 }
                 return 0;
             }
+            if (strcmp(fn, "datetime") == 0) {
+                str_val.len = json_string_length(arg);
+                str_val.data = (u_char *) json_string_value(arg);
+                if (nxe_cedar_set_add_datetime(set, &str_val) != NGX_OK) {
+                    set_error("failed to add datetime to set");
+                    return -1;
+                }
+                return 0;
+            }
+            if (strcmp(fn, "duration") == 0) {
+                str_val.len = json_string_length(arg);
+                str_val.data = (u_char *) json_string_value(arg);
+                if (nxe_cedar_set_add_duration(set, &str_val) != NGX_OK) {
+                    set_error("failed to add duration to set");
+                    return -1;
+                }
+                return 0;
+            }
             set_error("unsupported extension function in set: %s", fn);
             return -1;
         }
@@ -441,6 +465,26 @@ add_record_entries(nxe_cedar_record_t *rec, json_t *obj)
                                   "attribute: %s", key);
                         return -1;
                     }
+                } else if (strcmp(fn, "datetime") == 0) {
+                    str_val.len = json_string_length(arg);
+                    str_val.data = (u_char *) json_string_value(arg);
+                    if (nxe_cedar_record_add_datetime(rec, &name, &str_val)
+                        != NGX_OK)
+                    {
+                        set_error("failed to add record datetime "
+                                  "attribute: %s", key);
+                        return -1;
+                    }
+                } else if (strcmp(fn, "duration") == 0) {
+                    str_val.len = json_string_length(arg);
+                    str_val.data = (u_char *) json_string_value(arg);
+                    if (nxe_cedar_record_add_duration(rec, &name, &str_val)
+                        != NGX_OK)
+                    {
+                        set_error("failed to add record duration "
+                                  "attribute: %s", key);
+                        return -1;
+                    }
                 } else {
                     set_error("unsupported extension function: %s", fn);
                     return -1;
@@ -581,6 +625,22 @@ add_attrs_via_api(nxe_cedar_eval_ctx_t *ctx, json_t *obj,
                                   key);
                         return -1;
                     }
+                } else if (strcmp(fn, "datetime") == 0) {
+                    str_val.len = json_string_length(arg);
+                    str_val.data = (u_char *) json_string_value(arg);
+                    if (api->add_datetime(ctx, &name, &str_val) != NGX_OK) {
+                        set_error("failed to add datetime attribute: %s",
+                                  key);
+                        return -1;
+                    }
+                } else if (strcmp(fn, "duration") == 0) {
+                    str_val.len = json_string_length(arg);
+                    str_val.data = (u_char *) json_string_value(arg);
+                    if (api->add_duration(ctx, &name, &str_val) != NGX_OK) {
+                        set_error("failed to add duration attribute: %s",
+                                  key);
+                        return -1;
+                    }
                 } else {
                     set_error("unsupported extension function: %s", fn);
                     return -1;
@@ -628,6 +688,8 @@ static const attr_api_t principal_api = {
     nxe_cedar_eval_ctx_add_principal_attr_bool,
     nxe_cedar_eval_ctx_add_principal_attr_ip,
     nxe_cedar_eval_ctx_add_principal_attr_decimal,
+    nxe_cedar_eval_ctx_add_principal_attr_datetime,
+    nxe_cedar_eval_ctx_add_principal_attr_duration,
     nxe_cedar_eval_ctx_add_principal_attr_record,
     nxe_cedar_eval_ctx_add_principal_attr_set,
     nxe_cedar_eval_ctx_add_principal_attr_entity,
@@ -639,6 +701,8 @@ static const attr_api_t action_api = {
     nxe_cedar_eval_ctx_add_action_attr_bool,
     nxe_cedar_eval_ctx_add_action_attr_ip,
     nxe_cedar_eval_ctx_add_action_attr_decimal,
+    nxe_cedar_eval_ctx_add_action_attr_datetime,
+    nxe_cedar_eval_ctx_add_action_attr_duration,
     nxe_cedar_eval_ctx_add_action_attr_record,
     nxe_cedar_eval_ctx_add_action_attr_set,
     nxe_cedar_eval_ctx_add_action_attr_entity,
@@ -650,6 +714,8 @@ static const attr_api_t resource_api = {
     nxe_cedar_eval_ctx_add_resource_attr_bool,
     nxe_cedar_eval_ctx_add_resource_attr_ip,
     nxe_cedar_eval_ctx_add_resource_attr_decimal,
+    nxe_cedar_eval_ctx_add_resource_attr_datetime,
+    nxe_cedar_eval_ctx_add_resource_attr_duration,
     nxe_cedar_eval_ctx_add_resource_attr_record,
     nxe_cedar_eval_ctx_add_resource_attr_set,
     nxe_cedar_eval_ctx_add_resource_attr_entity,
@@ -661,6 +727,8 @@ static const attr_api_t context_api = {
     nxe_cedar_eval_ctx_add_context_attr_bool,
     nxe_cedar_eval_ctx_add_context_attr_ip,
     nxe_cedar_eval_ctx_add_context_attr_decimal,
+    nxe_cedar_eval_ctx_add_context_attr_datetime,
+    nxe_cedar_eval_ctx_add_context_attr_duration,
     nxe_cedar_eval_ctx_add_context_attr_record,
     nxe_cedar_eval_ctx_add_context_attr_set,
     nxe_cedar_eval_ctx_add_context_attr_entity,
