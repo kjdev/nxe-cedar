@@ -82,23 +82,23 @@ parse_entity(json_t *obj, ngx_str_t *type_out, ngx_str_t *id_out)
 
 /* function pointer types for typed attribute adders */
 typedef ngx_int_t (*add_str_attr_pt)(nxe_cedar_eval_ctx_t *,
-    ngx_str_t *, ngx_str_t *);
+    const ngx_str_t *, const ngx_str_t *);
 typedef ngx_int_t (*add_long_attr_pt)(nxe_cedar_eval_ctx_t *,
-    ngx_str_t *, int64_t);
+    const ngx_str_t *, int64_t);
 typedef ngx_int_t (*add_bool_attr_pt)(nxe_cedar_eval_ctx_t *,
-    ngx_str_t *, ngx_flag_t);
+    const ngx_str_t *, ngx_flag_t);
 typedef ngx_int_t (*add_ip_attr_pt)(nxe_cedar_eval_ctx_t *,
-    ngx_str_t *, ngx_str_t *);
+    const ngx_str_t *, const ngx_str_t *);
 typedef ngx_int_t (*add_decimal_attr_pt)(nxe_cedar_eval_ctx_t *,
-    ngx_str_t *, ngx_str_t *);
+    const ngx_str_t *, const ngx_str_t *);
 typedef nxe_cedar_record_t *(*add_record_attr_pt)(nxe_cedar_eval_ctx_t *,
-    ngx_str_t *);
+    const ngx_str_t *);
 typedef nxe_cedar_set_t *(*add_set_attr_pt)(nxe_cedar_eval_ctx_t *,
-    ngx_str_t *);
+    const ngx_str_t *);
 typedef ngx_int_t (*add_entity_attr_pt)(nxe_cedar_eval_ctx_t *,
-    ngx_str_t *, ngx_str_t *, ngx_str_t *);
+    const ngx_str_t *, const ngx_str_t *, const ngx_str_t *);
 typedef ngx_int_t (*add_parent_pt)(nxe_cedar_eval_ctx_t *,
-    ngx_str_t *, ngx_str_t *);
+    const ngx_str_t *, const ngx_str_t *);
 
 
 /* bundle of attribute-adder function pointers per entity / context */

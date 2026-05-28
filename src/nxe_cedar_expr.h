@@ -26,7 +26,7 @@ nxe_cedar_value_t nxe_cedar_expr_eval(nxe_cedar_node_t *node,
  * Shared with eval.c so the injection API can eagerly materialize
  * IP attribute values at insertion time.
  */
-nxe_cedar_value_t nxe_cedar_make_ip(ngx_str_t *s);
+nxe_cedar_value_t nxe_cedar_make_ip(const ngx_str_t *s);
 
 
 /*
@@ -36,7 +36,7 @@ nxe_cedar_value_t nxe_cedar_make_ip(ngx_str_t *s);
  * fit in int64_t. Shared with eval.c so the injection API can eagerly
  * materialize decimal attribute values at insertion time.
  */
-nxe_cedar_value_t nxe_cedar_make_decimal(ngx_str_t *s);
+nxe_cedar_value_t nxe_cedar_make_decimal(const ngx_str_t *s);
 
 
 #endif /* NXE_CEDAR_EXPR_H */

@@ -70,54 +70,62 @@ ngx_str_t *nxe_cedar_policy_get_annotation(nxe_cedar_policy_t *policy,
 nxe_cedar_eval_ctx_t *nxe_cedar_eval_ctx_create(ngx_pool_t *pool);
 
 void nxe_cedar_eval_ctx_set_principal(nxe_cedar_eval_ctx_t *ctx,
-    ngx_str_t *type, ngx_str_t *id);
+    const ngx_str_t *type, const ngx_str_t *id);
 ngx_int_t nxe_cedar_eval_ctx_add_principal_attr(nxe_cedar_eval_ctx_t *ctx,
-    ngx_str_t *name, ngx_str_t *value);
+    const ngx_str_t *name, const ngx_str_t *value);
 ngx_int_t nxe_cedar_eval_ctx_add_principal_attr_long(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, int64_t value);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name, int64_t value);
 ngx_int_t nxe_cedar_eval_ctx_add_principal_attr_bool(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_flag_t value);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name, ngx_flag_t value);
 ngx_int_t nxe_cedar_eval_ctx_add_principal_attr_ip(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_str_t *value);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
+    const ngx_str_t *value);
 ngx_int_t nxe_cedar_eval_ctx_add_principal_attr_decimal(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_str_t *value);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
+    const ngx_str_t *value);
 
 void nxe_cedar_eval_ctx_set_action(nxe_cedar_eval_ctx_t *ctx,
-    ngx_str_t *type, ngx_str_t *id);
+    const ngx_str_t *type, const ngx_str_t *id);
 ngx_int_t nxe_cedar_eval_ctx_add_action_attr(nxe_cedar_eval_ctx_t *ctx,
-    ngx_str_t *name, ngx_str_t *value);
+    const ngx_str_t *name, const ngx_str_t *value);
 ngx_int_t nxe_cedar_eval_ctx_add_action_attr_long(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, int64_t value);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name, int64_t value);
 ngx_int_t nxe_cedar_eval_ctx_add_action_attr_bool(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_flag_t value);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name, ngx_flag_t value);
 ngx_int_t nxe_cedar_eval_ctx_add_action_attr_ip(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_str_t *value);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
+    const ngx_str_t *value);
 ngx_int_t nxe_cedar_eval_ctx_add_action_attr_decimal(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_str_t *value);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
+    const ngx_str_t *value);
 
 void nxe_cedar_eval_ctx_set_resource(nxe_cedar_eval_ctx_t *ctx,
-    ngx_str_t *type, ngx_str_t *id);
+    const ngx_str_t *type, const ngx_str_t *id);
 ngx_int_t nxe_cedar_eval_ctx_add_resource_attr(nxe_cedar_eval_ctx_t *ctx,
-    ngx_str_t *name, ngx_str_t *value);
+    const ngx_str_t *name, const ngx_str_t *value);
 ngx_int_t nxe_cedar_eval_ctx_add_resource_attr_long(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, int64_t value);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name, int64_t value);
 ngx_int_t nxe_cedar_eval_ctx_add_resource_attr_bool(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_flag_t value);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name, ngx_flag_t value);
 ngx_int_t nxe_cedar_eval_ctx_add_resource_attr_ip(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_str_t *value);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
+    const ngx_str_t *value);
 ngx_int_t nxe_cedar_eval_ctx_add_resource_attr_decimal(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_str_t *value);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
+    const ngx_str_t *value);
 
 ngx_int_t nxe_cedar_eval_ctx_add_context_attr(nxe_cedar_eval_ctx_t *ctx,
-    ngx_str_t *name, ngx_str_t *value);
+    const ngx_str_t *name, const ngx_str_t *value);
 ngx_int_t nxe_cedar_eval_ctx_add_context_attr_long(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, int64_t value);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name, int64_t value);
 ngx_int_t nxe_cedar_eval_ctx_add_context_attr_bool(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_flag_t value);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name, ngx_flag_t value);
 ngx_int_t nxe_cedar_eval_ctx_add_context_attr_ip(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_str_t *value);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
+    const ngx_str_t *value);
 ngx_int_t nxe_cedar_eval_ctx_add_context_attr_decimal(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name, ngx_str_t *value);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
+    const ngx_str_t *value);
 
 /*
  * Record-valued attribute constructors.
@@ -137,30 +145,30 @@ ngx_int_t nxe_cedar_eval_ctx_add_context_attr_decimal(
  * Returns NULL on allocation failure as well.
  */
 nxe_cedar_record_t *nxe_cedar_eval_ctx_add_principal_attr_record(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name);
 nxe_cedar_record_t *nxe_cedar_eval_ctx_add_action_attr_record(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name);
 nxe_cedar_record_t *nxe_cedar_eval_ctx_add_resource_attr_record(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name);
 nxe_cedar_record_t *nxe_cedar_eval_ctx_add_context_attr_record(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name);
 
 ngx_int_t nxe_cedar_record_add_str(nxe_cedar_record_t *rec,
-    ngx_str_t *name, ngx_str_t *value);
+    const ngx_str_t *name, const ngx_str_t *value);
 ngx_int_t nxe_cedar_record_add_long(nxe_cedar_record_t *rec,
-    ngx_str_t *name, int64_t value);
+    const ngx_str_t *name, int64_t value);
 ngx_int_t nxe_cedar_record_add_bool(nxe_cedar_record_t *rec,
-    ngx_str_t *name, ngx_flag_t value);
+    const ngx_str_t *name, ngx_flag_t value);
 ngx_int_t nxe_cedar_record_add_ip(nxe_cedar_record_t *rec,
-    ngx_str_t *name, ngx_str_t *value);
+    const ngx_str_t *name, const ngx_str_t *value);
 ngx_int_t nxe_cedar_record_add_decimal(nxe_cedar_record_t *rec,
-    ngx_str_t *name, ngx_str_t *value);
+    const ngx_str_t *name, const ngx_str_t *value);
 nxe_cedar_record_t *nxe_cedar_record_add_record(nxe_cedar_record_t *rec,
-    ngx_str_t *name);
+    const ngx_str_t *name);
 ngx_int_t nxe_cedar_record_add_entity(nxe_cedar_record_t *rec,
-    ngx_str_t *name, ngx_str_t *type, ngx_str_t *id);
+    const ngx_str_t *name, const ngx_str_t *type, const ngx_str_t *id);
 nxe_cedar_set_t *nxe_cedar_record_add_set(nxe_cedar_record_t *rec,
-    ngx_str_t *name);
+    const ngx_str_t *name);
 
 
 /*
@@ -172,26 +180,26 @@ nxe_cedar_set_t *nxe_cedar_record_add_set(nxe_cedar_record_t *rec,
  * Returns NULL on allocation failure.
  */
 nxe_cedar_set_t *nxe_cedar_eval_ctx_add_principal_attr_set(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name);
 nxe_cedar_set_t *nxe_cedar_eval_ctx_add_action_attr_set(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name);
 nxe_cedar_set_t *nxe_cedar_eval_ctx_add_resource_attr_set(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name);
 nxe_cedar_set_t *nxe_cedar_eval_ctx_add_context_attr_set(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name);
 
 ngx_int_t nxe_cedar_eval_ctx_add_principal_attr_entity(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name,
-    ngx_str_t *type, ngx_str_t *id);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
+    const ngx_str_t *type, const ngx_str_t *id);
 ngx_int_t nxe_cedar_eval_ctx_add_action_attr_entity(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name,
-    ngx_str_t *type, ngx_str_t *id);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
+    const ngx_str_t *type, const ngx_str_t *id);
 ngx_int_t nxe_cedar_eval_ctx_add_resource_attr_entity(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name,
-    ngx_str_t *type, ngx_str_t *id);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
+    const ngx_str_t *type, const ngx_str_t *id);
 ngx_int_t nxe_cedar_eval_ctx_add_context_attr_entity(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *name,
-    ngx_str_t *type, ngx_str_t *id);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
+    const ngx_str_t *type, const ngx_str_t *id);
 
 
 /*
@@ -204,14 +212,16 @@ ngx_int_t nxe_cedar_eval_ctx_add_context_attr_entity(
  * and NXE_CEDAR_MAX_RECORD_DEPTH for record values placed inside a
  * set; exceeding either ceiling returns NULL.
  */
-ngx_int_t nxe_cedar_set_add_str(nxe_cedar_set_t *set, ngx_str_t *value);
+ngx_int_t nxe_cedar_set_add_str(nxe_cedar_set_t *set,
+    const ngx_str_t *value);
 ngx_int_t nxe_cedar_set_add_long(nxe_cedar_set_t *set, int64_t value);
 ngx_int_t nxe_cedar_set_add_bool(nxe_cedar_set_t *set, ngx_flag_t value);
-ngx_int_t nxe_cedar_set_add_ip(nxe_cedar_set_t *set, ngx_str_t *value);
+ngx_int_t nxe_cedar_set_add_ip(nxe_cedar_set_t *set,
+    const ngx_str_t *value);
 ngx_int_t nxe_cedar_set_add_decimal(nxe_cedar_set_t *set,
-    ngx_str_t *value);
+    const ngx_str_t *value);
 ngx_int_t nxe_cedar_set_add_entity(nxe_cedar_set_t *set,
-    ngx_str_t *type, ngx_str_t *id);
+    const ngx_str_t *type, const ngx_str_t *id);
 nxe_cedar_set_t *nxe_cedar_set_add_set(nxe_cedar_set_t *set);
 nxe_cedar_record_t *nxe_cedar_set_add_record(nxe_cedar_set_t *set);
 
@@ -230,11 +240,14 @@ nxe_cedar_record_t *nxe_cedar_set_add_record(nxe_cedar_set_t *set);
  * Returns NGX_OK on success, NGX_ERROR on allocation failure.
  */
 ngx_int_t nxe_cedar_eval_ctx_add_principal_parent(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *type, ngx_str_t *id);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *type,
+    const ngx_str_t *id);
 ngx_int_t nxe_cedar_eval_ctx_add_action_parent(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *type, ngx_str_t *id);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *type,
+    const ngx_str_t *id);
 ngx_int_t nxe_cedar_eval_ctx_add_resource_parent(
-    nxe_cedar_eval_ctx_t *ctx, ngx_str_t *type, ngx_str_t *id);
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *type,
+    const ngx_str_t *id);
 
 
 /*
@@ -248,8 +261,9 @@ ngx_int_t nxe_cedar_eval_ctx_add_resource_parent(
 ngx_array_t *nxe_cedar_eval_ctx_lookup_parents(
     nxe_cedar_eval_ctx_t *ctx, ngx_uint_t slot);
 ngx_int_t nxe_cedar_entity_in_target(
-    ngx_str_t *entity_type, ngx_str_t *entity_id, ngx_array_t *parents,
-    ngx_str_t *target_type, ngx_str_t *target_id);
+    const ngx_str_t *entity_type, const ngx_str_t *entity_id,
+    ngx_array_t *parents,
+    const ngx_str_t *target_type, const ngx_str_t *target_id);
 
 
 #endif /* NXE_CEDAR_EVAL_H */

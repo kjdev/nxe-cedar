@@ -17,7 +17,7 @@
 
 /* string equality (shared across parser/expr/eval layers) */
 static inline ngx_int_t
-nxe_cedar_str_eq(ngx_str_t *a, ngx_str_t *b)
+nxe_cedar_str_eq(const ngx_str_t *a, const ngx_str_t *b)
 {
     return (a->len == b->len
             && (a->len == 0

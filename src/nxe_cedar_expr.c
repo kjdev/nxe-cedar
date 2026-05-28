@@ -111,10 +111,10 @@ nxe_cedar_make_record(ngx_array_t *attrs)
 
 /* parse bounded decimal: overflow-safe with leading-zero rejection */
 static ngx_int_t
-nxe_cedar_parse_bounded_dec(u_char **pp, u_char *end, ngx_uint_t max,
-    ngx_uint_t *out)
+nxe_cedar_parse_bounded_dec(const u_char **pp, const u_char *end,
+    ngx_uint_t max, ngx_uint_t *out)
 {
-    u_char *p, *start;
+    const u_char *p, *start;
     ngx_uint_t val, digit;
 
     p = *pp;
@@ -148,7 +148,7 @@ nxe_cedar_parse_bounded_dec(u_char **pp, u_char *end, ngx_uint_t max,
 
 /* parse CIDR prefix length: digits after '/' with leading-zero rejection */
 static ngx_int_t
-nxe_cedar_parse_cidr_prefix(u_char **pp, u_char *end,
+nxe_cedar_parse_cidr_prefix(const u_char **pp, const u_char *end,
     ngx_uint_t max_prefix, ngx_uint_t *prefix_len)
 {
     return nxe_cedar_parse_bounded_dec(pp, end, max_prefix, prefix_len);
@@ -157,10 +157,10 @@ nxe_cedar_parse_cidr_prefix(u_char **pp, u_char *end,
 
 /* parse IPv4 address: "a.b.c.d" with optional "/prefix" */
 static ngx_int_t
-nxe_cedar_parse_ipv4(u_char *data, size_t len,
+nxe_cedar_parse_ipv4(const u_char *data, size_t len,
     u_char *addr, ngx_uint_t *prefix_len)
 {
-    u_char *p, *end;
+    const u_char *p, *end;
     ngx_uint_t octet, i;
 
     p = data;
@@ -205,10 +205,10 @@ nxe_cedar_parse_ipv4(u_char *data, size_t len,
 
 /* parse IPv6 address with optional "/prefix" */
 static ngx_int_t
-nxe_cedar_parse_ipv6(u_char *data, size_t len,
+nxe_cedar_parse_ipv6(const u_char *data, size_t len,
     u_char *addr, ngx_uint_t *prefix_len)
 {
-    u_char *p, *end, *slash;
+    const u_char *p, *end, *slash;
     ngx_uint_t groups[8], n_groups, gap_pos, i, val;
     size_t addr_len;
 
@@ -374,10 +374,10 @@ done_groups:
  * reference parser.
  */
 nxe_cedar_value_t
-nxe_cedar_make_decimal(ngx_str_t *s)
+nxe_cedar_make_decimal(const ngx_str_t *s)
 {
     nxe_cedar_value_t val;
-    u_char *p, *end;
+    const u_char *p, *end;
     ngx_flag_t negative;
     int64_t int_part, frac_part, scaled;
     ngx_uint_t frac_digits;
@@ -473,7 +473,7 @@ nxe_cedar_make_decimal(ngx_str_t *s)
 
 /* parse IP string to binary runtime value */
 nxe_cedar_value_t
-nxe_cedar_make_ip(ngx_str_t *s)
+nxe_cedar_make_ip(const ngx_str_t *s)
 {
     nxe_cedar_value_t val;
 
