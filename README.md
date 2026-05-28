@@ -46,9 +46,9 @@ replacement for upstream Cedar. The design is optimized along three axes:
 
 Explicit **non-goals**:
 
-- **Full Cedar 4.x feature parity.** `datetime` / `duration`, policy
-  templates, entity tags, schema validation, and the AVP `entityList` legacy
-  format are out of scope today. The per-feature status is in
+- **Full Cedar 4.x feature parity.** Policy templates, entity tags, schema
+  validation, and the AVP `entityList` legacy format are out of scope today.
+  (`datetime` / `duration` are now supported.) The per-feature status is in
   [`docs/FEATURES.md`](docs/FEATURES.md).
 - **Formal verification of the C implementation.** The upstream Lean model
   does not extend here, and machine-checked Lean-to-C is not viable. The

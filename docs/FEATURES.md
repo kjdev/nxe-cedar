@@ -53,8 +53,8 @@ A per-commit feature history is in [`CHANGELOG.md`](../CHANGELOG.md).
 | `Entity` | `Type::"id"`, `NS::Type::"id"` | ✅ | Phase 1; namespaced types supported |
 | `ipaddr` | `ip("…")` | ✅ | Phase 3; IPv4 / IPv6 / CIDR; dot-notation IPv4-mapped IPv6 rejected per Cedar spec |
 | `decimal` | `decimal("d.d")` | ✅ | Phase 3; i64-backed with scale 10^4; range −922337203685477.5808 to 922337203685477.5807 |
-| `datetime` | `datetime("…")` | ❌ | Not implemented. Pass an integer hour / timestamp via `context` as a workaround |
-| `duration` | `duration("…")` | ❌ | Not implemented. Same workaround as `datetime` |
+| `datetime` | `datetime("…")` | ✅ | i64 UTC epoch ms; `YYYY-MM-DD` or `YYYY-MM-DDThh:mm:ss(.SSS)?(Z\|±hhmm)`; timezone designator mandatory when a time is present; distinct type from `Long` |
+| `duration` | `duration("…")` | ✅ | signed i64 ms; `[-]?` then `d`/`h`/`m`/`s`/`ms` units in descending order, each at most once, ≥1 unit; distinct type from `Long` |
 
 ## Variables
 
@@ -72,7 +72,7 @@ A per-commit feature history is in [`CHANGELOG.md`](../CHANGELOG.md).
 | `==` | any matching type | ✅ | Phase 1; sets and records compare order-independently with bijective matching |
 | `!=` | any matching type | ✅ | Phase 1 |
 | `<` `<=` `>` `>=` | `Long` | ✅ | Phase 2 |
-| `<` `<=` `>` `>=` | `datetime`, `duration` | ❌ | Not implemented (depends on the types themselves being unsupported) |
+| `<` `<=` `>` `>=` | `datetime`, `duration` | ✅ | Both operands must share the same type (`datetime` with `datetime`, `duration` with `duration`); mixing with `Long` or each other is an error |
 | `.lessThan` `.lessThanOrEqual` `.greaterThan` `.greaterThanOrEqual` | `decimal` | ✅ | Phase 3 |
 
 ## Logical operators
@@ -159,11 +159,11 @@ A per-commit feature history is in [`CHANGELOG.md`](../CHANGELOG.md).
 
 | Method | Status | Notes |
 | --- | --- | --- |
-| `.offset(duration)` | ❌ | `datetime` type itself not implemented |
-| `.durationSince(datetime)` | ❌ | |
-| `.toDate()` | ❌ | |
-| `.toTime()` | ❌ | |
-| `.toMilliseconds()` `.toSeconds()` `.toMinutes()` `.toHours()` `.toDays()` | ❌ | `duration` type not implemented |
+| `.offset(duration)` | ✅ | Returns a `datetime`; i64 overflow is an evaluation error |
+| `.durationSince(datetime)` | ✅ | Returns a signed `duration` (receiver − argument) |
+| `.toDate()` | ✅ | Truncates to 00:00:00 UTC of the same day |
+| `.toTime()` | ✅ | Returns a `duration`: milliseconds since `.toDate()` |
+| `.toMilliseconds()` `.toSeconds()` `.toMinutes()` `.toHours()` `.toDays()` | ✅ | Return `Long`; division truncates toward zero |
 
 ## Extension constructors
 
@@ -171,8 +171,8 @@ A per-commit feature history is in [`CHANGELOG.md`](../CHANGELOG.md).
 | --- | --- | --- |
 | `ip("…")` | ✅ | Phase 3 |
 | `decimal("…")` | ✅ | Phase 3; grammar `[-]?d+\.d{1,4}` strictly enforced |
-| `datetime("…")` | ❌ | Not implemented |
-| `duration("…")` | ❌ | Not implemented |
+| `datetime("…")` | ✅ | Eagerly validated at injection time; argument grammar enforced strictly |
+| `duration("…")` | ✅ | Eagerly validated at injection time; argument grammar enforced strictly |
 
 ## Entity attribute / hierarchy injection (API surface)
 
@@ -183,7 +183,7 @@ A per-commit feature history is in [`CHANGELOG.md`](../CHANGELOG.md).
 | Set-valued attributes | `nxe_cedar_eval_ctx_add_*_attr_set` + `nxe_cedar_set_add_*` | ✅ |
 | Record-valued attributes (nested) | `nxe_cedar_eval_ctx_add_*_attr_record` + `nxe_cedar_record_add_*` | ✅ |
 | Entity-valued attributes | `nxe_cedar_eval_ctx_add_*_attr_entity` | ✅ |
-| Datetime / Duration attributes | — | ❌ |
+| Datetime / Duration attributes | `nxe_cedar_eval_ctx_add_*_attr_{datetime,duration}` + `nxe_cedar_record_add_{datetime,duration}` + `nxe_cedar_set_add_{datetime,duration}` | ✅ |
 | Entity tags | — | ❌ |
 | Entity ancestor injection | `nxe_cedar_eval_ctx_add_{principal,action,resource}_parent` | ✅ |
 | External entity store / dynamic hierarchy resolution | — | 🚫 Caller injects the transitive closure of ancestors; nxe-cedar does not query a store |
@@ -211,7 +211,7 @@ the recommended alternative.
 | Determining policies in result | ✅ | `nxe_cedar_eval_detail()` returns the policies that caused the decision (use to log `@id` / `@advice`) |
 | Recursion depth guard | ✅ | Expression evaluator caps at `NXE_CEDAR_MAX_EVAL_DEPTH = 128`; parser caps at `NXE_CEDAR_MAX_PARSE_DEPTH = 64` |
 | Order-independent record / set equality | ✅ | Bijective bitmap matching; containers larger than 1024 elements return error rather than degrade |
-| Eager extension validation on injection | ✅ | `ip()` and `decimal()` constructors validate at injection time; invalid input returns `NGX_ERROR` instead of a deferred runtime error |
+| Eager extension validation on injection | ✅ | `ip()`, `decimal()`, `datetime()`, and `duration()` constructors validate at injection time; invalid input returns `NGX_ERROR` instead of a deferred runtime error |
 
 ## Entity hierarchies
 
