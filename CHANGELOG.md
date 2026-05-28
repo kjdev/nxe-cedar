@@ -1,5 +1,14 @@
 # Changelog
 
+## [4d8085e](../../commit/4d8085e) - 2026-05-28
+
+### Fixed
+
+- Guard `nxe_cedar_make_ip()` against NULL input
+  - The length-bound check at the top of the function (`s->len == 0 || s->len > 43`) dereferenced `s` before any NULL test, so a NULL pointer reaching this entry point — declared in the public header `nxe_cedar_expr.h` — would crash the process; the sibling builder `nxe_cedar_make_decimal()` already returned `RVAL_ERROR` on NULL, so the two parallel value builders now share the same defensive contract
+  - All current callers (`NODE_IP_LITERAL` evaluation in `nxe_cedar_expr.c` and the eager `nxe_cedar_eval_ctx_add_*_attr_ip` injection path) feed in addresses of struct members and cannot pass NULL today, so this is a defense-in-depth fix for new callers that may grow against the public symbol in the future
+  - A new C unit test `unit/make_value_null_guard` covers `make_ip(NULL)`, `make_ip(&{NULL, 0})` and `make_decimal(NULL)` to keep both builders aligned
+
 ## [f9254b5](../../commit/f9254b5) - 2026-05-26
 
 ### Added
