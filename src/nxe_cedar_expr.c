@@ -483,7 +483,7 @@ nxe_cedar_make_ip(const ngx_str_t *s)
      * actual OOB protection lives in parse_ipv4 / parse_ipv6 which
      * clamp to data + len.
      */
-    if (s->len == 0 || s->len > 43) {
+    if (s == NULL || s->len == 0 || s->len > 43) {
         return nxe_cedar_make_error();
     }
 
