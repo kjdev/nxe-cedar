@@ -376,6 +376,73 @@ nxe_cedar_eval_ctx_add_decimal_attr(ngx_array_t *attrs,
 
 
 /*
+ * Datetime attributes are eagerly parsed at injection time, mirroring
+ * the IP / decimal paths: malformed ISO 8601 input is rejected with
+ * NGX_ERROR up front rather than surfacing as a silent evaluation error
+ * later.
+ */
+static ngx_int_t
+nxe_cedar_eval_ctx_add_datetime_attr(ngx_array_t *attrs,
+    const ngx_str_t *name, const ngx_str_t *value)
+{
+    nxe_cedar_attr_t *attr;
+    nxe_cedar_value_t dt_val;
+
+    if (nxe_cedar_attrs_has_name(attrs, name)) {
+        return NGX_ERROR;
+    }
+
+    dt_val = nxe_cedar_make_datetime(value);
+    if (dt_val.type == NXE_CEDAR_RVAL_ERROR) {
+        return NGX_ERROR;
+    }
+
+    attr = ngx_array_push(attrs);
+    if (attr == NULL) {
+        return NGX_ERROR;
+    }
+
+    attr->name = *name;
+    attr->value = dt_val;
+
+    return NGX_OK;
+}
+
+
+/*
+ * Duration attributes are eagerly parsed at injection time, mirroring
+ * the datetime path: malformed duration strings are rejected with
+ * NGX_ERROR up front.
+ */
+static ngx_int_t
+nxe_cedar_eval_ctx_add_duration_attr(ngx_array_t *attrs,
+    const ngx_str_t *name, const ngx_str_t *value)
+{
+    nxe_cedar_attr_t *attr;
+    nxe_cedar_value_t dur_val;
+
+    if (nxe_cedar_attrs_has_name(attrs, name)) {
+        return NGX_ERROR;
+    }
+
+    dur_val = nxe_cedar_make_duration(value);
+    if (dur_val.type == NXE_CEDAR_RVAL_ERROR) {
+        return NGX_ERROR;
+    }
+
+    attr = ngx_array_push(attrs);
+    if (attr == NULL) {
+        return NGX_ERROR;
+    }
+
+    attr->name = *name;
+    attr->value = dur_val;
+
+    return NGX_OK;
+}
+
+
+/*
  * Record handle.
  *
  * - attrs: array of nxe_cedar_attr_t (shared with the attribute value
@@ -549,6 +616,24 @@ nxe_cedar_eval_ctx_add_principal_attr_decimal(nxe_cedar_eval_ctx_t *ctx,
 }
 
 
+ngx_int_t
+nxe_cedar_eval_ctx_add_principal_attr_datetime(nxe_cedar_eval_ctx_t *ctx,
+    const ngx_str_t *name, const ngx_str_t *value)
+{
+    return nxe_cedar_eval_ctx_add_datetime_attr(ctx->principal_attrs,
+                                                name, value);
+}
+
+
+ngx_int_t
+nxe_cedar_eval_ctx_add_principal_attr_duration(nxe_cedar_eval_ctx_t *ctx,
+    const ngx_str_t *name, const ngx_str_t *value)
+{
+    return nxe_cedar_eval_ctx_add_duration_attr(ctx->principal_attrs,
+                                                name, value);
+}
+
+
 void
 nxe_cedar_eval_ctx_set_action(nxe_cedar_eval_ctx_t *ctx,
     const ngx_str_t *type, const ngx_str_t *id)
@@ -600,6 +685,24 @@ nxe_cedar_eval_ctx_add_action_attr_decimal(nxe_cedar_eval_ctx_t *ctx,
 {
     return nxe_cedar_eval_ctx_add_decimal_attr(ctx->action_attrs,
                                                name, value);
+}
+
+
+ngx_int_t
+nxe_cedar_eval_ctx_add_action_attr_datetime(nxe_cedar_eval_ctx_t *ctx,
+    const ngx_str_t *name, const ngx_str_t *value)
+{
+    return nxe_cedar_eval_ctx_add_datetime_attr(ctx->action_attrs,
+                                                name, value);
+}
+
+
+ngx_int_t
+nxe_cedar_eval_ctx_add_action_attr_duration(nxe_cedar_eval_ctx_t *ctx,
+    const ngx_str_t *name, const ngx_str_t *value)
+{
+    return nxe_cedar_eval_ctx_add_duration_attr(ctx->action_attrs,
+                                                name, value);
 }
 
 
@@ -658,6 +761,24 @@ nxe_cedar_eval_ctx_add_resource_attr_decimal(nxe_cedar_eval_ctx_t *ctx,
 
 
 ngx_int_t
+nxe_cedar_eval_ctx_add_resource_attr_datetime(nxe_cedar_eval_ctx_t *ctx,
+    const ngx_str_t *name, const ngx_str_t *value)
+{
+    return nxe_cedar_eval_ctx_add_datetime_attr(ctx->resource_attrs,
+                                                name, value);
+}
+
+
+ngx_int_t
+nxe_cedar_eval_ctx_add_resource_attr_duration(nxe_cedar_eval_ctx_t *ctx,
+    const ngx_str_t *name, const ngx_str_t *value)
+{
+    return nxe_cedar_eval_ctx_add_duration_attr(ctx->resource_attrs,
+                                                name, value);
+}
+
+
+ngx_int_t
 nxe_cedar_eval_ctx_add_context_attr(nxe_cedar_eval_ctx_t *ctx,
     const ngx_str_t *name, const ngx_str_t *value)
 {
@@ -699,6 +820,24 @@ nxe_cedar_eval_ctx_add_context_attr_decimal(nxe_cedar_eval_ctx_t *ctx,
 {
     return nxe_cedar_eval_ctx_add_decimal_attr(ctx->context_attrs,
                                                name, value);
+}
+
+
+ngx_int_t
+nxe_cedar_eval_ctx_add_context_attr_datetime(nxe_cedar_eval_ctx_t *ctx,
+    const ngx_str_t *name, const ngx_str_t *value)
+{
+    return nxe_cedar_eval_ctx_add_datetime_attr(ctx->context_attrs,
+                                                name, value);
+}
+
+
+ngx_int_t
+nxe_cedar_eval_ctx_add_context_attr_duration(nxe_cedar_eval_ctx_t *ctx,
+    const ngx_str_t *name, const ngx_str_t *value)
+{
+    return nxe_cedar_eval_ctx_add_duration_attr(ctx->context_attrs,
+                                                name, value);
 }
 
 
@@ -790,6 +929,28 @@ nxe_cedar_record_add_decimal(nxe_cedar_record_t *rec,
         return NGX_ERROR;
     }
     return nxe_cedar_eval_ctx_add_decimal_attr(rec->attrs, name, value);
+}
+
+
+ngx_int_t
+nxe_cedar_record_add_datetime(nxe_cedar_record_t *rec,
+    const ngx_str_t *name, const ngx_str_t *value)
+{
+    if (rec == NULL) {
+        return NGX_ERROR;
+    }
+    return nxe_cedar_eval_ctx_add_datetime_attr(rec->attrs, name, value);
+}
+
+
+ngx_int_t
+nxe_cedar_record_add_duration(nxe_cedar_record_t *rec,
+    const ngx_str_t *name, const ngx_str_t *value)
+{
+    if (rec == NULL) {
+        return NGX_ERROR;
+    }
+    return nxe_cedar_eval_ctx_add_duration_attr(rec->attrs, name, value);
 }
 
 
@@ -1069,6 +1230,56 @@ nxe_cedar_set_add_decimal(nxe_cedar_set_t *set, const ngx_str_t *value)
     }
 
     *v = dec_val;
+
+    return NGX_OK;
+}
+
+
+ngx_int_t
+nxe_cedar_set_add_datetime(nxe_cedar_set_t *set, const ngx_str_t *value)
+{
+    nxe_cedar_value_t *v, dt_val;
+
+    if (set == NULL || value == NULL) {
+        return NGX_ERROR;
+    }
+
+    dt_val = nxe_cedar_make_datetime(value);
+    if (dt_val.type == NXE_CEDAR_RVAL_ERROR) {
+        return NGX_ERROR;
+    }
+
+    v = ngx_array_push(set->elts);
+    if (v == NULL) {
+        return NGX_ERROR;
+    }
+
+    *v = dt_val;
+
+    return NGX_OK;
+}
+
+
+ngx_int_t
+nxe_cedar_set_add_duration(nxe_cedar_set_t *set, const ngx_str_t *value)
+{
+    nxe_cedar_value_t *v, dur_val;
+
+    if (set == NULL || value == NULL) {
+        return NGX_ERROR;
+    }
+
+    dur_val = nxe_cedar_make_duration(value);
+    if (dur_val.type == NXE_CEDAR_RVAL_ERROR) {
+        return NGX_ERROR;
+    }
+
+    v = ngx_array_push(set->elts);
+    if (v == NULL) {
+        return NGX_ERROR;
+    }
+
+    *v = dur_val;
 
     return NGX_OK;
 }

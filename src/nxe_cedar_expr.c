@@ -84,6 +84,32 @@ nxe_cedar_make_long(int64_t n)
 }
 
 
+/* build a datetime runtime value from UTC epoch milliseconds */
+static nxe_cedar_value_t
+nxe_cedar_make_datetime_ms(int64_t ms)
+{
+    nxe_cedar_value_t val;
+
+    ngx_memzero(&val, sizeof(nxe_cedar_value_t));
+    val.type = NXE_CEDAR_RVAL_DATETIME;
+    val.v.datetime_val = ms;
+    return val;
+}
+
+
+/* build a duration runtime value from a signed millisecond count */
+static nxe_cedar_value_t
+nxe_cedar_make_duration_ms(int64_t ms)
+{
+    nxe_cedar_value_t val;
+
+    ngx_memzero(&val, sizeof(nxe_cedar_value_t));
+    val.type = NXE_CEDAR_RVAL_DURATION;
+    val.v.duration_val = ms;
+    return val;
+}
+
+
 static nxe_cedar_value_t
 nxe_cedar_make_entity(ngx_str_t type, ngx_str_t id)
 {
@@ -471,6 +497,334 @@ nxe_cedar_make_decimal(const ngx_str_t *s)
 }
 
 
+/* number of days in the given month, accounting for leap years */
+static ngx_uint_t
+nxe_cedar_days_in_month(int year, int month)
+{
+    static const ngx_uint_t dim[12] = {
+        31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
+    };
+
+    if (month == 2
+        && ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0))
+    {
+        return 29;
+    }
+
+    return dim[month - 1];
+}
+
+
+/*
+ * Days since 1970-01-01 for a proleptic Gregorian date (Howard
+ * Hinnant's days_from_civil). Valid across the full datetime
+ * construction range (years 0000-9999) and computed in int64_t.
+ */
+static int64_t
+nxe_cedar_days_from_civil(int64_t y, int64_t m, int64_t d)
+{
+    int64_t era, yoe, doy, doe;
+
+    y -= (m <= 2);
+    era = (y >= 0 ? y : y - 399) / 400;
+    yoe = y - era * 400;                                    /* [0, 399] */
+    doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;   /* [0, 365] */
+    doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;            /* [0, 146096] */
+
+    return era * 146097 + doe - 719468;
+}
+
+
+/*
+ * Read exactly `ndigits` ASCII decimal digits from *pp into *out,
+ * advancing *pp. Returns NGX_ERROR if fewer than ndigits digits are
+ * available or a non-digit is encountered.
+ */
+static ngx_int_t
+nxe_cedar_read_uint(const u_char **pp, const u_char *end,
+    ngx_uint_t ndigits, int *out)
+{
+    const u_char *p = *pp;
+    int v = 0;
+    ngx_uint_t i;
+
+    for (i = 0; i < ndigits; i++) {
+        if (p >= end || *p < '0' || *p > '9') {
+            return NGX_ERROR;
+        }
+        v = v * 10 + (*p - '0');
+        p++;
+    }
+
+    *pp = p;
+    *out = v;
+    return NGX_OK;
+}
+
+
+/*
+ * Parse a Cedar datetime literal into UTC epoch milliseconds (i64).
+ * Accepts the date-only form "YYYY-MM-DD", which denotes 00:00:00 UTC,
+ * and the full form
+ * "YYYY-MM-DDThh:mm:ss(.SSS)?(Z|±hhmm)" where the timezone designator is
+ * mandatory for any form carrying a time. A bare trailing "T" without a
+ * time component is rejected, matching the cedar-policy reference.
+ * Fractional seconds are exactly
+ * three digits when present. Field ranges are validated (month 1-12, day
+ * per month with leap years, hour 0-23, minute/second 0-59, offset hour
+ * 0-23 / minute 0-59); malformed input or trailing garbage yields
+ * RVAL_ERROR. The 4-digit year keeps the result within int64_t.
+ */
+nxe_cedar_value_t
+nxe_cedar_make_datetime(const ngx_str_t *s)
+{
+    nxe_cedar_value_t val;
+    const u_char *p, *end;
+    int year, month, day, hh, mm, ss, frac;
+    int64_t days, ms, offset_min;
+
+    ngx_memzero(&val, sizeof(nxe_cedar_value_t));
+    val.type = NXE_CEDAR_RVAL_ERROR;
+
+    if (s == NULL || s->len < 10) {
+        return val;
+    }
+
+    p = s->data;
+    end = p + s->len;
+
+    /* date: YYYY-MM-DD */
+    if (nxe_cedar_read_uint(&p, end, 4, &year) != NGX_OK) {
+        return val;
+    }
+    if (p >= end || *p != '-') {
+        return val;
+    }
+    p++;
+    if (nxe_cedar_read_uint(&p, end, 2, &month) != NGX_OK) {
+        return val;
+    }
+    if (p >= end || *p != '-') {
+        return val;
+    }
+    p++;
+    if (nxe_cedar_read_uint(&p, end, 2, &day) != NGX_OK) {
+        return val;
+    }
+
+    if (month < 1 || month > 12) {
+        return val;
+    }
+    if (day < 1 || (ngx_uint_t) day > nxe_cedar_days_in_month(year, month)) {
+        return val;
+    }
+
+    hh = mm = ss = frac = 0;
+    offset_min = 0;
+
+    if (p != end) {
+        /*
+         * A time component is present; it must start with 'T' and carry
+         * a full hh:mm:ss plus a timezone designator. A bare trailing
+         * 'T' is rejected, matching the reference implementation.
+         */
+        if (*p != 'T') {
+            return val;
+        }
+        p++;
+
+        /* time: hh:mm:ss */
+        if (nxe_cedar_read_uint(&p, end, 2, &hh) != NGX_OK) {
+            return val;
+        }
+        if (p >= end || *p != ':') {
+            return val;
+        }
+        p++;
+        if (nxe_cedar_read_uint(&p, end, 2, &mm) != NGX_OK) {
+            return val;
+        }
+        if (p >= end || *p != ':') {
+            return val;
+        }
+        p++;
+        if (nxe_cedar_read_uint(&p, end, 2, &ss) != NGX_OK) {
+            return val;
+        }
+
+        if (hh > 23 || mm > 59 || ss > 59) {
+            return val;
+        }
+
+        /* optional .SSS (exactly three digits) */
+        if (p < end && *p == '.') {
+            p++;
+            if (nxe_cedar_read_uint(&p, end, 3, &frac) != NGX_OK) {
+                return val;
+            }
+        }
+
+        /* timezone designator is mandatory for time forms */
+        if (p >= end) {
+            return val;
+        }
+
+        if (*p == 'Z') {
+            p++;
+            if (p != end) {
+                return val;
+            }
+
+        } else if (*p == '+' || *p == '-') {
+            int oh, om, sign;
+
+            sign = (*p == '-') ? -1 : 1;
+            p++;
+            if (nxe_cedar_read_uint(&p, end, 2, &oh) != NGX_OK) {
+                return val;
+            }
+            if (nxe_cedar_read_uint(&p, end, 2, &om) != NGX_OK) {
+                return val;
+            }
+            if (p != end || oh > 23 || om > 59) {
+                return val;
+            }
+            offset_min = (int64_t) sign * ((int64_t) oh * 60 + om);
+
+        } else {
+            return val;
+        }
+    }
+
+    days = nxe_cedar_days_from_civil(year, month, day);
+    ms = ((((days * 24 + hh) * 60 + mm) * 60 + ss) * 1000) + frac;
+    ms -= offset_min * 60000;
+
+    val.type = NXE_CEDAR_RVAL_DATETIME;
+    val.v.datetime_val = ms;
+    return val;
+}
+
+
+/*
+ * Parse a Cedar duration literal into a signed millisecond count (i64).
+ * Grammar: an optional leading '-' followed by one or more
+ * "<digits><unit>" groups in strictly descending unit order
+ * (d > h > m > s > ms), each unit appearing at most once and at least
+ * one unit present. 'm' (minutes) and 'ms' (milliseconds) are
+ * distinguished by a trailing 's'. Overflow at any accumulation step,
+ * an empty string, a missing unit, a repeated/out-of-order unit, or
+ * trailing garbage yields RVAL_ERROR.
+ */
+nxe_cedar_value_t
+nxe_cedar_make_duration(const ngx_str_t *s)
+{
+    nxe_cedar_value_t val;
+    const u_char *p, *end;
+    ngx_flag_t negative;
+    int64_t total;
+    ngx_uint_t stage, nunits;
+
+    ngx_memzero(&val, sizeof(nxe_cedar_value_t));
+    val.type = NXE_CEDAR_RVAL_ERROR;
+
+    if (s == NULL || s->len == 0) {
+        return val;
+    }
+
+    p = s->data;
+    end = p + s->len;
+
+    negative = 0;
+    if (*p == '-') {
+        negative = 1;
+        p++;
+    }
+
+    total = 0;
+    stage = 0;          /* lowest accepted unit index: d=0,h=1,m=2,s=3,ms=4 */
+    nunits = 0;
+
+    while (p < end) {
+        int64_t qty, factor, contrib;
+        ngx_uint_t unit_stage;
+
+        /* quantity: at least one digit */
+        if (*p < '0' || *p > '9') {
+            return val;
+        }
+        qty = 0;
+        while (p < end && *p >= '0' && *p <= '9') {
+            int64_t d = *p - '0';
+            if (qty > (INT64_MAX - d) / 10) {
+                return val;
+            }
+            qty = qty * 10 + d;
+            p++;
+        }
+
+        /* unit */
+        if (p >= end) {
+            return val;
+        }
+        if (*p == 'd') {
+            unit_stage = 0;
+            factor = 86400000;
+            p++;
+        } else if (*p == 'h') {
+            unit_stage = 1;
+            factor = 3600000;
+            p++;
+        } else if (*p == 'm') {
+            if (p + 1 < end && *(p + 1) == 's') {
+                unit_stage = 4;
+                factor = 1;
+                p += 2;
+            } else {
+                unit_stage = 2;
+                factor = 60000;
+                p++;
+            }
+        } else if (*p == 's') {
+            unit_stage = 3;
+            factor = 1000;
+            p++;
+        } else {
+            return val;
+        }
+
+        /* enforce strictly descending order; rejects repeats too */
+        if (unit_stage < stage) {
+            return val;
+        }
+        stage = unit_stage + 1;
+
+        if (__builtin_mul_overflow(qty, factor, &contrib)) {
+            return val;
+        }
+        if (__builtin_add_overflow(total, contrib, &total)) {
+            return val;
+        }
+
+        nunits++;
+    }
+
+    if (nunits == 0) {
+        return val;
+    }
+
+    if (negative) {
+        if (__builtin_sub_overflow((int64_t) 0, total, &total)) {
+            return val;
+        }
+    }
+
+    val.type = NXE_CEDAR_RVAL_DURATION;
+    val.v.duration_val = total;
+    return val;
+}
+
+
 /* parse IP string to binary runtime value */
 nxe_cedar_value_t
 nxe_cedar_make_ip(const ngx_str_t *s)
@@ -617,6 +971,12 @@ nxe_cedar_value_equals(nxe_cedar_value_t *a, nxe_cedar_value_t *b,
 
     case NXE_CEDAR_RVAL_DECIMAL:
         return (a->v.decimal_val == b->v.decimal_val);
+
+    case NXE_CEDAR_RVAL_DATETIME:
+        return (a->v.datetime_val == b->v.datetime_val);
+
+    case NXE_CEDAR_RVAL_DURATION:
+        return (a->v.duration_val == b->v.duration_val);
 
     case NXE_CEDAR_RVAL_SET:
         if (a->v.set_elts == NULL || b->v.set_elts == NULL) {
@@ -1032,6 +1392,66 @@ nxe_cedar_eval_method_call(nxe_cedar_node_t *node,
             return nxe_cedar_make_bool(obj.v.set_elts->nelts == 0);
         }
 
+        /* datetime zero-arg methods: receiver must be datetime */
+        if (obj.type == NXE_CEDAR_RVAL_DATETIME) {
+            int64_t ms = obj.v.datetime_val;
+            int64_t r = ms % 86400000;
+
+            /* floor the remainder so truncation works for ms < 0 */
+            if (r < 0) {
+                r += 86400000;
+            }
+
+            /* toDate: truncate to 00:00:00 UTC of the same day */
+            if (method->len == 6
+                && ngx_memcmp(method->data, "toDate", 6) == 0)
+            {
+                return nxe_cedar_make_datetime_ms(ms - r);
+            }
+
+            /* toTime: milliseconds elapsed since toDate(), as a duration */
+            if (method->len == 6
+                && ngx_memcmp(method->data, "toTime", 6) == 0)
+            {
+                return nxe_cedar_make_duration_ms(r);
+            }
+
+            return nxe_cedar_make_error();
+        }
+
+        /* duration zero-arg conversion methods (result is Long) */
+        if (obj.type == NXE_CEDAR_RVAL_DURATION) {
+            int64_t d = obj.v.duration_val;
+
+            if (method->len == 14
+                && ngx_memcmp(method->data, "toMilliseconds", 14) == 0)
+            {
+                return nxe_cedar_make_long(d);
+            }
+            if (method->len == 9
+                && ngx_memcmp(method->data, "toSeconds", 9) == 0)
+            {
+                return nxe_cedar_make_long(d / 1000);
+            }
+            if (method->len == 9
+                && ngx_memcmp(method->data, "toMinutes", 9) == 0)
+            {
+                return nxe_cedar_make_long(d / 60000);
+            }
+            if (method->len == 7
+                && ngx_memcmp(method->data, "toHours", 7) == 0)
+            {
+                return nxe_cedar_make_long(d / 3600000);
+            }
+            if (method->len == 6
+                && ngx_memcmp(method->data, "toDays", 6) == 0)
+            {
+                return nxe_cedar_make_long(d / 86400000);
+            }
+
+            return nxe_cedar_make_error();
+        }
+
         /* IP inspection methods: receiver must be IP */
         if (obj.type != NXE_CEDAR_RVAL_IP) {
             return nxe_cedar_make_error();
@@ -1222,6 +1642,45 @@ nxe_cedar_eval_method_call(nxe_cedar_node_t *node,
     }
 
     /*
+     * datetime one-arg methods. offset(duration) shifts a datetime and
+     * durationSince(datetime) returns the signed difference; both error
+     * on i64 overflow or argument type mismatch.
+     */
+    if (obj.type == NXE_CEDAR_RVAL_DATETIME) {
+        int64_t result;
+
+        if (method->len == 6
+            && ngx_memcmp(method->data, "offset", 6) == 0)
+        {
+            if (arg.type != NXE_CEDAR_RVAL_DURATION) {
+                return nxe_cedar_make_error();
+            }
+            if (__builtin_add_overflow(obj.v.datetime_val,
+                                       arg.v.duration_val, &result))
+            {
+                return nxe_cedar_make_error();
+            }
+            return nxe_cedar_make_datetime_ms(result);
+        }
+
+        if (method->len == 13
+            && ngx_memcmp(method->data, "durationSince", 13) == 0)
+        {
+            if (arg.type != NXE_CEDAR_RVAL_DATETIME) {
+                return nxe_cedar_make_error();
+            }
+            if (__builtin_sub_overflow(obj.v.datetime_val,
+                                       arg.v.datetime_val, &result))
+            {
+                return nxe_cedar_make_error();
+            }
+            return nxe_cedar_make_duration_ms(result);
+        }
+
+        return nxe_cedar_make_error();
+    }
+
+    /*
      * Decimal comparison methods. Cedar exposes ordering on decimals
      * only via these four methods; the binary <, <=, >, >= operators
      * remain reserved for Long. Both receiver and argument must be
@@ -1399,6 +1858,12 @@ nxe_cedar_expr_eval_body(nxe_cedar_node_t *node,
 
     case NXE_CEDAR_NODE_DECIMAL_LITERAL:
         return nxe_cedar_make_decimal(&node->u.decimal_literal.text);
+
+    case NXE_CEDAR_NODE_DATETIME_LITERAL:
+        return nxe_cedar_make_datetime(&node->u.datetime_literal.text);
+
+    case NXE_CEDAR_NODE_DURATION_LITERAL:
+        return nxe_cedar_make_duration(&node->u.duration_literal.text);
 
     case NXE_CEDAR_NODE_ENTITY_REF:
         return nxe_cedar_make_entity(node->u.entity_ref.entity_type,
@@ -1611,7 +2076,9 @@ nxe_cedar_expr_eval_body(nxe_cedar_node_t *node,
         case NXE_CEDAR_OP_LT:
         case NXE_CEDAR_OP_GT:
         case NXE_CEDAR_OP_LE:
-        case NXE_CEDAR_OP_GE:
+        case NXE_CEDAR_OP_GE: {
+            int64_t lv, rv;
+
             left = nxe_cedar_expr_eval(node->u.binop.left, ctx,
                                        pool, log);
             if (left.type == NXE_CEDAR_RVAL_ERROR) {
@@ -1622,28 +2089,45 @@ nxe_cedar_expr_eval_body(nxe_cedar_node_t *node,
             if (right.type == NXE_CEDAR_RVAL_ERROR) {
                 return right;
             }
-            if (left.type != NXE_CEDAR_RVAL_LONG
-                || right.type != NXE_CEDAR_RVAL_LONG)
-            {
+
+            /*
+             * Ordering is defined on Long, datetime, and duration, but
+             * only between two operands of the same type. The scaled i64
+             * representation is order-preserving for all three.
+             */
+            if (left.type != right.type) {
+                return nxe_cedar_make_error();
+            }
+            switch (left.type) {
+            case NXE_CEDAR_RVAL_LONG:
+                lv = left.v.long_val;
+                rv = right.v.long_val;
+                break;
+            case NXE_CEDAR_RVAL_DATETIME:
+                lv = left.v.datetime_val;
+                rv = right.v.datetime_val;
+                break;
+            case NXE_CEDAR_RVAL_DURATION:
+                lv = left.v.duration_val;
+                rv = right.v.duration_val;
+                break;
+            default:
                 return nxe_cedar_make_error();
             }
 
             switch (node->u.binop.op) {
             case NXE_CEDAR_OP_LT:
-                return nxe_cedar_make_bool(
-                    left.v.long_val < right.v.long_val);
+                return nxe_cedar_make_bool(lv < rv);
             case NXE_CEDAR_OP_GT:
-                return nxe_cedar_make_bool(
-                    left.v.long_val > right.v.long_val);
+                return nxe_cedar_make_bool(lv > rv);
             case NXE_CEDAR_OP_LE:
-                return nxe_cedar_make_bool(
-                    left.v.long_val <= right.v.long_val);
+                return nxe_cedar_make_bool(lv <= rv);
             case NXE_CEDAR_OP_GE:
-                return nxe_cedar_make_bool(
-                    left.v.long_val >= right.v.long_val);
+                return nxe_cedar_make_bool(lv >= rv);
             default:
                 return nxe_cedar_make_error();
             }
+        }
 
         case NXE_CEDAR_OP_PLUS:
         case NXE_CEDAR_OP_MINUS:

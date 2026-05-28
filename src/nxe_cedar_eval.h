@@ -83,6 +83,12 @@ ngx_int_t nxe_cedar_eval_ctx_add_principal_attr_ip(
 ngx_int_t nxe_cedar_eval_ctx_add_principal_attr_decimal(
     nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
     const ngx_str_t *value);
+ngx_int_t nxe_cedar_eval_ctx_add_principal_attr_datetime(
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
+    const ngx_str_t *value);
+ngx_int_t nxe_cedar_eval_ctx_add_principal_attr_duration(
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
+    const ngx_str_t *value);
 
 void nxe_cedar_eval_ctx_set_action(nxe_cedar_eval_ctx_t *ctx,
     const ngx_str_t *type, const ngx_str_t *id);
@@ -96,6 +102,12 @@ ngx_int_t nxe_cedar_eval_ctx_add_action_attr_ip(
     nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
     const ngx_str_t *value);
 ngx_int_t nxe_cedar_eval_ctx_add_action_attr_decimal(
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
+    const ngx_str_t *value);
+ngx_int_t nxe_cedar_eval_ctx_add_action_attr_datetime(
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
+    const ngx_str_t *value);
+ngx_int_t nxe_cedar_eval_ctx_add_action_attr_duration(
     nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
     const ngx_str_t *value);
 
@@ -113,6 +125,12 @@ ngx_int_t nxe_cedar_eval_ctx_add_resource_attr_ip(
 ngx_int_t nxe_cedar_eval_ctx_add_resource_attr_decimal(
     nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
     const ngx_str_t *value);
+ngx_int_t nxe_cedar_eval_ctx_add_resource_attr_datetime(
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
+    const ngx_str_t *value);
+ngx_int_t nxe_cedar_eval_ctx_add_resource_attr_duration(
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
+    const ngx_str_t *value);
 
 ngx_int_t nxe_cedar_eval_ctx_add_context_attr(nxe_cedar_eval_ctx_t *ctx,
     const ngx_str_t *name, const ngx_str_t *value);
@@ -124,6 +142,12 @@ ngx_int_t nxe_cedar_eval_ctx_add_context_attr_ip(
     nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
     const ngx_str_t *value);
 ngx_int_t nxe_cedar_eval_ctx_add_context_attr_decimal(
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
+    const ngx_str_t *value);
+ngx_int_t nxe_cedar_eval_ctx_add_context_attr_datetime(
+    nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
+    const ngx_str_t *value);
+ngx_int_t nxe_cedar_eval_ctx_add_context_attr_duration(
     nxe_cedar_eval_ctx_t *ctx, const ngx_str_t *name,
     const ngx_str_t *value);
 
@@ -162,6 +186,10 @@ ngx_int_t nxe_cedar_record_add_bool(nxe_cedar_record_t *rec,
 ngx_int_t nxe_cedar_record_add_ip(nxe_cedar_record_t *rec,
     const ngx_str_t *name, const ngx_str_t *value);
 ngx_int_t nxe_cedar_record_add_decimal(nxe_cedar_record_t *rec,
+    const ngx_str_t *name, const ngx_str_t *value);
+ngx_int_t nxe_cedar_record_add_datetime(nxe_cedar_record_t *rec,
+    const ngx_str_t *name, const ngx_str_t *value);
+ngx_int_t nxe_cedar_record_add_duration(nxe_cedar_record_t *rec,
     const ngx_str_t *name, const ngx_str_t *value);
 nxe_cedar_record_t *nxe_cedar_record_add_record(nxe_cedar_record_t *rec,
     const ngx_str_t *name);
@@ -219,6 +247,10 @@ ngx_int_t nxe_cedar_set_add_bool(nxe_cedar_set_t *set, ngx_flag_t value);
 ngx_int_t nxe_cedar_set_add_ip(nxe_cedar_set_t *set,
     const ngx_str_t *value);
 ngx_int_t nxe_cedar_set_add_decimal(nxe_cedar_set_t *set,
+    const ngx_str_t *value);
+ngx_int_t nxe_cedar_set_add_datetime(nxe_cedar_set_t *set,
+    const ngx_str_t *value);
+ngx_int_t nxe_cedar_set_add_duration(nxe_cedar_set_t *set,
     const ngx_str_t *value);
 ngx_int_t nxe_cedar_set_add_entity(nxe_cedar_set_t *set,
     const ngx_str_t *type, const ngx_str_t *id);

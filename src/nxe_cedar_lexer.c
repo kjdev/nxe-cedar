@@ -40,6 +40,8 @@ static nxe_cedar_keyword_t nxe_cedar_keywords[] = {
     { ngx_string("ip"),        NXE_CEDAR_TOKEN_IP },
     { ngx_string("decimal"),   NXE_CEDAR_TOKEN_DECIMAL },
     { ngx_string("is"),        NXE_CEDAR_TOKEN_IS },
+    { ngx_string("datetime"),  NXE_CEDAR_TOKEN_DATETIME },
+    { ngx_string("duration"),  NXE_CEDAR_TOKEN_DURATION },
     { ngx_null_string,         0 }
 };
 

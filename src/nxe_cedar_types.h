@@ -47,6 +47,8 @@ typedef enum {
     NXE_CEDAR_TOKEN_IP,             /* Phase 3 */
     NXE_CEDAR_TOKEN_DECIMAL,        /* Phase 3 */
     NXE_CEDAR_TOKEN_IS,             /* Phase 4 */
+    NXE_CEDAR_TOKEN_DATETIME,       /* datetime() extension constructor */
+    NXE_CEDAR_TOKEN_DURATION,       /* duration() extension constructor */
 
     /* operators */
     NXE_CEDAR_TOKEN_EQ,             /* == */
@@ -158,7 +160,11 @@ typedef enum {
 
     /* Phase 4 */
     NXE_CEDAR_NODE_IS,              /* expr is type_name [in expr] */
-    NXE_CEDAR_NODE_RECORD           /* { key: expr, ... } */
+    NXE_CEDAR_NODE_RECORD,          /* { key: expr, ... } */
+
+    /* datetime / duration extension types */
+    NXE_CEDAR_NODE_DATETIME_LITERAL, /* datetime("2024-01-01T00:00:00Z") */
+    NXE_CEDAR_NODE_DURATION_LITERAL  /* duration("1d2h3m") */
 } nxe_cedar_node_type_t;
 
 
@@ -232,7 +238,13 @@ struct nxe_cedar_node_s {
                                                    "lessThan",
                                                    "lessThanOrEqual",
                                                    "greaterThan",
-                                                   "greaterThanOrEqual" */
+                                                   "greaterThanOrEqual",
+                                                   "offset",
+                                                   "durationSince",
+                                                   "toDate", "toTime",
+                                                   "toMilliseconds",
+                                                   "toSeconds", "toMinutes",
+                                                   "toHours", "toDays" */
             nxe_cedar_node_t *arg;              /* NULL for zero-arg
                                                    methods (isIpv4 etc.) */
         } method_call;
@@ -244,6 +256,14 @@ struct nxe_cedar_node_s {
         struct {                                /* DECIMAL_LITERAL */
             ngx_str_t  text;
         } decimal_literal;
+
+        struct {                                /* DATETIME_LITERAL */
+            ngx_str_t  text;
+        } datetime_literal;
+
+        struct {                                /* DURATION_LITERAL */
+            ngx_str_t  text;
+        } duration_literal;
 
         struct {                                /* IS (Phase 4) */
             nxe_cedar_node_t *object;           /* expression under test */
@@ -407,6 +427,8 @@ typedef struct {
 #define NXE_CEDAR_RVAL_IP       6
 #define NXE_CEDAR_RVAL_RECORD   7
 #define NXE_CEDAR_RVAL_DECIMAL  8
+#define NXE_CEDAR_RVAL_DATETIME 9
+#define NXE_CEDAR_RVAL_DURATION 10
 
 
 /*
@@ -450,6 +472,17 @@ typedef struct {
          * scaled value would overflow.
          */
         int64_t  decimal_val;
+        /*
+         * Cedar datetime: UTC milliseconds since the Unix epoch
+         * (1970-01-01T00:00:00Z), signed i64. A distinct type from Long
+         * with no implicit conversion.
+         */
+        int64_t  datetime_val;
+        /*
+         * Cedar duration: signed i64 count of milliseconds. Negative
+         * values are valid. A distinct type from Long.
+         */
+        int64_t  duration_val;
     } v;
 } nxe_cedar_value_t;
 
