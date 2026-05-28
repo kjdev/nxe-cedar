@@ -23,6 +23,7 @@
 #include "nxe_cedar_test_wrapper.h"
 #include "nxe_cedar_parser.h"
 #include "nxe_cedar_eval.h"
+#include "nxe_cedar_expr.h"
 #include "ngx_stub.h"
 
 
@@ -291,6 +292,50 @@ run_parser_null_guard_tests(test_stats_t *stats)
     }
 
     ngx_destroy_pool(pool);
+}
+
+
+static void
+run_make_value_null_guard_tests(test_stats_t *stats)
+{
+    ngx_str_t empty;
+    nxe_cedar_value_t val;
+    const char *label = "unit/make_value_null_guard";
+
+    val = nxe_cedar_make_ip(NULL);
+    if (val.type == NXE_CEDAR_RVAL_ERROR) {
+        printf("%s :: ip_null ... ok\n", label);
+        stats->passed++;
+    } else {
+        printf("%s :: ip_null ... FAILED\n", label);
+        fprintf(stderr, "  expected RVAL_ERROR, got type=%d\n",
+                (int) val.type);
+        stats->failed++;
+    }
+
+    empty.data = NULL;
+    empty.len = 0;
+    val = nxe_cedar_make_ip(&empty);
+    if (val.type == NXE_CEDAR_RVAL_ERROR) {
+        printf("%s :: ip_empty ... ok\n", label);
+        stats->passed++;
+    } else {
+        printf("%s :: ip_empty ... FAILED\n", label);
+        fprintf(stderr, "  expected RVAL_ERROR, got type=%d\n",
+                (int) val.type);
+        stats->failed++;
+    }
+
+    val = nxe_cedar_make_decimal(NULL);
+    if (val.type == NXE_CEDAR_RVAL_ERROR) {
+        printf("%s :: decimal_null ... ok\n", label);
+        stats->passed++;
+    } else {
+        printf("%s :: decimal_null ... FAILED\n", label);
+        fprintf(stderr, "  expected RVAL_ERROR, got type=%d\n",
+                (int) val.type);
+        stats->failed++;
+    }
 }
 
 
@@ -822,6 +867,7 @@ main(int argc, char **argv)
     if (max_phase == 0 || max_phase >= 2) {
         run_parser_null_guard_tests(&stats);
         run_injection_duplicate_key_tests(&stats);
+        run_make_value_null_guard_tests(&stats);
     }
 
     if (max_phase == 0 || max_phase >= 4) {
