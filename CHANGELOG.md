@@ -1,5 +1,16 @@
 # Changelog
 
+## [026f9bb](../../commit/026f9bb) - 2026-05-29
+
+### Added
+
+- Implement Cedar `datetime` / `duration` extension types
+  - The lexer recognizes `datetime` / `duration` as keywords (still usable as attribute identifiers like `ip` / `decimal`), and the parser produces `NXE_CEDAR_NODE_DATETIME_LITERAL` / `NXE_CEDAR_NODE_DURATION_LITERAL` from the `ip()`-style constructor shape; runtime values gain `NXE_CEDAR_RVAL_DATETIME` (UTC epoch milliseconds) and `NXE_CEDAR_RVAL_DURATION` (signed milliseconds), both backed by `int64_t` and kept distinct from `Long` with no implicit conversion
+  - `nxe_cedar_make_datetime()` parses ISO 8601 — either `YYYY-MM-DD` or `YYYY-MM-DDThh:mm:ss(.SSS)?(Z|±hhmm)` — validating field ranges with leap-year-aware day limits and computing epoch days via the proleptic Gregorian `days_from_civil` algorithm; a time component requires a timezone designator and a bare trailing `T` is rejected, matching the `cedar-policy` 4.9.1 reference. `nxe_cedar_make_duration()` parses `[-]?` followed by `d`/`h`/`m`/`s`/`ms` unit groups in strictly descending order (each at most once, at least one present), distinguishing `m` from `ms` by a trailing `s` and rejecting overflow
+  - The `datetime` methods `offset(duration)`, `durationSince(datetime)`, `toDate()`, and `toTime()` and the `duration` conversions `toMilliseconds()` / `toSeconds()` / `toMinutes()` / `toHours()` / `toDays()` are dispatched in the expression evaluator; `offset` and `durationSince` surface i64 overflow as an evaluation error, and the conversions truncate toward zero
+  - The `<`, `<=`, `>`, `>=` operators now accept two `datetime` or two `duration` operands (the scaled i64 representation is order-preserving) in addition to `Long`; mixing types remains an evaluation error, and `==` / `!=` compare the underlying representation so canonical-form equality holds (e.g. a date-only value equals the same instant written with an explicit `Z`)
+  - The public injection API gains `nxe_cedar_eval_ctx_add_{principal,action,resource,context}_attr_{datetime,duration}()`, `nxe_cedar_record_add_{datetime,duration}()`, and `nxe_cedar_set_add_{datetime,duration}()`; each takes the constructor string and validates it eagerly through the same parser, rejecting malformed input with `NGX_ERROR` so callers cannot inject a deferred `RVAL_ERROR` attribute
+
 ## [4d8085e](../../commit/4d8085e) - 2026-05-28
 
 ### Fixed
