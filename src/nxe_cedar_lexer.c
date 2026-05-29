@@ -334,6 +334,8 @@ nxe_cedar_lexer_read_string(nxe_cedar_lexer_t *lexer)
         token.type = NXE_CEDAR_TOKEN_ERROR;
         token.value.data = (u_char *) "alloc failed";
         token.value.len = 12;
+        token.raw.data = NULL;
+        token.raw.len = 0;
         token.has_star_escape = 0;
         return token;
     }
