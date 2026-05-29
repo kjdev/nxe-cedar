@@ -2188,7 +2188,7 @@ nxe_cedar_expr_eval_body(nxe_cedar_node_t *node,
         }
         return nxe_cedar_make_long(-left.v.long_val);
 
-    /* Phase 2 */
+    /* conditionals, like, method calls */
     case NXE_CEDAR_NODE_HAS:
         return nxe_cedar_eval_has(node, ctx, pool, log);
 

@@ -2076,7 +2076,7 @@ nxe_cedar_parse(ngx_pool_t *pool, ngx_log_t *log, const ngx_str_t *text)
 
         ngx_memzero(policy, sizeof(nxe_cedar_policy_t));
 
-        /* parse annotations before effect (Phase 4) */
+        /* parse annotations before effect */
         if (nxe_cedar_parse_annotations(&ctx, policy) != NGX_OK) {
             return NULL;
         }

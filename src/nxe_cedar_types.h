@@ -39,14 +39,14 @@ typedef enum {
     NXE_CEDAR_TOKEN_TRUE,
     NXE_CEDAR_TOKEN_FALSE,
     NXE_CEDAR_TOKEN_IN,
-    NXE_CEDAR_TOKEN_IF,             /* Phase 2 */
-    NXE_CEDAR_TOKEN_THEN,           /* Phase 2 */
-    NXE_CEDAR_TOKEN_ELSE,           /* Phase 2 */
-    NXE_CEDAR_TOKEN_HAS,            /* Phase 2 */
-    NXE_CEDAR_TOKEN_LIKE,           /* Phase 2 */
-    NXE_CEDAR_TOKEN_IP,             /* Phase 3 */
-    NXE_CEDAR_TOKEN_DECIMAL,        /* Phase 3 */
-    NXE_CEDAR_TOKEN_IS,             /* Phase 4 */
+    NXE_CEDAR_TOKEN_IF,
+    NXE_CEDAR_TOKEN_THEN,
+    NXE_CEDAR_TOKEN_ELSE,
+    NXE_CEDAR_TOKEN_HAS,
+    NXE_CEDAR_TOKEN_LIKE,
+    NXE_CEDAR_TOKEN_IP,
+    NXE_CEDAR_TOKEN_DECIMAL,
+    NXE_CEDAR_TOKEN_IS,
     NXE_CEDAR_TOKEN_DATETIME,       /* datetime() extension constructor */
     NXE_CEDAR_TOKEN_DURATION,       /* duration() extension constructor */
 
@@ -56,13 +56,13 @@ typedef enum {
     NXE_CEDAR_TOKEN_AND,            /* && */
     NXE_CEDAR_TOKEN_OR,             /* || */
     NXE_CEDAR_TOKEN_NOT,            /* ! */
-    NXE_CEDAR_TOKEN_MINUS,          /* -  (binary and unary; Phase 4) */
-    NXE_CEDAR_TOKEN_PLUS,           /* +  (Phase 4) */
-    NXE_CEDAR_TOKEN_STAR,           /* *  (Phase 4) */
-    NXE_CEDAR_TOKEN_LT,             /* <  (Phase 2) */
-    NXE_CEDAR_TOKEN_GT,             /* >  (Phase 2) */
-    NXE_CEDAR_TOKEN_LE,             /* <= (Phase 2) */
-    NXE_CEDAR_TOKEN_GE,             /* >= (Phase 2) */
+    NXE_CEDAR_TOKEN_MINUS,          /* -  (binary and unary) */
+    NXE_CEDAR_TOKEN_PLUS,           /* + */
+    NXE_CEDAR_TOKEN_STAR,           /* * */
+    NXE_CEDAR_TOKEN_LT,             /* < */
+    NXE_CEDAR_TOKEN_GT,             /* > */
+    NXE_CEDAR_TOKEN_LE,             /* <= */
+    NXE_CEDAR_TOKEN_GE,             /* >= */
 
     /* delimiters */
     NXE_CEDAR_TOKEN_DOT,            /* . */
@@ -75,8 +75,8 @@ typedef enum {
     NXE_CEDAR_TOKEN_LBRACKET,       /* [ */
     NXE_CEDAR_TOKEN_RBRACKET,       /* ] */
     NXE_CEDAR_TOKEN_COLONCOLON,     /* :: */
-    NXE_CEDAR_TOKEN_COLON,          /* :  (Phase 4 record literal) */
-    NXE_CEDAR_TOKEN_AT,             /* @  (Phase 4) */
+    NXE_CEDAR_TOKEN_COLON,          /* :  (record literal) */
+    NXE_CEDAR_TOKEN_AT,             /* @ */
 
     /* literals */
     NXE_CEDAR_TOKEN_STRING,         /* "..." */
@@ -108,13 +108,13 @@ typedef enum {
     NXE_CEDAR_OP_AND,               /* && */
     NXE_CEDAR_OP_OR,                /* || */
     NXE_CEDAR_OP_IN,                /* in */
-    NXE_CEDAR_OP_LT,               /* <  (Phase 2) */
-    NXE_CEDAR_OP_GT,               /* >  (Phase 2) */
-    NXE_CEDAR_OP_LE,               /* <= (Phase 2) */
-    NXE_CEDAR_OP_GE,               /* >= (Phase 2) */
-    NXE_CEDAR_OP_PLUS,             /* +  (Phase 4) */
-    NXE_CEDAR_OP_MINUS,            /* -  (Phase 4) */
-    NXE_CEDAR_OP_MUL               /* *  (Phase 4) */
+    NXE_CEDAR_OP_LT,               /* < */
+    NXE_CEDAR_OP_GT,               /* > */
+    NXE_CEDAR_OP_LE,               /* <= */
+    NXE_CEDAR_OP_GE,               /* >= */
+    NXE_CEDAR_OP_PLUS,             /* + */
+    NXE_CEDAR_OP_MINUS,            /* - */
+    NXE_CEDAR_OP_MUL               /* * */
 } nxe_cedar_op_t;
 
 
@@ -144,21 +144,21 @@ typedef enum {
     /* operations */
     NXE_CEDAR_NODE_ATTR_ACCESS,     /* expr.ident */
     NXE_CEDAR_NODE_BINOP,           /* ==, !=, <, >, <=, >=, &&, ||, in,
-                                     +, -, * (Phase 4) */
+                                     +, -, * */
     NXE_CEDAR_NODE_UNOP,            /* ! */
     NXE_CEDAR_NODE_NEGATE,          /* - (unary) */
 
-    /* Phase 2 */
+    /* conditionals, like, method calls */
     NXE_CEDAR_NODE_HAS,             /* expr has ident */
     NXE_CEDAR_NODE_LIKE,            /* expr like "pattern" */
     NXE_CEDAR_NODE_IF_THEN_ELSE,    /* if expr then expr else expr */
     NXE_CEDAR_NODE_METHOD_CALL,     /* expr.method(args) */
 
-    /* Phase 3 */
+    /* extension literals */
     NXE_CEDAR_NODE_IP_LITERAL,      /* ip("addr") */
     NXE_CEDAR_NODE_DECIMAL_LITERAL, /* decimal("1.23") */
 
-    /* Phase 4 */
+    /* is / record */
     NXE_CEDAR_NODE_IS,              /* expr is type_name [in expr] */
     NXE_CEDAR_NODE_RECORD,          /* { key: expr, ... } */
 
@@ -265,7 +265,7 @@ struct nxe_cedar_node_s {
             ngx_str_t  text;
         } duration_literal;
 
-        struct {                                /* IS (Phase 4) */
+        struct {                                /* IS */
             nxe_cedar_node_t *object;           /* expression under test */
             ngx_str_t         entity_type;      /* type_name
                                                    ("User", "Ns::User", ...) */
@@ -286,9 +286,8 @@ typedef enum {
     NXE_CEDAR_SCOPE_NONE,           /* no constraint (matches all) */
     NXE_CEDAR_SCOPE_EQ,             /* == entity_ref */
     NXE_CEDAR_SCOPE_IN,             /* in entity_ref | set */
-    NXE_CEDAR_SCOPE_IS,             /* is type_name (Phase 4) */
-    NXE_CEDAR_SCOPE_IS_IN           /* is type_name in entity_ref
-                                       (Phase 4) */
+    NXE_CEDAR_SCOPE_IS,             /* is type_name */
+    NXE_CEDAR_SCOPE_IS_IN           /* is type_name in entity_ref */
 } nxe_cedar_scope_constraint_t;
 
 /* scope constraint */
@@ -300,7 +299,7 @@ typedef struct {
                                                    only; empty otherwise) */
 } nxe_cedar_scope_t;
 
-/* annotation (Phase 4) */
+/* annotation */
 typedef struct {
     ngx_str_t  key;                     /* annotation name (e.g. "id", "advice") */
     ngx_str_t  value;                   /* annotation value; empty if valueless */
@@ -316,7 +315,7 @@ typedef struct {
 typedef struct {
     unsigned           is_forbid:1;         /* 0 = permit, 1 = forbid */
     ngx_array_t       *annotations;         /* array of nxe_cedar_annotation_t
-                                               (Phase 4, NULL if none) */
+                                               (NULL if none) */
     nxe_cedar_scope_t  principal;
     nxe_cedar_scope_t  action;
     nxe_cedar_scope_t  resource;
