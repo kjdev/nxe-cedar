@@ -370,6 +370,9 @@ nxe_cedar_lexer_read_string(nxe_cedar_lexer_t *lexer)
                     token.value.data =
                         (u_char *) "invalid escape sequence";
                     token.value.len = 23;
+                    token.raw.data = NULL;
+                    token.raw.len = 0;
+                    token.has_star_escape = 0;
                     return token;
                 }
 
