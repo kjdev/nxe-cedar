@@ -124,7 +124,7 @@ static inline ngx_int_t
 ngx_array_init(ngx_array_t *array, ngx_pool_t *pool,
     ngx_uint_t n, size_t size)
 {
-    size_t  alloc_size;
+    size_t alloc_size;
 
     if (size != 0 && n > SIZE_MAX / size) {
         return NGX_ERROR;
