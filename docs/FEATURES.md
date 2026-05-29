@@ -12,7 +12,7 @@ upstream `cedar-policy` crate.
 | --- | --- |
 | ✅ | Supported. Behavior matches the upstream `cedar-policy` reference (verified via the FFI oracle for cases under `tests/cases/`). |
 | ⚠️ | Partially supported. The feature works but with a documented restriction. See the Notes column. |
-| ❌ | Not yet supported. Implementing it is consistent with the project scope and may be added in a future Phase. |
+| ❌ | Not yet supported. Implementing it is consistent with the project scope and may be added in a future release. |
 | 🚫 | Out of scope. Will not be implemented; alternatives are noted. |
 
 A per-commit feature history is in [`CHANGELOG.md`](../CHANGELOG.md).
@@ -21,38 +21,38 @@ A per-commit feature history is in [`CHANGELOG.md`](../CHANGELOG.md).
 
 | Feature | Syntax | Status | Notes |
 | --- | --- | --- | --- |
-| `permit` effect | `permit (scope) conditions;` | ✅ | Phase 1 |
-| `forbid` effect | `forbid (scope) conditions;` | ✅ | Phase 1 |
-| `when` clause | `when { expr }` | ✅ | Phase 1; multiple clauses AND-combined |
-| `unless` clause | `unless { expr }` | ✅ | Phase 1; multiple clauses AND-combined |
-| Annotations | `@key`, `@key("value")` | ✅ | Phase 4; up to 16 per policy; duplicate keys rejected at parse time |
-| Line comments | `// …` | ✅ | Phase 1 |
+| `permit` effect | `permit (scope) conditions;` | ✅ |  |
+| `forbid` effect | `forbid (scope) conditions;` | ✅ |  |
+| `when` clause | `when { expr }` | ✅ | multiple clauses AND-combined |
+| `unless` clause | `unless { expr }` | ✅ | multiple clauses AND-combined |
+| Annotations | `@key`, `@key("value")` | ✅ | up to 16 per policy; duplicate keys rejected at parse time |
+| Line comments | `// …` | ✅ |  |
 | Block comments | `/* … */` | ❌ | Not implemented; Cedar reference parser accepts `//` only as well |
 
 ## Scope constraints
 
 | Constraint | Syntax | Status | Notes |
 | --- | --- | --- | --- |
-| Unconstrained | `principal,` | ✅ | Phase 1 |
-| Equality | `principal == Entity::"id"` | ✅ | Phase 1; also `action`, `resource` |
-| Hierarchy | `principal in Entity::"id"` | ✅ | Phase 1; ancestors injected by caller (see [Entity hierarchy](#entity-hierarchies)) |
-| Action set | `action in [Action::"a", Action::"b"]` | ✅ | Phase 1; **action only** — non-entity elements rejected at parse time |
-| Type check | `principal is Type` | ✅ | Phase 4; principal/resource only; rejected on action |
-| Type + hierarchy | `principal is Type in Entity::"id"` | ✅ | Phase 4; principal/resource only |
-| Namespaced type | `principal is NS::Sub::Type` | ✅ | Phase 4 |
+| Unconstrained | `principal,` | ✅ |  |
+| Equality | `principal == Entity::"id"` | ✅ | also `action`, `resource` |
+| Hierarchy | `principal in Entity::"id"` | ✅ | ancestors injected by caller (see [Entity hierarchy](#entity-hierarchies)) |
+| Action set | `action in [Action::"a", Action::"b"]` | ✅ | **action only** — non-entity elements rejected at parse time |
+| Type check | `principal is Type` | ✅ | principal/resource only; rejected on action |
+| Type + hierarchy | `principal is Type in Entity::"id"` | ✅ | principal/resource only |
+| Namespaced type | `principal is NS::Sub::Type` | ✅ |  |
 
 ## Data types
 
 | Type | Syntax / constructor | Status | Notes |
 | --- | --- | --- | --- |
-| `Bool` | `true`, `false` | ✅ | Phase 1 |
-| `Long` | `42`, `-100` | ✅ | Phase 1; pinned to `int64_t` for cross-platform i64 integrity; overflow surfaces as evaluation error |
-| `String` | `"..."` | ✅ | Phase 1; escapes `\n` `\r` `\t` `\\` `\"` `\'` `\xHH` `\u{…}`; `\*` allowed only in `like` patterns |
-| `Set` | `[expr, …]` | ✅ | Phase 1 in policy text; element-injection API added in Phase 4 |
-| `Record` | `{key: expr, …}` in policy text; injection API for ctx | ✅ | Phase 4; up to 64 entries; up to 16 depth; trailing comma accepted |
-| `Entity` | `Type::"id"`, `NS::Type::"id"` | ✅ | Phase 1; namespaced types supported |
-| `ipaddr` | `ip("…")` | ✅ | Phase 3; IPv4 / IPv6 / CIDR; dot-notation IPv4-mapped IPv6 rejected per Cedar spec |
-| `decimal` | `decimal("d.d")` | ✅ | Phase 3; i64-backed with scale 10^4; range −922337203685477.5808 to 922337203685477.5807 |
+| `Bool` | `true`, `false` | ✅ |  |
+| `Long` | `42`, `-100` | ✅ | pinned to `int64_t` for cross-platform i64 integrity; overflow surfaces as evaluation error |
+| `String` | `"..."` | ✅ | escapes `\n` `\r` `\t` `\\` `\"` `\'` `\xHH` `\u{…}`; `\*` allowed only in `like` patterns |
+| `Set` | `[expr, …]` | ✅ | in policy text; element-injection API also available |
+| `Record` | `{key: expr, …}` in policy text; injection API for ctx | ✅ | up to 64 entries; up to 16 depth; trailing comma accepted |
+| `Entity` | `Type::"id"`, `NS::Type::"id"` | ✅ | namespaced types supported |
+| `ipaddr` | `ip("…")` | ✅ | IPv4 / IPv6 / CIDR; dot-notation IPv4-mapped IPv6 rejected per Cedar spec |
+| `decimal` | `decimal("d.d")` | ✅ | i64-backed with scale 10^4; range −922337203685477.5808 to 922337203685477.5807 |
 | `datetime` | `datetime("…")` | ✅ | i64 UTC epoch ms; `YYYY-MM-DD` or `YYYY-MM-DDThh:mm:ss(.SSS)?(Z\|±hhmm)`; timezone designator mandatory when a time is present; distinct type from `Long` |
 | `duration` | `duration("…")` | ✅ | signed i64 ms; `[-]?` then `d`/`h`/`m`/`s`/`ms` units in descending order, each at most once, ≥1 unit; distinct type from `Long` |
 
@@ -60,69 +60,69 @@ A per-commit feature history is in [`CHANGELOG.md`](../CHANGELOG.md).
 
 | Variable | Status | Notes |
 | --- | --- | --- |
-| `principal` | ✅ | Phase 1 |
-| `action` | ✅ | Phase 1; attribute injection (`add_action_attr_*`) supported |
-| `resource` | ✅ | Phase 1 |
-| `context` | ✅ | Phase 1 |
+| `principal` | ✅ |  |
+| `action` | ✅ | attribute injection (`add_action_attr_*`) supported |
+| `resource` | ✅ |  |
+| `context` | ✅ |  |
 
 ## Comparison operators
 
 | Operator | Operand types | Status | Notes |
 | --- | --- | --- | --- |
-| `==` | any matching type | ✅ | Phase 1; sets and records compare order-independently with bijective matching |
-| `!=` | any matching type | ✅ | Phase 1 |
-| `<` `<=` `>` `>=` | `Long` | ✅ | Phase 2 |
+| `==` | any matching type | ✅ | sets and records compare order-independently with bijective matching |
+| `!=` | any matching type | ✅ |  |
+| `<` `<=` `>` `>=` | `Long` | ✅ |  |
 | `<` `<=` `>` `>=` | `datetime`, `duration` | ✅ | Both operands must share the same type (`datetime` with `datetime`, `duration` with `duration`); mixing with `Long` or each other is an error |
-| `.lessThan` `.lessThanOrEqual` `.greaterThan` `.greaterThanOrEqual` | `decimal` | ✅ | Phase 3 |
+| `.lessThan` `.lessThanOrEqual` `.greaterThan` `.greaterThanOrEqual` | `decimal` | ✅ |  |
 
 ## Logical operators
 
 | Operator | Status | Notes |
 | --- | --- | --- |
-| `&&` | ✅ | Phase 1; short-circuit per Cedar spec |
-| `\|\|` | ✅ | Phase 1; short-circuit per Cedar spec |
-| `!` | ✅ | Phase 1 |
-| `if-then-else` | ✅ | Phase 2; only the selected branch is evaluated |
+| `&&` | ✅ | short-circuit per Cedar spec |
+| `\|\|` | ✅ | short-circuit per Cedar spec |
+| `!` | ✅ |  |
+| `if-then-else` | ✅ | only the selected branch is evaluated |
 
 ## Arithmetic operators
 
 | Operator | Operand types | Status | Notes |
 | --- | --- | --- | --- |
-| `+` | `Long + Long` | ✅ | Phase 4; overflow → evaluation error |
-| `-` (binary) | `Long - Long` | ✅ | Phase 4; overflow → evaluation error |
-| `*` | `Long * Long` | ✅ | Phase 4; overflow → evaluation error; `INT64_MIN * -1` rejected |
-| `-` (unary) | `Long` | ✅ | Phase 4 |
+| `+` | `Long + Long` | ✅ | overflow → evaluation error |
+| `-` (binary) | `Long - Long` | ✅ | overflow → evaluation error |
+| `*` | `Long * Long` | ✅ | overflow → evaluation error; `INT64_MIN * -1` rejected |
+| `-` (unary) | `Long` | ✅ |  |
 
 ## String operators
 
 | Operator | Status | Notes |
 | --- | --- | --- |
-| `like` | ✅ | Phase 2; `*` = zero-or-more, `\*` = literal `*`; `\x2A` / `\u{2A}` treated as wildcards per Cedar spec |
+| `like` | ✅ | `*` = zero-or-more, `\*` = literal `*`; `\x2A` / `\u{2A}` treated as wildcards per Cedar spec |
 
 ## Hierarchy operator
 
 | Form | Status | Notes |
 | --- | --- | --- |
-| `entity in entity` | ✅ | Phase 1 (reflexive) + Phase 4 (ancestor lookup); caller injects ancestors via `nxe_cedar_eval_ctx_add_{principal,action,resource}_parent()` |
-| `entity in [entity, …]` | ✅ | Phase 1 (scope, action-only) / expression-level RHS validates all set elements are entities |
+| `entity in entity` | ✅ | reflexive matching + ancestor lookup; caller injects ancestors via `nxe_cedar_eval_ctx_add_{principal,action,resource}_parent()` |
+| `entity in [entity, …]` | ✅ | scope is action-only / expression-level RHS validates all set elements are entities |
 
 ## Type-check operator
 
 | Form | Status | Notes |
 | --- | --- | --- |
-| `expr is Type` (expression) | ✅ | Phase 4; LHS must be entity-typed, else evaluation error |
-| `expr is Type in expr` (expression) | ✅ | Phase 4 |
-| `principal is Type` (scope) | ✅ | Phase 4 |
-| `principal is Type in entity_ref` (scope) | ✅ | Phase 4 |
+| `expr is Type` (expression) | ✅ | LHS must be entity-typed, else evaluation error |
+| `expr is Type in expr` (expression) | ✅ |  |
+| `principal is Type` (scope) | ✅ |  |
+| `principal is Type in entity_ref` (scope) | ✅ |  |
 
 ## Attribute / record / tag operators
 
 | Operator | Form | Status | Notes |
 | --- | --- | --- | --- |
-| `.attr` (dot access) | `expr.ident` | ✅ | Phase 1 |
-| `["key"]` (bracket access) | `expr["X-Header"]` | ✅ | Phase 4; only string literals accepted inside `[ ]` |
-| Nested access | `expr.a.b`, `expr["a"].b`, `expr.a["b"]` | ✅ | Phase 4; up to `NXE_CEDAR_MAX_MEMBER_CHAIN` = 16 |
-| `has` (single key) | `expr has ident`, `expr has "string"` | ✅ | Phase 2 |
+| `.attr` (dot access) | `expr.ident` | ✅ |  |
+| `["key"]` (bracket access) | `expr["X-Header"]` | ✅ | only string literals accepted inside `[ ]` |
+| Nested access | `expr.a.b`, `expr["a"].b`, `expr.a["b"]` | ✅ | up to `NXE_CEDAR_MAX_MEMBER_CHAIN` = 16 |
+| `has` (single key) | `expr has ident`, `expr has "string"` | ✅ |  |
 | `has` (nested path) | `expr has a.b.c` | ⚠️ | Single identifier RHS only; chain not parsed. Workaround: chain explicit `has` with `&&` |
 | `.hasTag(string)` | entity tag presence | ❌ | Entity tags not implemented. Use a record-valued attribute as a workaround |
 | `.getTag(string)` | entity tag value | ❌ | See `.hasTag` |
@@ -131,29 +131,29 @@ A per-commit feature history is in [`CHANGELOG.md`](../CHANGELOG.md).
 
 | Method | Receiver | Status | Notes |
 | --- | --- | --- | --- |
-| `.contains(elt)` | Set | ✅ | Phase 3; argument may be any type; type mismatch returns `false`, not error |
-| `.containsAll(set)` | Set | ✅ | Phase 2; both operands must be sets |
-| `.containsAny(set)` | Set | ✅ | Phase 2; both operands must be sets |
-| `.isEmpty()` | Set | ✅ | Phase 4 |
+| `.contains(elt)` | Set | ✅ | argument may be any type; type mismatch returns `false`, not error |
+| `.containsAll(set)` | Set | ✅ | both operands must be sets |
+| `.containsAny(set)` | Set | ✅ | both operands must be sets |
+| `.isEmpty()` | Set | ✅ |  |
 
 ## `ipaddr` methods
 
 | Method | Status | Notes |
 | --- | --- | --- |
-| `.isInRange(ipaddr)` | ✅ | Phase 3; receiver CIDR must be at least as specific as argument range; family mismatch → `false` |
-| `.isIpv4()` | ✅ | Phase 4 |
-| `.isIpv6()` | ✅ | Phase 4 |
-| `.isLoopback()` | ✅ | Phase 4; receiver CIDR must be entirely within `127.0.0.0/8` or `::1/128` |
-| `.isMulticast()` | ✅ | Phase 4; receiver CIDR must be entirely within `224.0.0.0/4` or `ff00::/8` |
+| `.isInRange(ipaddr)` | ✅ | receiver CIDR must be at least as specific as argument range; family mismatch → `false` |
+| `.isIpv4()` | ✅ |  |
+| `.isIpv6()` | ✅ |  |
+| `.isLoopback()` | ✅ | receiver CIDR must be entirely within `127.0.0.0/8` or `::1/128` |
+| `.isMulticast()` | ✅ | receiver CIDR must be entirely within `224.0.0.0/4` or `ff00::/8` |
 
 ## `decimal` methods
 
 | Method | Status | Notes |
 | --- | --- | --- |
-| `.lessThan(decimal)` | ✅ | Phase 3 |
-| `.lessThanOrEqual(decimal)` | ✅ | Phase 3 |
-| `.greaterThan(decimal)` | ✅ | Phase 3 |
-| `.greaterThanOrEqual(decimal)` | ✅ | Phase 3 |
+| `.lessThan(decimal)` | ✅ |  |
+| `.lessThanOrEqual(decimal)` | ✅ |  |
+| `.greaterThan(decimal)` | ✅ |  |
+| `.greaterThanOrEqual(decimal)` | ✅ |  |
 
 ## `datetime` / `duration` methods
 
@@ -169,8 +169,8 @@ A per-commit feature history is in [`CHANGELOG.md`](../CHANGELOG.md).
 
 | Constructor | Status | Notes |
 | --- | --- | --- |
-| `ip("…")` | ✅ | Phase 3 |
-| `decimal("…")` | ✅ | Phase 3; grammar `[-]?d+\.d{1,4}` strictly enforced |
+| `ip("…")` | ✅ |  |
+| `decimal("…")` | ✅ | grammar `[-]?d+\.d{1,4}` strictly enforced |
 | `datetime("…")` | ✅ | Eagerly validated at injection time; argument grammar enforced strictly |
 | `duration("…")` | ✅ | Eagerly validated at injection time; argument grammar enforced strictly |
 

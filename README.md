@@ -21,12 +21,12 @@ request pool.
   `ngx_array_t`, …). No libcurl, no jansson at runtime, no Rust.
 - **Pool-allocated.** Compatible with nginx's lifetime model — AST on
   `cf->pool`, evaluation context on `r->pool`.
-- **Cedar-compatible subset.** Phases 1 – 4 of the Cedar grammar are
-  implemented. The full upstream-Cedar feature matrix with explicit
+- **Cedar-compatible subset.** A subset of the Cedar grammar is implemented.
+  The full upstream-Cedar feature matrix with explicit
   Supported / Partial / Not-yet / Out-of-scope status for every operator,
   data type, method, and extension is in [`docs/FEATURES.md`](docs/FEATURES.md).
 - **Oracle-tested.** A test-only Rust FFI bridge runs the same inputs through
-  the upstream `cedar-policy` crate and compares decisions, so each Phase is
+  the upstream `cedar-policy` crate and compares decisions, so behavior is
   validated against the reference implementation.
 
 ## Scope and non-goals
@@ -66,12 +66,13 @@ verified evaluators) are better served by the upstream Rust SDK or AVP.
 
 ## Feature matrix (summary)
 
-| Phase | Headline features |
+| Area | Headline features |
 | --- | --- |
-| 1 | `permit` / `forbid`, scope (`==` / `in` on principal / action / resource), `when` / `unless`, attribute access, set / entity literals, logical and equality operators |
-| 2 | numeric ordering (`<`, `<=`, `>`, `>=`), `has`, `like` with `*` wildcard, `if … then … else …`, `containsAll` / `containsAny` |
-| 3 | `ip("…")` extension type with `isInRange`, `decimal("…")` extension type with `lessThan` / `lessThanOrEqual` / `greaterThan` / `greaterThanOrEqual`, set `contains` |
-| 4 | annotations (`@id`, `@advice`, …), `is` / `is … in …` (scope and expression), arithmetic (`+`, `-`, `*`) on `Long`, bracket attribute access `expr["key"]`, IP introspection (`isIpv4`, `isIpv6`, `isLoopback`, `isMulticast`), `isEmpty`, nested record attribute access |
+| Policy structure | `permit` / `forbid`, scope (`==` / `in` / `is` on principal / action / resource), `when` / `unless`, annotations (`@id`, `@advice`, …) |
+| Operators | logical / equality, numeric ordering (`<`, `<=`, `>`, `>=`), arithmetic (`+`, `-`, `*`) on `Long`, `if … then … else …`, `has`, `like` with `*` wildcard, `is` / `is … in …` |
+| Data / access | set / entity / record literals, attribute access (dot and bracket `expr["key"]`), nested record attribute access |
+| Extension types | `ip("…")` (`isInRange`, `isIpv4` / `isIpv6` / `isLoopback` / `isMulticast`), `decimal("…")` (`lessThan` / `lessThanOrEqual` / `greaterThan` / `greaterThanOrEqual`), `datetime("…")` / `duration("…")` |
+| Set methods | `contains`, `containsAll`, `containsAny`, `isEmpty` |
 
 For the exhaustive feature table — every Cedar operator, type, method, and
 extension annotated with Supported / Partial / Not-yet / Out-of-scope — see
@@ -93,7 +94,7 @@ tests/
   test_runner.c        — Native test runner (jansson-backed JSON cases)
   ngx_compat/          — malloc-backed stubs for nginx types
   ffi/                 — Rust Cedar FFI oracle (test-only, Cargo project)
-  cases/phase{1..4}/   — Policy + context + expected decision fixtures
+  cases/               — Policy + context + expected decision fixtures
 ```
 
 ## Integration with an nginx module
@@ -190,13 +191,11 @@ nxe-cedar itself does not build alone; for the nginx integration build, see
 cd tests
 make test                                  # all cases
 make test-asan                             # with AddressSanitizer
-NXE_CEDAR_TEST_PHASE=1 make test           # filter by phase
 
 # FFI oracle tests (compare C implementation against upstream cedar-policy)
 cd tests/ffi
 cargo test                                 # oracle only (skips C vs oracle)
 cargo test -- --include-ignored            # include the C vs oracle diff
-NXE_CEDAR_TEST_PHASE=1 cargo test          # filter by phase
 ```
 
 The FFI bridge and the Rust dependency are **test-only** — they never reach
