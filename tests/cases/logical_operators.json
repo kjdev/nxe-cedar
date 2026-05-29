@@ -1,9 +1,9 @@
 {
-    "description": "論理演算子のテスト",
+    "description": "Logical operator tests",
     "tests": [
         {
             "name": "and_both_true",
-            "description": "&& の両辺が真の場合",
+            "description": "When both sides of && are true",
             "policy": "permit (principal, action, resource) when { principal.role == \"admin\" && principal.active == \"true\" };",
             "request": {
                 "principal": {"type": "User", "id": "alice"},
@@ -15,7 +15,7 @@
         },
         {
             "name": "and_one_false",
-            "description": "&& の片方が偽の場合",
+            "description": "When one side of && is false",
             "policy": "permit (principal, action, resource) when { principal.role == \"admin\" && principal.active == \"true\" };",
             "request": {
                 "principal": {"type": "User", "id": "alice"},
@@ -27,7 +27,7 @@
         },
         {
             "name": "or_one_true",
-            "description": "|| の片方が真の場合",
+            "description": "When one side of || is true",
             "policy": "permit (principal, action, resource) when { principal.role == \"admin\" || principal.role == \"editor\" };",
             "request": {
                 "principal": {"type": "User", "id": "alice"},
@@ -39,7 +39,7 @@
         },
         {
             "name": "not_true",
-            "description": "! 演算子（否定）",
+            "description": "! operator (negation)",
             "policy": "permit (principal, action, resource) when { !(principal.role == \"guest\") };",
             "request": {
                 "principal": {"type": "User", "id": "alice"},
@@ -51,7 +51,7 @@
         },
         {
             "name": "ne_operator",
-            "description": "!= 演算子",
+            "description": "!= operator",
             "policy": "permit (principal, action, resource) when { principal.role != \"guest\" };",
             "request": {
                 "principal": {"type": "User", "id": "alice"},

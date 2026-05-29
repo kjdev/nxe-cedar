@@ -236,7 +236,7 @@
         },
         {
             "name": "is_in_parenthesized_entity",
-            "description": "is T in (Entity) — is-in RHS now parses through add_expr",
+            "description": "is T in (Entity) -- is-in RHS now parses through add_expr",
             "policy": "permit (principal, action, resource) when { principal is User in (User::\"alice\") };",
             "request": {
                 "principal": {"type": "User", "id": "alice"},

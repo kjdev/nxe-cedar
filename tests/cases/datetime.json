@@ -258,7 +258,7 @@
         },
         {
             "name": "malformed_colon_offset",
-            "description": "offset must be ±hhmm, not ±hh:mm",
+            "description": "offset must be +/-hhmm, not +/-hh:mm",
             "policy": "permit (principal, action, resource) when { datetime(\"2024-10-15T11:35:00+01:00\") == datetime(\"2024-10-15T10:35:00Z\") };",
             "request": {
                 "principal": {"type": "User", "id": "alice"},

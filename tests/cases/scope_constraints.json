@@ -1,9 +1,9 @@
 {
-    "description": "スコープ制約（==, in）のテスト",
+    "description": "Scope constraint (==, in) tests",
     "tests": [
         {
             "name": "principal_eq_match",
-            "description": "principal == で一致する場合は許可",
+            "description": "Allow when principal == matches",
             "policy": "permit (principal == User::\"alice\", action, resource);",
             "request": {
                 "principal": {"type": "User", "id": "alice"},
@@ -14,7 +14,7 @@
         },
         {
             "name": "principal_eq_no_match",
-            "description": "principal == で一致しない場合は拒否",
+            "description": "Deny when principal == does not match",
             "policy": "permit (principal == User::\"bob\", action, resource);",
             "request": {
                 "principal": {"type": "User", "id": "alice"},
@@ -25,7 +25,7 @@
         },
         {
             "name": "action_eq_match",
-            "description": "action == で一致する場合は許可",
+            "description": "Allow when action == matches",
             "policy": "permit (principal, action == Action::\"GET\", resource);",
             "request": {
                 "principal": {"type": "User", "id": "alice"},
@@ -36,7 +36,7 @@
         },
         {
             "name": "action_eq_no_match",
-            "description": "action == で一致しない場合は拒否",
+            "description": "Deny when action == does not match",
             "policy": "permit (principal, action == Action::\"POST\", resource);",
             "request": {
                 "principal": {"type": "User", "id": "alice"},
@@ -47,7 +47,7 @@
         },
         {
             "name": "resource_eq_match",
-            "description": "resource == で一致する場合は許可",
+            "description": "Allow when resource == matches",
             "policy": "permit (principal, action, resource == Endpoint::\"/api/data\");",
             "request": {
                 "principal": {"type": "User", "id": "alice"},
@@ -58,7 +58,7 @@
         },
         {
             "name": "all_scope_constraints",
-            "description": "全スコープ制約が一致する場合のみ許可",
+            "description": "Allow only when all scope constraints match",
             "policy": "permit (principal == User::\"alice\", action == Action::\"GET\", resource == Endpoint::\"/api/data\");",
             "request": {
                 "principal": {"type": "User", "id": "alice"},

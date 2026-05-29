@@ -1,9 +1,9 @@
 {
-    "description": "基本的な forbid ポリシーのテスト",
+    "description": "Basic forbid policy tests",
     "tests": [
         {
             "name": "unconditional_forbid_denies",
-            "description": "制約なしの forbid は全リクエストを拒否",
+            "description": "Unconstrained forbid denies all requests",
             "policy": "forbid (principal, action, resource);",
             "request": {
                 "principal": {"type": "User", "id": "alice"},
@@ -14,7 +14,7 @@
         },
         {
             "name": "forbid_overrides_permit",
-            "description": "forbid は permit より優先される（forbid 優先評価）",
+            "description": "forbid takes priority over permit (forbid-priority evaluation)",
             "policy": "permit (principal, action, resource);\nforbid (principal, action, resource);",
             "request": {
                 "principal": {"type": "User", "id": "alice"},
@@ -25,7 +25,7 @@
         },
         {
             "name": "forbid_specific_overrides_general_permit",
-            "description": "特定ユーザーへの forbid が一般的な permit を上書き",
+            "description": "forbid for a specific user overrides a general permit",
             "policy": "permit (principal, action, resource);\nforbid (principal == User::\"alice\", action, resource);",
             "request": {
                 "principal": {"type": "User", "id": "alice"},

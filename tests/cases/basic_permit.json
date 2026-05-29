@@ -1,9 +1,9 @@
 {
-    "description": "基本的な permit ポリシーのテスト",
+    "description": "Basic permit policy tests",
     "tests": [
         {
             "name": "unconditional_permit_allows",
-            "description": "制約なしの permit は全リクエストを許可",
+            "description": "Unconstrained permit allows all requests",
             "policy": "permit (principal, action, resource);",
             "request": {
                 "principal": {"type": "User", "id": "alice"},
@@ -14,7 +14,7 @@
         },
         {
             "name": "multiple_permits",
-            "description": "複数の permit ポリシーが存在し、いずれか一つが該当すれば許可",
+            "description": "With multiple permit policies, allow if any one matches",
             "policy": "permit (principal == User::\"bob\", action, resource);\npermit (principal == User::\"alice\", action, resource);",
             "request": {
                 "principal": {"type": "User", "id": "alice"},

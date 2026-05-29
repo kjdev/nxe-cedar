@@ -60,7 +60,7 @@
                 }
             },
             "expected": "allow",
-            "comment": "d17 is a scalar leaf inside record@16 — still within limit; see overflow case below"
+            "comment": "d17 is a scalar leaf inside record@16 -- still within limit; see overflow case below"
         },
         {
             "name": "set_into_record_at_depth_16_overflows",

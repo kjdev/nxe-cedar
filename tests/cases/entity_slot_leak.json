@@ -3,7 +3,7 @@
     "tests": [
         {
             "name": "record_pulled_entity_does_not_consult_principal_parents",
-            "description": "({p: principal}).p in <group> must not match through principal_parents — the record value is a derived entity without a slot tag",
+            "description": "({p: principal}).p in <group> must not match through principal_parents -- the record value is a derived entity without a slot tag",
             "policy": "permit (principal, action, resource) when { ({p: principal}).p in Group::\"readers\" };",
             "request": {
                 "principal": {"type": "User", "id": "alice"},
@@ -44,7 +44,7 @@
         },
         {
             "name": "if_then_entity_does_not_consult_principal_parents",
-            "description": "if-then result that picks principal must not consult principal_parents — the if expression breaks the syntactic chain",
+            "description": "if-then result that picks principal must not consult principal_parents -- the if expression breaks the syntactic chain",
             "policy": "permit (principal, action, resource) when { (if true then principal else resource) in Group::\"readers\" };",
             "request": {
                 "principal": {"type": "User", "id": "alice"},
