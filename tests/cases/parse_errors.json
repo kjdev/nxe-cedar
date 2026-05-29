@@ -1,0 +1,95 @@
+{
+    "description": "parse error handling for malformed Cedar policies",
+    "tests": [
+        {
+            "name": "missing_semicolon",
+            "description": "policy without semicolon should fail to parse",
+            "policy": "permit (principal, action, resource)",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "unclosed_brace",
+            "description": "policy with unclosed brace should fail to parse",
+            "policy": "permit (principal, action, resource) when { context.ok == true ;",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"ok": true}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "unclosed_paren",
+            "description": "policy with unclosed parenthesis should fail to parse",
+            "policy": "permit (principal, action, resource;",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "invalid_keyword",
+            "description": "policy with invalid keyword should fail to parse",
+            "policy": "allow (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "empty_scope",
+            "description": "policy with empty scope should fail to parse",
+            "policy": "permit ();",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "deeply_nested_not",
+            "description": "deeply nested ! operators should fail with depth limit",
+            "policy": "permit (principal, action, resource) when { !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!true };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "scope_set_with_integer_literal",
+            "description": "action in set with non-entity element (integer) should fail",
+            "policy": "permit (principal, action in [1, Action::\"GET\"], resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "error"
+        },
+        {
+            "name": "scope_set_with_variable",
+            "description": "action in set with variable reference should fail",
+            "policy": "permit (principal, action in [context.foo], resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"foo": "bar"}
+            },
+            "expected": "error"
+        }
+    ]
+}

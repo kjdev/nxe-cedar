@@ -9,9 +9,6 @@
  *
  * Depends on: jansson (JSON parser)
  * Build: cd tests && make test
- *
- * Environment variables:
- *   NXE_CEDAR_TEST_PHASE=N  run only tests at or below specified phase
  */
 
 #include <stdio.h>
@@ -87,7 +84,7 @@ extract_label(const char *path, char *buf, size_t buf_size)
     const char *start, *end;
     size_t len;
 
-    /* cases/phase1/basic_permit.json -> phase1/basic_permit */
+    /* cases/basic_permit.json -> basic_permit */
     start = strstr(path, "cases/");
     if (start != NULL) {
         start += 6;  /* skip "cases/" */
@@ -113,13 +110,12 @@ extract_label(const char *path, char *buf, size_t buf_size)
 
 
 static void
-run_test_file(const char *path, int max_phase, test_stats_t *stats)
+run_test_file(const char *path, test_stats_t *stats)
 {
     char *content;
     json_t *root, *tests, *test_obj;
     json_t *policy_val, *request_val, *expected_val, *name_val;
     json_error_t jerr;
-    int phase;
     size_t i;
     const char *policy, *expected_str, *test_name;
     char *request_str;
@@ -141,20 +137,6 @@ run_test_file(const char *path, int max_phase, test_stats_t *stats)
         fprintf(stderr, "  SKIP: JSON parse error in %s: %s\n",
                 path, jerr.text);
         stats->skipped++;
-        return;
-    }
-
-    if (!json_is_integer(json_object_get(root, "phase"))) {
-        fprintf(stderr, "  SKIP: missing or invalid 'phase' in %s\n",
-                path);
-        json_decref(root);
-        stats->skipped++;
-        return;
-    }
-
-    phase = (int) json_integer_value(json_object_get(root, "phase"));
-    if (max_phase > 0 && phase > max_phase) {
-        json_decref(root);
         return;
     }
 
@@ -825,7 +807,7 @@ run_eval_detail_tests(test_stats_t *stats)
 
 
 static void
-scan_phase_dir(const char *dir_path, int max_phase, test_stats_t *stats)
+scan_cases_dir(const char *dir_path, test_stats_t *stats)
 {
     DIR *dir;
     struct dirent *entry;
@@ -834,6 +816,7 @@ scan_phase_dir(const char *dir_path, int max_phase, test_stats_t *stats)
 
     dir = opendir(dir_path);
     if (dir == NULL) {
+        fprintf(stderr, "cannot open %s\n", dir_path);
         return;
     }
 
@@ -848,7 +831,7 @@ scan_phase_dir(const char *dir_path, int max_phase, test_stats_t *stats)
 
         snprintf(path, sizeof(path), "%s/%s",
                  dir_path, entry->d_name);
-        run_test_file(path, max_phase, stats);
+        run_test_file(path, stats);
     }
 
     closedir(dir);
@@ -858,12 +841,6 @@ scan_phase_dir(const char *dir_path, int max_phase, test_stats_t *stats)
 int
 main(int argc, char **argv)
 {
-    DIR *dir;
-    struct dirent *entry;
-    char path[1024];
-    const char *base_dir = "cases";
-    const char *phase_env;
-    int max_phase = 0;
     test_stats_t stats;
 
     (void) argc;
@@ -871,50 +848,15 @@ main(int argc, char **argv)
 
     memset(&stats, 0, sizeof(stats));
 
-    phase_env = getenv("NXE_CEDAR_TEST_PHASE");
-    if (phase_env != NULL) {
-        max_phase = atoi(phase_env);
-        if (max_phase <= 0) {
-            fprintf(stderr, "invalid NXE_CEDAR_TEST_PHASE: %s\n",
-                    phase_env);
-            return 1;
-        }
-    }
+    scan_cases_dir("cases", &stats);
 
-    dir = opendir(base_dir);
-    if (dir == NULL) {
-        fprintf(stderr, "cannot open %s\n", base_dir);
-        return 1;
-    }
-
-    while ((entry = readdir(dir)) != NULL) {
-        if (strncmp(entry->d_name, "phase", 5) != 0) {
-            continue;
-        }
-
-        snprintf(path, sizeof(path), "%s/%s",
-                 base_dir, entry->d_name);
-        scan_phase_dir(path, max_phase, &stats);
-    }
-
-    closedir(dir);
-
-    if (max_phase == 0 || max_phase >= 2) {
-        run_parser_null_guard_tests(&stats);
-        run_injection_duplicate_key_tests(&stats);
-        run_make_value_null_guard_tests(&stats);
-    }
-
-    if (max_phase == 0 || max_phase >= 4) {
-        run_eval_detail_tests(&stats);
-    }
+    run_parser_null_guard_tests(&stats);
+    run_injection_duplicate_key_tests(&stats);
+    run_make_value_null_guard_tests(&stats);
+    run_eval_detail_tests(&stats);
 
     if (stats.passed + stats.failed == 0) {
-        fprintf(stderr, "no test cases executed");
-        if (max_phase > 0) {
-            fprintf(stderr, " (phase <= %d)", max_phase);
-        }
-        fprintf(stderr, "\n");
+        fprintf(stderr, "no test cases executed\n");
         return 1;
     }
 

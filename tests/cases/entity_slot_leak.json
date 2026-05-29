@@ -1,0 +1,116 @@
+{
+    "description": "Entity slot tag (principal / action / resource origin) must be cleared when an entity value crosses a composite-expression or container boundary (record literal, set literal, if-then-else). Otherwise a derived entity such as ({p: principal}).p would still consult principal_parents in `in` evaluation and flip permit / forbid decisions. The C subset relies on slot tagging because it has per-slot parent arrays rather than a global entity store, so once the syntactic chain to the principal / action / resource keyword is broken the derived value must match reflexively only. Cedar's spec model resolves ancestors by UID and would still match through the entity store, so these scenarios diverge from the oracle and are marked c_limit.",
+    "tests": [
+        {
+            "name": "record_pulled_entity_does_not_consult_principal_parents",
+            "description": "({p: principal}).p in <group> must not match through principal_parents — the record value is a derived entity without a slot tag",
+            "policy": "permit (principal, action, resource) when { ({p: principal}).p in Group::\"readers\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Endpoint", "id": "/api"},
+                "principal_parents": [
+                    {"type": "Group", "id": "readers"}
+                ]
+            },
+            "expected": "deny",
+            "c_limit": true
+        },
+        {
+            "name": "record_pulled_entity_does_not_consult_resource_parents",
+            "description": "({r: resource}).r in <group> must not match through resource_parents",
+            "policy": "permit (principal, action, resource) when { ({r: resource}).r in Group::\"public\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Endpoint", "id": "/api"},
+                "resource_parents": [
+                    {"type": "Group", "id": "public"}
+                ]
+            },
+            "expected": "deny",
+            "c_limit": true
+        },
+        {
+            "name": "record_pulled_entity_reflexive_in_still_matches",
+            "description": "reflexive `in` (entity in itself) must still match for record-pulled entities",
+            "policy": "permit (principal, action, resource) when { ({p: principal}).p in User::\"alice\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Endpoint", "id": "/api"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "if_then_entity_does_not_consult_principal_parents",
+            "description": "if-then result that picks principal must not consult principal_parents — the if expression breaks the syntactic chain",
+            "policy": "permit (principal, action, resource) when { (if true then principal else resource) in Group::\"readers\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Endpoint", "id": "/api"},
+                "principal_parents": [
+                    {"type": "Group", "id": "readers"}
+                ]
+            },
+            "expected": "deny",
+            "c_limit": true
+        },
+        {
+            "name": "if_else_entity_does_not_consult_resource_parents",
+            "description": "if-else result that picks resource must not consult resource_parents",
+            "policy": "permit (principal, action, resource) when { (if false then principal else resource) in Group::\"public\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Endpoint", "id": "/api"},
+                "resource_parents": [
+                    {"type": "Group", "id": "public"}
+                ]
+            },
+            "expected": "deny",
+            "c_limit": true
+        },
+        {
+            "name": "if_then_entity_reflexive_in_still_matches",
+            "description": "reflexive `in` must still match for if-then-else results",
+            "policy": "permit (principal, action, resource) when { (if true then principal else resource) in User::\"alice\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Endpoint", "id": "/api"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "nested_record_pulled_entity_does_not_consult_principal_parents",
+            "description": "({outer: {inner: principal}}).outer.inner in <group> must not leak slot through nested records",
+            "policy": "permit (principal, action, resource) when { ({outer: {inner: principal}}).outer.inner in Group::\"readers\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Endpoint", "id": "/api"},
+                "principal_parents": [
+                    {"type": "Group", "id": "readers"}
+                ]
+            },
+            "expected": "deny",
+            "c_limit": true
+        },
+        {
+            "name": "direct_principal_still_consults_principal_parents",
+            "description": "sanity check: bare `principal in <group>` (no composite) must still consult principal_parents",
+            "policy": "permit (principal, action, resource) when { principal in Group::\"readers\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Endpoint", "id": "/api"},
+                "principal_parents": [
+                    {"type": "Group", "id": "readers"}
+                ]
+            },
+            "expected": "allow"
+        }
+    ]
+}

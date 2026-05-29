@@ -1,0 +1,77 @@
+{
+    "description": "malformed __entity literals must fail loudly instead of silently falling back to record",
+    "tests": [
+        {
+            "name": "entity_missing_id",
+            "description": "__entity without id is rejected at injection time",
+            "policy": "permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "manager": {"__entity": {"type": "User"}}
+                }
+            },
+            "expected": "error"
+        },
+        {
+            "name": "entity_non_object_payload",
+            "description": "__entity whose value is a string is rejected",
+            "policy": "permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "manager": {"__entity": "User::\"bob\""}
+                }
+            },
+            "expected": "error"
+        },
+        {
+            "name": "entity_non_string_fields",
+            "description": "__entity with non-string type / id fields is rejected",
+            "policy": "permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "manager": {"__entity": {"type": "User", "id": 42}}
+                }
+            },
+            "expected": "error"
+        },
+        {
+            "name": "malformed_entity_inside_record",
+            "description": "malformed __entity nested inside a record field is also rejected",
+            "policy": "permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "profile": {"lead": {"__entity": {"id": "bob"}}}
+                }
+            },
+            "expected": "error"
+        },
+        {
+            "name": "malformed_entity_inside_set",
+            "description": "malformed __entity inside a set element is rejected",
+            "policy": "permit (principal, action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "principal_attrs": {
+                    "groups": [
+                        {"__entity": {"type": "Group"}}
+                    ]
+                }
+            },
+            "expected": "error"
+        }
+    ]
+}

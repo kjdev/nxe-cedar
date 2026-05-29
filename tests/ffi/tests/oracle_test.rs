@@ -4,7 +4,6 @@
 //! 1. Rust oracle (cedar_ffi_authorize) matches expected results
 //! 2. C implementation (nxe_cedar_test_evaluate) matches oracle results
 
-use std::env;
 use std::ffi::CString;
 use std::fs;
 use std::os::raw::c_char;
@@ -39,7 +38,6 @@ extern "C" {
 struct TestFile {
     #[allow(dead_code)]
     description: String,
-    phase: u32,
     tests: Vec<TestCase>,
 }
 
@@ -91,15 +89,6 @@ fn test_cases_dir() -> PathBuf {
     PathBuf::from(manifest_dir).join("../cases")
 }
 
-fn max_phase() -> u32 {
-    match env::var("NXE_CEDAR_TEST_PHASE") {
-        Err(_) => u32::MAX,
-        Ok(v) => v
-            .parse()
-            .unwrap_or_else(|_| panic!("invalid NXE_CEDAR_TEST_PHASE: {}", v)),
-    }
-}
-
 fn collect_test_files(dir: &PathBuf) -> Vec<PathBuf> {
     let mut files = Vec::new();
 
@@ -127,7 +116,7 @@ fn collect_test_files(dir: &PathBuf) -> Vec<PathBuf> {
     files
 }
 
-/// Extract label from test file path: .../cases/phase1/basic_permit.json -> phase1/basic_permit
+/// Extract label from test file path: .../cases/basic_permit.json -> basic_permit
 fn extract_label(path: &PathBuf) -> String {
     let s = path.to_string_lossy();
     let start = s.find("cases/").map(|i| i + 6).unwrap_or(0);
@@ -139,7 +128,6 @@ fn extract_label(path: &PathBuf) -> String {
 #[test]
 fn oracle_validation() {
     let dir = test_cases_dir();
-    let max_phase = max_phase();
     let files = collect_test_files(&dir);
 
     assert!(
@@ -161,10 +149,6 @@ fn oracle_validation() {
 
         let test_file: TestFile = serde_json::from_str(&content)
             .unwrap_or_else(|e| panic!("failed to parse {}: {e}", file.display()));
-
-        if test_file.phase > max_phase {
-            continue;
-        }
 
         let label = extract_label(file);
 
@@ -206,8 +190,7 @@ fn oracle_validation() {
 
     assert!(
         total > 0,
-        "no test cases matched phase <= {} under {}",
-        max_phase,
+        "no test cases executed under {}",
         dir.display()
     );
 
@@ -225,7 +208,6 @@ fn oracle_validation() {
 #[ignore]
 fn c_vs_oracle() {
     let dir = test_cases_dir();
-    let max_phase = max_phase();
     let files = collect_test_files(&dir);
 
     assert!(
@@ -244,10 +226,6 @@ fn c_vs_oracle() {
     for file in &files {
         let content = fs::read_to_string(file).unwrap();
         let test_file: TestFile = serde_json::from_str(&content).unwrap();
-
-        if test_file.phase > max_phase {
-            continue;
-        }
 
         let label = extract_label(file);
 
@@ -313,8 +291,7 @@ fn c_vs_oracle() {
 
     assert!(
         total > 0,
-        "no test cases matched phase <= {} under {}",
-        max_phase,
+        "no test cases executed under {}",
         dir.display()
     );
 

@@ -1,0 +1,165 @@
+{
+    "description": "entity hierarchy (in operator with parents)",
+    "tests": [
+        {
+            "name": "principal_in_group_via_parent",
+            "description": "principal in Group::admins via registered parent",
+            "policy": "permit (principal in Group::\"admins\", action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Doc", "id": "doc1"},
+                "principal_parents": [
+                    {"type": "Group", "id": "admins"}
+                ]
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "principal_in_group_no_parent",
+            "description": "principal lacks the required group parent",
+            "policy": "permit (principal in Group::\"admins\", action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Doc", "id": "doc1"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "principal_in_transitive_parent",
+            "description": "principal in Group::staff via transitive closure",
+            "policy": "permit (principal in Group::\"staff\", action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Doc", "id": "doc1"},
+                "principal_parents": [
+                    {"type": "Group", "id": "admins"},
+                    {"type": "Group", "id": "staff"}
+                ]
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "principal_in_reflexive",
+            "description": "X in X without registered parent",
+            "policy": "permit (principal in User::\"alice\", action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Doc", "id": "doc1"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "resource_in_folder",
+            "description": "resource in Folder::root via parent",
+            "policy": "permit (principal, action, resource in Folder::\"root\");",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Doc", "id": "doc1"},
+                "resource_parents": [
+                    {"type": "Folder", "id": "root"}
+                ]
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "action_in_action_group",
+            "description": "action in Action::writes via parent",
+            "policy": "permit (principal, action in Action::\"writes\", resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "delete"},
+                "resource": {"type": "Doc", "id": "doc1"},
+                "action_parents": [
+                    {"type": "Action", "id": "writes"}
+                ]
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "action_in_set_via_parent",
+            "description": "action in [Action::a, Action::b] matches via parent b",
+            "policy": "permit (principal, action in [Action::\"a\", Action::\"b\"], resource);",
+            "request": {
+                "principal": {"type": "User", "id": "bob"},
+                "action": {"type": "Action", "id": "delete"},
+                "resource": {"type": "Doc", "id": "doc1"},
+                "action_parents": [
+                    {"type": "Action", "id": "b"}
+                ]
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "principal_in_when_clause",
+            "description": "in expression in when clause with parent",
+            "policy": "permit (principal, action, resource) when { principal in Group::\"admins\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Doc", "id": "doc1"},
+                "principal_parents": [
+                    {"type": "Group", "id": "admins"}
+                ]
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "principal_in_when_no_parent",
+            "description": "in expression in when fails without parent",
+            "policy": "permit (principal, action, resource) when { principal in Group::\"admins\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Doc", "id": "doc1"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "principal_in_set_when_clause",
+            "description": "in expression with set literal matches via parent",
+            "policy": "permit (principal, action, resource) when { principal in [Group::\"x\", Group::\"y\"] };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Doc", "id": "doc1"},
+                "principal_parents": [
+                    {"type": "Group", "id": "y"}
+                ]
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "wrong_type_parent_does_not_match",
+            "description": "parent type mismatch does not satisfy in",
+            "policy": "permit (principal in Group::\"admins\", action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Doc", "id": "doc1"},
+                "principal_parents": [
+                    {"type": "Role", "id": "admins"}
+                ]
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "is_in_with_parent",
+            "description": "is T in expr matches via parent",
+            "policy": "permit (principal is User in Group::\"admins\", action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Doc", "id": "doc1"},
+                "principal_parents": [
+                    {"type": "Group", "id": "admins"}
+                ]
+            },
+            "expected": "allow"
+        }
+    ]
+}

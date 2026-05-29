@@ -1,0 +1,125 @@
+{
+    "description": "in evaluation must use slot-specific parents when principal / resource share the same (type, id). The C subset has independent per-slot parent arrays (no entity store), so the caller is allowed to register different parents to the same identity. Cedar's spec model requires a single entity per UID; the FFI oracle rejects these scenarios at entity-store construction time. All cases are marked c_limit and skipped in oracle comparison.",
+    "tests": [
+        {
+            "name": "scope_resource_in_uses_resource_parents",
+            "description": "resource scope must consult resource_parents even though principal shares the same identity",
+            "policy": "permit (principal, action, resource in Group::\"readers\");",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "User", "id": "alice"},
+                "resource_parents": [
+                    {"type": "Group", "id": "readers"}
+                ]
+            },
+            "expected": "allow",
+            "c_limit": true
+        },
+        {
+            "name": "scope_resource_in_ignores_principal_parents",
+            "description": "principal_parents must not satisfy a resource-scope in when identity matches",
+            "policy": "permit (principal, action, resource in Group::\"readers\");",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "User", "id": "alice"},
+                "principal_parents": [
+                    {"type": "Group", "id": "readers"}
+                ]
+            },
+            "expected": "deny",
+            "c_limit": true
+        },
+        {
+            "name": "scope_principal_in_uses_principal_parents",
+            "description": "principal scope must consult principal_parents even though resource shares the same identity",
+            "policy": "permit (principal in Group::\"writers\", action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "User", "id": "alice"},
+                "principal_parents": [
+                    {"type": "Group", "id": "writers"}
+                ]
+            },
+            "expected": "allow",
+            "c_limit": true
+        },
+        {
+            "name": "scope_principal_in_ignores_resource_parents",
+            "description": "resource_parents must not satisfy a principal-scope in when identity matches",
+            "policy": "permit (principal in Group::\"writers\", action, resource);",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "User", "id": "alice"},
+                "resource_parents": [
+                    {"type": "Group", "id": "writers"}
+                ]
+            },
+            "expected": "deny",
+            "c_limit": true
+        },
+        {
+            "name": "when_resource_in_uses_resource_parents",
+            "description": "when-clause `resource in <group>` must use resource_parents",
+            "policy": "permit (principal, action, resource) when { resource in Group::\"readers\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "User", "id": "alice"},
+                "resource_parents": [
+                    {"type": "Group", "id": "readers"}
+                ]
+            },
+            "expected": "allow",
+            "c_limit": true
+        },
+        {
+            "name": "when_resource_in_ignores_principal_parents",
+            "description": "when-clause `resource in <group>` must not be satisfied by principal_parents",
+            "policy": "permit (principal, action, resource) when { resource in Group::\"readers\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "User", "id": "alice"},
+                "principal_parents": [
+                    {"type": "Group", "id": "readers"}
+                ]
+            },
+            "expected": "deny",
+            "c_limit": true
+        },
+        {
+            "name": "when_principal_in_uses_principal_parents",
+            "description": "when-clause `principal in <group>` must use principal_parents",
+            "policy": "permit (principal, action, resource) when { principal in Group::\"writers\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "User", "id": "alice"},
+                "principal_parents": [
+                    {"type": "Group", "id": "writers"}
+                ]
+            },
+            "expected": "allow",
+            "c_limit": true
+        },
+        {
+            "name": "when_principal_in_ignores_resource_parents",
+            "description": "when-clause `principal in <group>` must not be satisfied by resource_parents",
+            "policy": "permit (principal, action, resource) when { principal in Group::\"writers\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "User", "id": "alice"},
+                "resource_parents": [
+                    {"type": "Group", "id": "writers"}
+                ]
+            },
+            "expected": "deny",
+            "c_limit": true
+        }
+    ]
+}
