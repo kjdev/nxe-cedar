@@ -11,7 +11,38 @@
 
 #include "ngx_stub.h"
 
+#include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
+
+
+/* --- ngx_log_error capture --- */
+
+static __thread char ngx_stub_log_buf[512];
+
+void
+ngx_stub_log_emit(const char *fmt, ...)
+{
+    va_list args;
+
+    va_start(args, fmt);
+    vsnprintf(ngx_stub_log_buf, sizeof(ngx_stub_log_buf), fmt, args);
+    va_end(args);
+
+    fprintf(stderr, "[ngx_stub] %s\n", ngx_stub_log_buf);
+}
+
+const char *
+ngx_stub_last_log(void)
+{
+    return ngx_stub_log_buf;
+}
+
+void
+ngx_stub_last_log_reset(void)
+{
+    ngx_stub_log_buf[0] = '\0';
+}
 
 
 /* --- ngx_pool_t --- */

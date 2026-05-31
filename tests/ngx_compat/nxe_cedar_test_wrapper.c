@@ -816,9 +816,10 @@ nxe_cedar_test_evaluate(const char *policy_text, const char *request_json)
     text.len = strlen(policy_text);
     text.data = (u_char *) policy_text;
 
+    ngx_stub_last_log_reset();
     ps = nxe_cedar_parse(pool, &log, &text);
     if (ps == NULL) {
-        set_error("nxe_cedar_parse failed");
+        set_error("nxe_cedar_parse failed: %s", ngx_stub_last_log());
         ngx_destroy_pool(pool);
         json_decref(root);
         return -1;

@@ -77,11 +77,24 @@ struct ngx_log_s {
         do {                                                                     \
             (void) (err);                                                        \
             if ((log) != NULL && (ngx_uint_t) (level) <= (log)->log_level) {      \
-                fprintf(stderr, "[ngx_stub] ");                                  \
-                fprintf(stderr, __VA_ARGS__);                                    \
-                fprintf(stderr, "\n");                                           \
+                ngx_stub_log_emit(__VA_ARGS__);                                  \
             }                                                                    \
         } while (0)
+
+/*
+ * Capture-and-print backend for ngx_log_error. Writes the formatted message to
+ * stderr (prefixed with "[ngx_stub] ") and also stores it in a thread-local
+ * buffer retrievable via ngx_stub_last_log(), so tests can inspect the most
+ * recent log line (e.g. the reason a parse failed).
+ */
+void ngx_stub_log_emit(const char *fmt, ...);
+
+/* Most recent message passed to ngx_log_error on this thread ("" if none). */
+const char *ngx_stub_last_log(void);
+
+/* Clear the captured last-log buffer (call before an operation to be sure a
+ * later ngx_stub_last_log() reflects that operation and not a stale message). */
+void ngx_stub_last_log_reset(void);
 
 
 /* --- ngx_pool_t (malloc-based simple implementation) --- */
