@@ -1,0 +1,153 @@
+{
+    "description": "Attribute and `has` access on an entity literal Foo::\"id\" that names the principal / action / resource. The literal resolves through the matching per-slot attribute array, just like the bare keyword, so reference Cedar (which resolves it via the entity store) and nxe-cedar agree. A literal that names no request entity has no attribute store, so attribute / has access errors and the policy is not applicable (default deny); that decision still matches the oracle, whose entity store also lacks the literal.",
+    "tests": [
+        {
+            "name": "principal_literal_attr_matches",
+            "description": "principal literal attribute resolves through principal_attrs",
+            "policy": "permit (principal, action, resource) when { User::\"alice\".role == \"admin\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Endpoint", "id": "/api"},
+                "principal_attrs": {"role": "admin"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "principal_literal_attr_mismatch_denies",
+            "description": "principal literal attribute that differs denies",
+            "policy": "permit (principal, action, resource) when { User::\"alice\".role == \"admin\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Endpoint", "id": "/api"},
+                "principal_attrs": {"role": "viewer"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "resource_literal_attr_matches",
+            "description": "resource literal attribute resolves through resource_attrs",
+            "policy": "permit (principal, action, resource) when { Endpoint::\"/api\".tenant == \"acme\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Endpoint", "id": "/api"},
+                "resource_attrs": {"tenant": "acme"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "action_literal_attr_matches",
+            "description": "action literal long attribute resolves through action_attrs",
+            "policy": "permit (principal, action, resource) when { Action::\"read\".level == 1 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Endpoint", "id": "/api"},
+                "action_attrs": {"level": 1}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "principal_literal_matches_request_var_attr",
+            "description": "literal attribute equals the same attribute read via the keyword",
+            "policy": "permit (principal, action, resource) when { User::\"alice\".role == principal.role };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Endpoint", "id": "/api"},
+                "principal_attrs": {"role": "admin"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "principal_literal_has_present",
+            "description": "has on principal literal is true when the attribute exists",
+            "policy": "permit (principal, action, resource) when { User::\"alice\" has role };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Endpoint", "id": "/api"},
+                "principal_attrs": {"role": "admin"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "principal_literal_has_absent_denies",
+            "description": "has on principal literal is false when the attribute is absent",
+            "policy": "permit (principal, action, resource) when { User::\"alice\" has missing };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Endpoint", "id": "/api"},
+                "principal_attrs": {"role": "admin"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "if_has_then_attr_else_default",
+            "description": "issue example: has-guarded attribute access on a principal literal",
+            "policy": "permit (principal, action, resource) when { (if (User::\"alice\" has tag) then (User::\"alice\".z) else \"x\") like \"\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Endpoint", "id": "/api"},
+                "principal_attrs": {"tag": true, "z": ""}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "principal_literal_in_parent_resolves",
+            "description": "in on a principal literal resolves parents through principal_parents",
+            "policy": "permit (principal, action, resource) when { User::\"alice\" in Group::\"admins\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Endpoint", "id": "/api"},
+                "principal_parents": [
+                    {"type": "Group", "id": "admins"}
+                ]
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "non_request_literal_in_parent_denies",
+            "description": "in on a literal that names no request entity consults no parents (matches reflexively only)",
+            "policy": "permit (principal, action, resource) when { Other::\"x\" in Group::\"admins\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Endpoint", "id": "/api"},
+                "principal_parents": [
+                    {"type": "Group", "id": "admins"}
+                ]
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "non_request_literal_attr_denies",
+            "description": "attribute access on a literal that names no request entity errors (not applicable)",
+            "policy": "permit (principal, action, resource) when { Other::\"x\".role == \"admin\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Endpoint", "id": "/api"},
+                "principal_attrs": {"role": "admin"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "non_request_literal_attr_negated_still_denies",
+            "description": "an erroring attribute access is not rescued by negation (the error propagates)",
+            "policy": "permit (principal, action, resource) when { Other::\"x\".role != \"admin\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "read"},
+                "resource": {"type": "Endpoint", "id": "/api"},
+                "principal_attrs": {"role": "admin"}
+            },
+            "expected": "deny"
+        }
+    ]
+}
