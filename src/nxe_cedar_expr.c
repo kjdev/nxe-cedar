@@ -1140,6 +1140,66 @@ nxe_cedar_resolve_var_attrs(nxe_cedar_var_type_t var_type,
 }
 
 
+/* resolve an entity slot tag to its attribute array */
+static ngx_array_t *
+nxe_cedar_resolve_slot_attrs(ngx_uint_t slot, nxe_cedar_eval_ctx_t *ctx)
+{
+    switch (slot) {
+
+    case NXE_CEDAR_ENTITY_SLOT_PRINCIPAL:
+        return ctx->principal_attrs;
+
+    case NXE_CEDAR_ENTITY_SLOT_ACTION:
+        return ctx->action_attrs;
+
+    case NXE_CEDAR_ENTITY_SLOT_RESOURCE:
+        return ctx->resource_attrs;
+
+    default:
+        return NULL;
+    }
+}
+
+
+/*
+ * Return the request slot whose (type, id) matches the given entity, or
+ * NXE_CEDAR_ENTITY_SLOT_NONE if none do. Lets an entity literal
+ * Foo::"id" that names the principal / action / resource resolve its
+ * attributes and ancestors through the corresponding per-slot arrays,
+ * just like the bare keyword would. Principal is checked first so a
+ * deliberate (type, id) collision across slots resolves deterministically
+ * (the same tie-break the slot tag uses elsewhere).
+ */
+static ngx_uint_t
+nxe_cedar_entity_request_slot(nxe_cedar_eval_ctx_t *ctx,
+    ngx_str_t *type, ngx_str_t *id)
+{
+    if (ctx == NULL) {
+        return NXE_CEDAR_ENTITY_SLOT_NONE;
+    }
+
+    if (nxe_cedar_str_eq(type, &ctx->principal_type)
+        && nxe_cedar_str_eq(id, &ctx->principal_id))
+    {
+        return NXE_CEDAR_ENTITY_SLOT_PRINCIPAL;
+    }
+
+    if (nxe_cedar_str_eq(type, &ctx->action_type)
+        && nxe_cedar_str_eq(id, &ctx->action_id))
+    {
+        return NXE_CEDAR_ENTITY_SLOT_ACTION;
+    }
+
+    if (nxe_cedar_str_eq(type, &ctx->resource_type)
+        && nxe_cedar_str_eq(id, &ctx->resource_id))
+    {
+        return NXE_CEDAR_ENTITY_SLOT_RESOURCE;
+    }
+
+    return NXE_CEDAR_ENTITY_SLOT_NONE;
+}
+
+
 /*
  * Evaluate attribute access expr.attr.
  *
@@ -1181,6 +1241,29 @@ nxe_cedar_eval_attr_access(nxe_cedar_node_t *node,
     if (obj_val.type == NXE_CEDAR_RVAL_ERROR) {
         return obj_val;
     }
+
+    /*
+     * Entity literal naming the principal / action / resource: resolve
+     * the attribute through the matching per-slot array. The slot is
+     * stamped when the literal's (type, id) matches a request entity
+     * (see NXE_CEDAR_NODE_ENTITY_REF); a literal that names no request
+     * entity carries SLOT_NONE and has no attribute store, so it errors
+     * (the policy is not applicable), matching the bare-keyword path.
+     */
+    if (obj_val.type == NXE_CEDAR_RVAL_ENTITY) {
+        attrs = nxe_cedar_resolve_slot_attrs(obj_val.v.entity.slot, ctx);
+        if (attrs == NULL) {
+            return nxe_cedar_make_error();
+        }
+
+        attr = nxe_cedar_find_attr(attrs, &node->u.attr_access.attr);
+        if (attr == NULL) {
+            return nxe_cedar_make_error();
+        }
+
+        return attr->value;
+    }
+
     if (obj_val.type != NXE_CEDAR_RVAL_RECORD) {
         return nxe_cedar_make_error();
     }
@@ -1229,6 +1312,24 @@ nxe_cedar_eval_has(nxe_cedar_node_t *node,
     if (obj_val.type == NXE_CEDAR_RVAL_ERROR) {
         return obj_val;
     }
+
+    /*
+     * Entity literal naming the principal / action / resource: report
+     * whether the attribute exists in the matching per-slot array. A
+     * literal that names no request entity (SLOT_NONE) has no attribute
+     * store, so `has` is an error, matching the slow-path treatment of
+     * any non-record value.
+     */
+    if (obj_val.type == NXE_CEDAR_RVAL_ENTITY) {
+        attrs = nxe_cedar_resolve_slot_attrs(obj_val.v.entity.slot, ctx);
+        if (attrs == NULL) {
+            return nxe_cedar_make_error();
+        }
+
+        return nxe_cedar_make_bool(
+            nxe_cedar_find_attr(attrs, &node->u.has.attr) != NULL);
+    }
+
     if (obj_val.type != NXE_CEDAR_RVAL_RECORD) {
         return nxe_cedar_make_error();
     }
@@ -1866,8 +1967,18 @@ nxe_cedar_expr_eval_body(nxe_cedar_node_t *node,
         return nxe_cedar_make_duration(&node->u.duration_literal.text);
 
     case NXE_CEDAR_NODE_ENTITY_REF:
-        return nxe_cedar_make_entity(node->u.entity_ref.entity_type,
-                                     node->u.entity_ref.entity_id);
+        val = nxe_cedar_make_entity(node->u.entity_ref.entity_type,
+                                    node->u.entity_ref.entity_id);
+        /*
+         * Tag the literal with a request slot when it names the
+         * principal / action / resource so attribute, has, and `in`
+         * resolution reach the matching per-slot arrays, exactly as the
+         * bare keyword does. Literals that name no request entity keep
+         * SLOT_NONE and match reflexively only.
+         */
+        val.v.entity.slot = nxe_cedar_entity_request_slot(
+            ctx, &val.v.entity.type, &val.v.entity.id);
+        return val;
 
     case NXE_CEDAR_NODE_VAR:
         switch (node->u.var_type) {
