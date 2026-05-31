@@ -1,0 +1,115 @@
+{
+    "description": "== and != are total functions: a type mismatch yields false/true, never an error. Each policy consumes the comparison result so that an erroneous (deny) outcome is distinguishable from a correct false/true outcome.",
+    "tests": [
+        {
+            "name": "eq_long_string_is_false",
+            "description": "1 == \"x\" is false; (false) == false is true -> allow",
+            "policy": "permit (principal, action, resource) when { (1 == \"x\") == false };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "eq_long_duration_is_false",
+            "description": "1 == duration(0ms) is false; (false) == false is true -> allow",
+            "policy": "permit (principal, action, resource) when { (1 == duration(\"0ms\")) == false };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "eq_string_datetime_is_false",
+            "description": "\"x\" == datetime(...) is false; (false) == false is true -> allow",
+            "policy": "permit (principal, action, resource) when { (\"x\" == datetime(\"2020-01-01\")) == false };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "eq_bool_long_is_false",
+            "description": "true == 1 is false; (false) == false is true -> allow",
+            "policy": "permit (principal, action, resource) when { (true == 1) == false };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "eq_set_long_is_false",
+            "description": "[1,2] == 1 is false; (false) == false is true -> allow",
+            "policy": "permit (principal, action, resource) when { ([1, 2] == 1) == false };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "eq_record_duration_is_false",
+            "description": "{a:1} == duration(0ms) is false; (false) == false is true -> allow",
+            "policy": "permit (principal, action, resource) when { ({a: 1} == duration(\"0ms\")) == false };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ne_long_string_is_true",
+            "description": "1 != \"x\" is true (top-level when) -> allow",
+            "policy": "permit (principal, action, resource) when { 1 != \"x\" };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ne_bool_datetime_is_true",
+            "description": "true != datetime(...) is true (top-level when) -> allow",
+            "policy": "permit (principal, action, resource) when { true != datetime(\"2020-01-01\") };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "ne_set_long_is_true",
+            "description": "[1] != 1 is true (top-level when) -> allow",
+            "policy": "permit (principal, action, resource) when { [1] != 1 };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "eq_negated_mismatch",
+            "description": "!((1 == \"x\")) is !(false) = true -> allow",
+            "policy": "permit (principal, action, resource) when { !((1 == \"x\")) };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        }
+    ]
+}
