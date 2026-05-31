@@ -1,5 +1,14 @@
 # Changelog
 
+## [b5ee6ac](../../commit/b5ee6ac) - 2026-06-01
+
+### Added
+
+- Resolve attribute / `has` / `in` access on request entity literals
+  - An entity literal `Foo::"id"` that names the principal, action, or resource now resolves attribute access, `has`, and `in` through that request entity, matching reference Cedar which resolves the literal via the entity store. Previously the literal evaluated to an entity value carrying no slot tag, so the attribute-access and `has` slow paths rejected it as a non-record (evaluation error → policy not applicable) and diverged from the oracle whenever a policy referenced a request entity by literal instead of by the `principal` / `action` / `resource` keyword
+  - `NXE_CEDAR_NODE_ENTITY_REF` evaluation stamps the value with the matching request slot via the new `nxe_cedar_entity_request_slot()` (principal is checked first as the deterministic tie-break on a cross-slot `(type, id)` collision); the attribute-access and `has` slow paths then resolve a slot-bearing entity through `nxe_cedar_resolve_slot_attrs()`. A literal that names no request entity keeps `SLOT_NONE`, so attribute / `has` access still errors and `in` matches reflexively only — the same decision the oracle reaches, since its entity store also lacks the literal. The slot is cleared at composite boundaries as before, so derived entities (record-pulled, if-then-else results) are unchanged
+  - A new `tests/cases/entity_literal_access.json` covers attribute and `has` access on principal / action / resource literals, the literal-equals-keyword identity, the `has`-guarded attribute-access form, and the negative cases (a literal naming no request entity erroring on attribute access and on a result-consuming `!=`); all are oracle-parity
+
 ## [cc744bf](../../commit/cc744bf) - 2026-06-01
 
 ### Fixed
