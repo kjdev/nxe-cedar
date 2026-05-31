@@ -186,6 +186,7 @@ A per-commit feature history is in [`CHANGELOG.md`](../CHANGELOG.md).
 | Datetime / Duration attributes | `nxe_cedar_eval_ctx_add_*_attr_{datetime,duration}` + `nxe_cedar_record_add_{datetime,duration}` + `nxe_cedar_set_add_{datetime,duration}` | ✅ |
 | Entity tags | — | ❌ |
 | Entity ancestor injection | `nxe_cedar_eval_ctx_add_{principal,action,resource}_parent` | ✅ |
+| Entity literal attribute / `has` / `in` resolution | — | ✅ A literal `Foo::"id"` that names the principal / action / resource resolves attributes, `has`, and `in` through that request entity. A literal naming any other entity has no store, so attribute / `has` access errors (policy not applicable) |
 | External entity store / dynamic hierarchy resolution | — | 🚫 Caller injects the transitive closure of ancestors; nxe-cedar does not query a store |
 
 ## Advanced Cedar features (out of scope)
