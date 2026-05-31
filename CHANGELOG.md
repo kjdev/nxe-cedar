@@ -1,5 +1,14 @@
 # Changelog
 
+## [cc744bf](../../commit/cc744bf) - 2026-06-01
+
+### Fixed
+
+- Treat `==` / `!=` over mismatched operand types as `false` / `true`
+  - Cedar's `==` and `!=` are total functions: comparing two values of different types is not an error but simply "not equal", so `==` yields `false` and `!=` yields `true`. The expression evaluator instead returned an evaluation error on a type mismatch via an early `left.type != right.type` guard placed before `nxe_cedar_value_equals()` in both the `NXE_CEDAR_OP_EQ` and `NXE_CEDAR_OP_NE` arms
+  - The guard is removed for both operators; `nxe_cedar_value_equals()` already returns `0` (not equal) for mismatched types, so delegating to it produces `false` for `==` and `true` for `!=`, while the preceding `RVAL_ERROR` propagation guards on each operand are kept intact. The ordering operators (`<` `<=` `>` `>=`) are unaffected and still require matching `datetime` / `duration` types
+  - The divergence stayed latent while a comparison was the top-level `when` condition (error and `false` both deny), but surfaced when the result was consumed by another operator — e.g. `(1 == duration("0ms")) == false` evaluates to `allow` in Cedar yet denied in nxe-cedar. A new `tests/cases/equality_type_mismatch.json` covers result-consuming forms (`(a == b) == false`, top-level `!=`, `!((a == b))`) across `long`×`string`, `long`×`duration`, `string`×`datetime`, `bool`×`long`, `set`×`long`, and `record`×`duration`
+
 ## [026f9bb](../../commit/026f9bb) - 2026-05-29
 
 ### Added
