@@ -2027,9 +2027,11 @@ nxe_cedar_expr_eval_body(nxe_cedar_node_t *node,
             if (right.type == NXE_CEDAR_RVAL_ERROR) {
                 return right;
             }
-            if (left.type != right.type) {
-                return nxe_cedar_make_error();
-            }
+            /*
+             * `==` is a total function: a type mismatch is not an error but
+             * simply "not equal" (false). nxe_cedar_value_equals() already
+             * returns 0 for mismatched types, so no early guard is needed.
+             */
             {
                 ngx_int_t r = nxe_cedar_value_equals(&left, &right, 0);
                 if (r == NGX_ERROR) {
@@ -2049,9 +2051,11 @@ nxe_cedar_expr_eval_body(nxe_cedar_node_t *node,
             if (right.type == NXE_CEDAR_RVAL_ERROR) {
                 return right;
             }
-            if (left.type != right.type) {
-                return nxe_cedar_make_error();
-            }
+            /*
+             * `!=` is a total function: a type mismatch is not an error but
+             * simply "not equal" (true). nxe_cedar_value_equals() already
+             * returns 0 for mismatched types, so no early guard is needed.
+             */
             {
                 ngx_int_t r = nxe_cedar_value_equals(&left, &right, 0);
                 if (r == NGX_ERROR) {
