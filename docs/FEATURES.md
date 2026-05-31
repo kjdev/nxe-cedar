@@ -69,8 +69,8 @@ A per-commit feature history is in [`CHANGELOG.md`](../CHANGELOG.md).
 
 | Operator | Operand types | Status | Notes |
 | --- | --- | --- | --- |
-| `==` | any matching type | ✅ | sets and records compare order-independently with bijective matching |
-| `!=` | any matching type | ✅ |  |
+| `==` | any | ✅ | total function: a type mismatch is `false`, never an error; sets and records compare order-independently with bijective matching |
+| `!=` | any | ✅ | total function: a type mismatch is `true`, never an error |
 | `<` `<=` `>` `>=` | `Long` | ✅ |  |
 | `<` `<=` `>` `>=` | `datetime`, `duration` | ✅ | Both operands must share the same type (`datetime` with `datetime`, `duration` with `duration`); mixing with `Long` or each other is an error |
 | `.lessThan` `.lessThanOrEqual` `.greaterThan` `.greaterThanOrEqual` | `decimal` | ✅ |  |
