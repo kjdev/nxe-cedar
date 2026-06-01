@@ -63,7 +63,7 @@ A per-commit feature history is in [`CHANGELOG.md`](../CHANGELOG.md).
 | `principal` | ✅ |  |
 | `action` | ✅ | attribute injection (`add_action_attr_*`) supported |
 | `resource` | ✅ |  |
-| `context` | ✅ |  |
+| `context` | ✅ | usable both as `context.attr` and as a whole record value (`==`, `!=`, `has`); an unset context is the empty record |
 
 ## Comparison operators
 
