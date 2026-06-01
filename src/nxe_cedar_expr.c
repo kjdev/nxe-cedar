@@ -1998,8 +1998,13 @@ nxe_cedar_expr_eval_body(nxe_cedar_node_t *node,
             val.v.entity.slot = NXE_CEDAR_ENTITY_SLOT_RESOURCE;
             return val;
         case NXE_CEDAR_VAR_CONTEXT:
-            /* context alone is not a value; only context.attr */
-            return nxe_cedar_make_error();
+            /*
+             * context is an ordinary record value, usable as an operand
+             * of ==, !=, has, etc. ctx->context_attrs is always a
+             * (possibly empty) array, so an unset context materialises
+             * as the empty record, matching Cedar semantics.
+             */
+            return nxe_cedar_make_record(ctx->context_attrs);
         default:
             return nxe_cedar_make_error();
         }
