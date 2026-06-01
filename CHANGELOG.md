@@ -1,5 +1,14 @@
 # Changelog
 
+## [9909272](../../commit/9909272) - 2026-06-01
+
+### Fixed
+
+- Materialize a bare `context` as a record value
+  - Cedar treats `context` as an ordinary record, usable as an operand of `==`, `!=`, `has`, and as a function argument. The expression evaluator instead returned an evaluation error for a bare `context` VAR, resolving it only through `context.attr` member access. That made policies such as `context == context`, `context == {...}`, and `context has field` deny by default, diverging from reference Cedar which materializes `context` as a record value
+  - `NXE_CEDAR_VAR_CONTEXT` now returns `ctx->context_attrs` as an `RVAL_RECORD`. `ctx->context_attrs` is always allocated as a (possibly empty) array, so an unset context materializes as the empty record, matching Cedar's empty context; the bijective record-equality path and the `has` fast path already handle this value
+  - A new `tests/cases/bare_context.json` covers `context == context` (empty and populated), `==` against matching / value-mismatched / size-mismatched / empty record literals, `!=` in both directions, and `context has field` for present / absent attributes; all are oracle-parity
+
 ## [b5ee6ac](../../commit/b5ee6ac) - 2026-06-01
 
 ### Added
