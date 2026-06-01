@@ -14,6 +14,13 @@ cedar-policy = "4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
+[features]
+# Enables the Cedar official DRT conformance corpus runner
+# (tests/conformance_test.rs). Off by default so `cargo test` stays fast.
+# Adds no extra crates: the runner reads an already-extracted corpus directory
+# with std::fs only (the Taskfile fetches and unpacks the tarball).
+conformance = []
+
 [build-dependencies]
 cc = "1"
 pkg-config = "0.3"
