@@ -1,0 +1,123 @@
+{
+    "description": "bare `context` used as a whole record value (==, !=, has)",
+    "tests": [
+        {
+            "name": "context_equals_itself_empty",
+            "description": "an unset context materialises as the empty record, so context == context holds",
+            "policy": "permit (principal, action, resource) when { context == context };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "context_equals_itself_populated",
+            "description": "context == context holds when context carries attributes",
+            "policy": "permit (principal, action, resource) when { context == context };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"a": 1, "b": "x"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "context_equals_matching_literal",
+            "description": "context compares equal to a record literal with the same fields",
+            "policy": "permit (principal, action, resource) when { context == {a: 1, b: \"x\"} };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"a": 1, "b": "x"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "context_equals_literal_value_mismatch",
+            "description": "context differs from a literal when a field value differs",
+            "policy": "permit (principal, action, resource) when { context == {a: 2, b: \"x\"} };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"a": 1, "b": "x"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "context_equals_literal_size_mismatch",
+            "description": "context differs from a literal of different size",
+            "policy": "permit (principal, action, resource) when { context == {a: 1} };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"a": 1, "b": "x"}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "context_empty_equals_empty_literal",
+            "description": "an unset context equals the empty record literal",
+            "policy": "permit (principal, action, resource) when { context == {} };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "context_not_equals_literal",
+            "description": "context != literal is true when they differ, so permit applies",
+            "policy": "permit (principal, action, resource) when { context != {a: 99} };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"a": 1}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "context_not_equals_matching_literal_denies",
+            "description": "context != literal is false when they match, so permit does not apply",
+            "policy": "permit (principal, action, resource) when { context != {a: 1} };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"a": 1}
+            },
+            "expected": "deny"
+        },
+        {
+            "name": "bare_context_has_present",
+            "description": "`context has field` on the whole record is true when the field exists",
+            "policy": "permit (principal, action, resource) when { context has a };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"a": 1}
+            },
+            "expected": "allow"
+        },
+        {
+            "name": "bare_context_has_absent",
+            "description": "`context has field` is false when the field is absent",
+            "policy": "permit (principal, action, resource) when { context has missing };",
+            "request": {
+                "principal": {"type": "User", "id": "alice"},
+                "action": {"type": "Action", "id": "GET"},
+                "resource": {"type": "Endpoint", "id": "/api/data"},
+                "context": {"a": 1}
+            },
+            "expected": "deny"
+        }
+    ]
+}
