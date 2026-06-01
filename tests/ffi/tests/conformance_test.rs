@@ -301,14 +301,14 @@ fn parse_skip_bucket(reason: &str) -> &'static str {
         "parse:expected_string_literal"
     } else if reason.contains("after ::") {
         "parse:expected_after_namespace"
-    } else if reason.contains("expected token") {
-        "parse:expected_token"
     } else if reason.contains("unexpected token") {
         "parse:unexpected_token"
+    } else if reason.contains("expected token") {
+        "parse:expected_token"
     } else {
         "parse:other"
     }
-}
+
 
 /// Decode the common Cedar string-literal escapes in `s` so an entity-literal
 /// id taken verbatim from policy text can be compared against the JSON-decoded
