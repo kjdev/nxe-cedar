@@ -41,8 +41,10 @@ replacement for upstream Cedar. The design is optimized along three axes:
   nginx module.
 - **Behavioral conformance via differential testing.** Semantic equivalence
   with upstream Cedar is asserted by the FFI oracle (`tests/ffi/`) for every
-  case under `tests/cases/`. Coverage against the official `cedar-spec`
-  corpus is work in progress.
+  case under `tests/cases/`, and against the official Cedar DRT corpus
+  (`tests/conformance/`): **100% C-vs-reference parity** over ~42k compared
+  corpus requests, with everything outside the documented subset classified as
+  counted skips. See [`tests/conformance/README.md`](tests/conformance/README.md).
 
 Explicit **non-goals**:
 
@@ -95,6 +97,7 @@ tests/
   ngx_compat/          — malloc-backed stubs for nginx types
   ffi/                 — Rust Cedar FFI oracle (test-only, Cargo project)
   cases/               — Policy + context + expected decision fixtures
+  conformance/         — Cedar official DRT corpus runner (fetched, git-ignored)
 ```
 
 ## Integration with an nginx module
@@ -196,10 +199,25 @@ make test-asan                             # with AddressSanitizer
 cd tests/ffi
 cargo test                                 # oracle only (skips C vs oracle)
 cargo test -- --include-ignored            # include the C vs oracle diff
+
+# Cedar official DRT conformance corpus (fetched + run; see tests/conformance/)
+task test type=conformance
 ```
 
 The FFI bridge and the Rust dependency are **test-only** — they never reach
 the nginx build artifact.
+
+### Conformance corpus
+
+`task test type=conformance` fetches the pinned
+[`cedar-integration-tests`](https://github.com/cedar-policy/cedar-integration-tests)
+corpus and replays it through both the `cedar-policy` oracle and the C
+implementation. The current result is **100% C-vs-reference parity** over the
+compared requests; cases outside nxe-cedar's documented subset (entity tags,
+empty attribute keys, non-literal extension arguments, NUL-byte fuzz inputs,
+non-request entity-literal access, …) are counted as
+classified skips rather than failures. Details, skip-category definitions, and
+version pins are in [`tests/conformance/README.md`](tests/conformance/README.md).
 
 ## Formatting
 
